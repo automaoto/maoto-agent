@@ -23,9 +23,6 @@ about:
   description: "Maoto Agent"
 
 extra:
-  classifiers:
-    - Programming Language :: Python :: 3
-    - Operating System :: OS Independent
   keywords:
     - Maoto
     - Agent
