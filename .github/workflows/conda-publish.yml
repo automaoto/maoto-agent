@@ -18,7 +18,7 @@ jobs:
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v2
         with:
-          activate-environment: base
+          activate-environment: build-env
           auto-update-conda: true
           python-version: '3.8'
           miniforge-variant: 'mambaforge'
