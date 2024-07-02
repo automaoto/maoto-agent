@@ -1,0 +1,31 @@
+package:
+  name: maoto-agent
+  version: 1.0.1
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  script: python -m pip install .
+
+requirements:
+  host:
+    - python >=3.8
+    - pip
+  run:
+    - python >=3.8
+    - graphqlclient >=0.2.4
+
+about:
+  license_file: LICENSE
+  summary: "Maoto Agent"
+  description: "Maoto Agent"
+
+extra:
+  classifiers:
+    - Programming Language :: Python :: 3
+    - Operating System :: OS Independent
+  keywords:
+    - Maoto
+    - Agent
