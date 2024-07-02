@@ -30,10 +30,18 @@ jobs:
       - name: Create conda build environment
         run: |
           conda create --name build-env python=3.8
-          conda activate build-env
 
-      - name: Build conda package
+      - name: Initialize Conda
+        shell: bash
         run: |
+          source $CONDA/bin/activate
+          conda init bash
+          source ~/.bashrc
+
+      - name: Activate build environment and build package
+        shell: bash
+        run: |
+          conda activate build-env
           conda build conda-recipe
 
       - name: Upload to conda-forge
