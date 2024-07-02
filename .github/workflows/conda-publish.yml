@@ -1,0 +1,44 @@
+name: Publish Conda Package
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment: release_conda
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: base
+          auto-update-conda: true
+          python-version: '3.8'
+          miniforge-variant: 'mambaforge'
+
+      - name: Install dependencies
+        run: |
+          mamba install conda-build conda-verify anaconda-client
+
+      - name: Create conda recipe
+        run: |
+          conda skeleton pypi maoto-agent
+
+      - name: Build conda package
+        run: |
+          conda-build maoto-agent
+
+      - name: Upload to conda-forge
+        env:
+          TWINE_USERNAME: __token__
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          anaconda login --username __token__ --password $ANACONDA_API_TOKEN
+          anaconda upload --user conda-forge $(conda-build --output maoto-agent)
