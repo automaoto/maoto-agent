@@ -7,9 +7,7 @@ source:
 
 build:
   noarch: python
-  script: |
-    pip install .
-    pip install graphqlclient
+  script: python -m pip install . && python -m pip install graphqlclient
 
 requirements:
   host:
