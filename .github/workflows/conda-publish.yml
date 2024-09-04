@@ -1,0 +1,48 @@
+name: Publish Conda Package
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment: release_conda
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: '3.10'
+          miniforge-variant: 'mambaforge'
+          channels: conda-forge
+
+      - name: Install dependencies
+        run: |
+          mamba install conda-build conda-verify anaconda-client
+
+      - name: Create conda build environment
+        run: |
+          conda create --name build-env python=3.8
+
+      - name: Initialize Conda and Build Package
+        shell: bash -l {0}
+        run: |
+          conda init bash
+          source ~/.bashrc
+          conda activate build-env
+          conda build conda-recipe
+
+      - name: Upload to conda-forge
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          conda install -n base anaconda-client
+          anaconda login --username __token__ --password $ANACONDA_API_TOKEN
+          anaconda upload --user conda-forge $(conda-build --output conda-recipe)

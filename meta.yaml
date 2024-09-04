@@ -1,0 +1,39 @@
+package:
+  name: maoto-agent
+  version: "1.1.1"
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: python -m build --wheel --outdir .
+
+requirements:
+  build:
+    - python=3.10
+    - setuptools=72.1.0
+    - wheel=0.43.0
+  run:
+    - python=3.10
+    - aiohttp=3.9.5
+    - aiofiles=24.1.0
+    - graphqlclient=0.2.4
+
+test:
+  imports:
+    - maoto_agent
+  commands:
+    - maoto-agent --help
+
+about:
+  summary: "Maoto Agent"
+  description: "Maoto Agent"
+  license_file: LICENSE
+  keywords:
+    - Maoto
+    - Agent
+  classifiers:
+    - "Programming Language :: Python :: 3"
+    - "Operating System :: OS Independent"
+

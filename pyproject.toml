@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools=72.1.0", "wheel=0.43.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maoto-agent"
+version = "1.1.1"
+description = "Maoto Agent"
+readme = "README.md"
+requires-python = "=3.10"
+license = {file = "LICENSE"}
+keywords = ["Maoto", "Agent"]
+authors = [
+    {name = "Maoto"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "graphqlclient=0.2.4"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+maoto-agent = "maoto_agent.__main__:main"
