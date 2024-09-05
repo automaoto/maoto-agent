@@ -5,13 +5,9 @@ import uuid
 import asyncio
 import aiohttp
 import aiofiles
-import requests
 import threading
 from pathlib import Path
 from .app_types import *
-from openai import OpenAI
-from dotenv import load_dotenv
-from openai import OpenAI
 from datetime import datetime
 from gql import gql, Client
 from abc import ABC, abstractmethod
@@ -100,9 +96,11 @@ class AuthenticateProvider(ABC):
         pass
 
 class Maoto:
-    def __init__(self, apikey_value=None, working_dir: Path = None, download_dir: Path = None):
+    def __init__(self, working_dir: Path = None, download_dir: Path = None):
         self.working_dir = working_dir
-        self.server_domain = os.environ.get("RESOLVER_API_DOMAIN", "api.maoto.world")
+        self.server_domain = os.environ.get("API_DOMAIN", "api.maoto.world")
+        if os.environ.get("DEBUG") == "True":
+            self.server_domain = "localhost"
         self.protocol = "http"
         self.server_url = self.protocol + "://" + self.server_domain + ":4000"
         self.graphql_url = self.server_url + "/graphql"
@@ -113,9 +111,9 @@ class Maoto:
             raise ValueError("Working directory is required.")
         self.download_dir = download_dir or os.environ.get("MAOTO_DOWNLOAD_DIR") or self.working_dir / 'downloaded_files'
 
-        self.apikey_value = apikey_value or os.environ.get("MAOTO_API_KEY")
-        if self.apikey_value == None or self.apikey_value == "":
-            raise ValueError("API key is required.")
+        self.apikey_value = os.environ.get("MAOTO_API_KEY")
+        if self.apikey_value in [None, ""]:
+            raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
 
         transport = AIOHTTPTransport(
             url=self.graphql_url,
@@ -722,9 +720,8 @@ class Maoto:
     def _check_if_downloaded(self, file_ids: list[str]) -> list[str]:
         missing_files = []
         for file_id in file_ids:
-            download_dir = self.working_dir / self.download_dir
-            os.makedirs(download_dir, exist_ok=True)
-            file_path = download_dir / str(file_id)
+            os.makedirs(self.download_dir, exist_ok=True)
+            file_path = self.download_dir / str(file_id)
             if not file_path.exists():
                 missing_files.append(file_id)
         return missing_files
@@ -746,3 +743,220 @@ class Maoto:
         )
         response = self.create_responses([new_response])[0]
         return response
+
+
+########## From here only temporary code for testing ##########
+
+from openai import OpenAI
+from shutil import copyfile
+
+class PersonalAssistant:
+    class Maoto_LLM:
+        def __init__(self, model, working_dir: Path):
+            # check if api key is set
+            if os.environ.get("OPENAI_API_KEY") in [None, ""]:
+                raise ValueError("API key is required. (Set OPENAI_API_KEY environment variable)")
+            self.client = OpenAI()
+            self.model = model
+            self.working_dir = working_dir
+            self.messages_history = [
+                {"role": "system", "content": "You are a helpful assistant."}
+            ]
+            self.methods = [
+                {
+                    "name": "create_maoto_post",
+                    "description": "If there is something the user asks you to do, that you cannot do or that exceeds your capabilities, then you can try to solve it by creating a post on „Maoto“.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "task_description": {
+                                "type": "string",
+                                "description": "A short description of all details that are necessary to solve the task. Refer to a file solely by its Maoto file ID."
+                            }
+                        },
+                        "required": ["task_description"]
+                    }
+                },
+                {
+                    "name": "upload_maoto_file",
+                    "description": "Upload a file before referencing to it, if it does not have a file ID assigned yet.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string",
+                                "description": "A file path relative to the main directory."
+                            }
+                        },
+                        "required": ["file_path"]
+                    }
+                },
+                {
+                    "name": "create_maoto_actioncall",
+                    "description": "Call an “action“ which can be attached to responses and may help to solve the users tasks. These actioncalls again return a response which can have actions attached. If the action requires a file you need to upload it first to make it available to Maoto and aquire a file ID.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "post_id": {
+                                "type": "string",
+                                "description": "The ID of the post, that returned the action called."
+                            },
+                            "action_id": {
+                                "type": "string",
+                                "description": "The ID of the action, that is to be called."
+                            },
+                            "cost": {
+                                "type": "number",
+                                "description": "The cost of the action that was specified in the post response."
+                            }
+                        },
+                        "additionalProperties": {
+                            "type": ["string", "integer", "number", "boolean"],
+                            "description": "Additional dynamic parameters for the action that is called (if any)."
+                        },
+                        "required": ["post_id", "action_id"]
+                    }
+                },
+                {
+                    "name": "download_maoto_file",
+                    "description": "Download a file by its file ID.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_id": {
+                                "type": "string",
+                                "description": "The ID of the file to download without extension."
+                            }
+                        },
+                        "required": ["file_id"]
+                    }
+                }
+            ]
+
+        def _create_completion(self):
+                directory_structure = self._describe_directory_structure(self.working_dir)
+                system_status = [
+                    {"role": "system", "content": "Current working directory:\n" + directory_structure}
+                ]
+                return self.client.chat.completions.create(
+                    model=self.model,
+                    stop=None,
+                    max_tokens=150,
+                    stream=False,
+                    messages=self.messages_history + system_status,
+                    functions=self.methods
+                )
+        
+        def _extend_history(self, role, content, name=None):
+            if role not in ["assistant", "user", "function", "system"]:
+                raise ValueError("Role must be 'assistant', 'user', 'function' or 'system'.")
+            
+            message = {
+                "role": role,
+                "content": content,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            if name is not None:
+                message["name"] = name
+            self.messages_history.append(message)
+        
+        def _describe_directory_structure(self, root_dir):
+            def get_size_and_date(path):
+                size = os.path.getsize(path)
+                mtime = os.path.getmtime(path)
+                date = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
+                return size, date
+
+            def _describe_dir(path, indent=0):
+                items = []
+                for item in sorted(os.listdir(path)):
+                    item_path = os.path.join(path, item)
+                    if os.path.isdir(item_path):
+                        items.append(f"{'  ' * indent}{item}/ (dir)")
+                        items.extend(_describe_dir(item_path, indent + 1))
+                    else:
+                        if item != ".DS_Store":
+                            size, date = get_size_and_date(item_path)
+                            size_str = f"{size // 1024}KB" if size < 1048576 else f"{size // 1048576}MB"
+                            items.append(f"{'  ' * indent}{item} (file, {size_str}, {date})")
+                return items
+
+            description = _describe_dir(root_dir)
+            return "\n".join(description)
+        
+    def __init__(self, working_dir):
+        self.working_dir = Path(working_dir)
+        self.user_interface_dir = self.working_dir / "user_interface"
+        self.maoto_provider = Maoto(working_dir=self.working_dir)
+        self.llm = self.llm = PersonalAssistant.Maoto_LLM(model="gpt-4o-mini", working_dir=self.working_dir) 
+
+    def _completion_loop(self) -> str:
+            response = self.llm._create_completion()
+            while response.choices[0].message.function_call != None:
+                function_name = response.choices[0].message.function_call.name
+                arguments = json.loads(response.choices[0].message.function_call.arguments)
+
+                if function_name == "create_maoto_post":
+                    print("Creating post...")
+                    task_description = arguments["task_description"]
+                    print("Task description:", task_description)
+                    new_post = NewPost(
+                        description=task_description,
+                        context="",
+                    )
+                    post = self.maoto_provider.create_posts([new_post])[0]
+                    self.llm._extend_history("function", f"Created post:\n{post}", "create_maoto_post")
+
+                    response_return = self.maoto_provider.listen()
+                    self.llm._extend_history("function", f"Received response:\n{response_return}", "create_maoto_post")
+
+                elif function_name == "create_maoto_actioncall":
+                    print("Creating actioncall...")
+                    post_id = arguments["post_id"]
+                    action_id = arguments["action_id"]
+                    cost = arguments["cost"]
+                    action_arguments = {k: v for k, v in arguments.items() if k not in ["post_id", "action_id"]}
+                    new_actioncall = NewActioncall(
+                        action_id=action_id,
+                        post_id=post_id,
+                        parameters=json.dumps(action_arguments),
+                        cost=cost
+                    )
+                    
+                    actioncall = self.maoto_provider.create_actioncalls([new_actioncall])[0]
+                    self.llm._extend_history("function", f"Created actioncall:\n{actioncall}", "create_maoto_actioncall")
+
+                    response_return = self.maoto_provider.listen()
+                    self.llm._extend_history("function", f"Received response:\n{response_return}", "create_maoto_actioncall")
+
+                elif function_name == "upload_maoto_file":
+                    print("Uploading file...")
+                    file_path = arguments["file_path"]
+                    file = self.maoto_provider.upload_files([Path(file_path)])[0]
+                    self.llm._extend_history("function", f"Uploaded file:\n{file}", "upload_maoto_file")
+
+                elif function_name == "download_maoto_file":
+                    print("Downloading file...")
+                    file_id = arguments["file_id"]
+                    file = self.maoto_provider.download_files([file_id])[0]
+                    self.llm._extend_history("function", f"Downloaded file:\n{file}", "download_maoto_file")
+                
+                response = self.llm._create_completion()
+            
+            response_content = response.choices[0].message.content
+            self.llm._extend_history("assistant", response_content)
+            return response_content        
+    
+    def run(self, input_text: str, attachment_path: str = None):
+        if attachment_path != None:
+            attachment_path = Path(attachment_path)
+            new_file_path = self.user_interface_dir / attachment_path.name
+            # check if new_file_path already exists
+            if new_file_path.exists():
+                raise FileExistsError("File with the same name already exists.")
+            copyfile(attachment_path, new_file_path)
+            new_file_path_workdir = Path("user_interface") / attachment_path.name
+            self.llm._extend_history("system", f"File added by user: {new_file_path_workdir}")
+        self.llm._extend_history("user", input_text)
+        response_content = self._completion_loop()
+        print(f"\nAssistant: {response_content}\n")

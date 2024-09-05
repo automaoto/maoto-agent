@@ -1,11 +1,11 @@
-import shutil
 from maoto_agent import *
 import numpy as np
+import shutil
+from dotenv import load_dotenv
 
-# Initialize Maoto with the given API key from env var
-#os.environ["RESOLVER_API_DOMAIN"] = "localhost"
+load_dotenv('.secrets_01') # Should contain MAOTO_API_KEY
 
-maoto_resolver = Maoto(apikey_value="test_apikey_resolver", working_dir=Path("./tests/work_dir_resolver/"))
+maoto_resolver = Maoto(working_dir=Path("./work_dir_resolver/"))
 
 user_database = np.array([["provider1", "password1", None], ["provider2", "password2", "2"], [None, None, "3"]])
 
@@ -39,14 +39,19 @@ def audio_to_text(actioncall: Actioncall, parameters) -> str:
     audio_file_id = json.loads(parameters)['audio_file_id']
     try:
         audio_file = maoto_resolver.download_missing_files([audio_file_id])[0]
-        audio_file_path = maoto_resolver.download_dir / str(audio_file.get_file_id()) / audio_file.get_extension()
-        
-        # pretents to convert audio file to text
-        audio_file_path = maoto_resolver.working_dir / 'text_output.txt'
+        new_audio_file_path = (maoto_resolver.download_dir / str(audio_file.get_file_id())).with_suffix(audio_file.get_extension())
         new_file_path = (Path("text_outputs") / str(uuid.uuid4())).with_suffix(".txt")
-        shutil.copy(audio_file_path,  maoto_resolver.working_dir / new_file_path)
+
+        # Simulate conversion
+        new_text_file_path = maoto_resolver.working_dir / new_file_path
+        shutil.copy(maoto_resolver.working_dir / 'text_output.txt',  new_text_file_path)
         
         text_output_file = maoto_resolver.upload_files([new_file_path])[0]
+
+        # remove temporary files
+        new_text_file_path.unlink()
+        new_audio_file_path.unlink()
+
         return f"Successfully converted audio file {audio_file_id} to text file {text_output_file.get_file_id()}."
 
     except Exception as e:

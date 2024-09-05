@@ -1,5 +1,7 @@
 # TODO s:
 
+# TODO: J.A.V.I.S. – "Joint Artificial Virtual Intelligence System"
+
 # TODO: associate actions with responses using responses_actions table and check for actioncalls if they follow up on a response that has the action attached
 # TODO: enable overwriting an actioncall (when same name)
 # TODO: encryption
@@ -24,5 +26,12 @@
 # TODO: make client requests async as well
 # TODO: use context in posts and actioncalls
 
+# TODO: notifications of user (cal)
+# TODO: automatoc reconnection with backoff, if connection fails
 
-
+# TODO: ingress with SSL certificate from Let's Encrypt and route different domains to different services (api, UI)
+# TODO: add query validators: https://ariadnegraphql.org/docs/query-validators
+# TODO: Implement query complexity analysis to prevent expensive queries that can lead to Denial of Service (DoS) attacks.
+# TODO: Ariadne supports depth limiting
+# TODO: Rate Limiting You can use libraries like starlette-limiter
+# TODO: Error Handling: Ensure proper error handling to avoid exposing internal implementation details: ServerErrorMiddleware
