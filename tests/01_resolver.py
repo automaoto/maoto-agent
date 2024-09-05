@@ -55,7 +55,7 @@ def audio_to_text(actioncall: Actioncall, parameters) -> str:
         return f"Successfully converted audio file {audio_file_id} to text file {text_output_file.get_file_id()}."
 
     except Exception as e:
-       return f"Failed to convert audio file {audio_file_id} to text. Try again later.{e}"
+       return f"Failed to convert audio file {audio_file_id} to text. Try again later."
 
 created_actions = maoto_resolver.create_actions([
     NewAction(
