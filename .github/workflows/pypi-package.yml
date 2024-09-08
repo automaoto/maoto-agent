@@ -32,8 +32,6 @@ jobs:
           pyarmor gen -O bin/maoto_agent -r src/maoto_agent/maoto_agent.py
           mkdir -p bin/pyarmor_runtime_000000
           mv bin/maoto_agent/pyarmor_runtime_000000/* bin/pyarmor_runtime_000000
-          # print version number from git tag
-          git describe --tags --abbrev=0 > bin/maoto_agent/version.txt
 
       - name: Build the package
         run: python -m build
@@ -43,6 +41,5 @@ jobs:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
-          echo $TWINE_USERNAME 
-          echo $TWINE_PASSWORD 
           # python -m twine upload dist/*
+          echo "Skipping upload to PyPI"
