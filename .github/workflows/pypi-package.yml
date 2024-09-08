@@ -43,5 +43,7 @@ jobs:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
-        echo "PYPI_USERNAME: $PYPI_USERNAME"
+        # print username and password
+          echo $TWINE_USERNAME
+          echo $TWINE_PASSWORD
         #  python -m twine upload dist/*
