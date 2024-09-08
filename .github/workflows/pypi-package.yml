@@ -26,6 +26,10 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          pip install setuptools setuptools-scm cython wheel twine
+
+      - name: Install Dependencies
+        run: |
           pip install cython wheel twine
 
       - name: Build Cython Extension
