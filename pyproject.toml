@@ -2,7 +2,7 @@
 requires = [
     "setuptools>=74.1.1",
     "wheel>=0.44.0",
-    "setuptools-scm"  # Add setuptools-scm for versioning
+    "setuptools-scm>=8.1.0"  # Add setuptools-scm for versioning
 ]
 build-backend = "setuptools.build_meta"
 
@@ -30,6 +30,8 @@ dependencies = [
     "websockets==13.0.1",
     "numpy==2.1.1"
 ]
+
+dynamic = ["version"]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
