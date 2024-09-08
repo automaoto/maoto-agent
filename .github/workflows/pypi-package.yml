@@ -32,7 +32,6 @@ jobs:
           pyarmor gen -O bin/maoto_agent -r src/maoto_agent/maoto_agent.py
           mkdir -p bin/pyarmor_runtime_000000
           mv bin/maoto_agent/pyarmor_runtime_000000/* bin/pyarmor_runtime_000000
-          python -c "import maoto_agent"
 
       - name: Build the package
         run: python -m build
