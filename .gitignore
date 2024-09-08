@@ -11,9 +11,6 @@ work_dir_*
 *.secrets
 *.secrets*
 
-/tests/.secrets_01
-/tests/.secrets_02
-
 # C extensions
 *.so
 
