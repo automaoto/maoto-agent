@@ -39,10 +39,10 @@ jobs:
           python setup.py build_ext --inplace
           python setup.py bdist_wheel
 
-      - name: Upload Distribution to PyPI
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          twine upload dist/*
+      # - name: Upload Distribution to PyPI
+      #   if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10' && startsWith(github.ref, 'refs/tags/')
+      #   env:
+      #     TWINE_USERNAME: __token__
+      #     TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      #   run: |
+      #     twine upload dist/*
