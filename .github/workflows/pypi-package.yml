@@ -1,0 +1,42 @@
+name: Build and Publish Pypi Package
+
+on:
+  push:
+    tags:
+      - 'v*'  # Runs when a version tag is pushed
+  workflow_dispatch:  # Allows manual trigger from GitHub Actions
+
+jobs:
+  build:
+    name: Build and Publish
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: [3.10, 3.11, 3.12]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          pip install cython wheel twine
+
+      - name: Build Cython Extension
+        run: |
+          python setup.py build_ext --inplace
+          python setup.py bdist_wheel
+
+      - name: Upload Distribution to PyPI
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload dist/*

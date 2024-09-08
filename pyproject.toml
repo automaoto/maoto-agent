@@ -1,13 +1,16 @@
 [build-system]
-requires = ["setuptools>=74.1.1", "wheel>=0.44.0"]
+requires = [
+    "setuptools>=74.1.1",
+    "wheel>=0.44.0",
+    "setuptools-scm"  # Add setuptools-scm for versioning
+]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "maoto-agent"
-version = "1.1.1"
 description = "Maoto Agent"
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.10,<3.12"
 license = {file = "LICENSE"}
 keywords = ["Maoto", "Agent"]
 authors = [

@@ -141,7 +141,7 @@ class Maoto:
         ''')
 
         variables = {
-            'version': '1.1.1'
+            'version': '1.0.2'
         }
 
         result = self.client.execute(query, variables)
