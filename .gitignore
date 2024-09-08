@@ -10,7 +10,6 @@ work_dir_*
 *.env
 *.secrets
 *.secrets*
-bin/
 
 # C extensions
 *.so

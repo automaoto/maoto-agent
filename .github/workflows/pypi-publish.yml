@@ -25,14 +25,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install build twine pyarmor
 
-      - name: Prepare pyarmor protected files
-        run: |
-          mkdir -p bin/maoto_agent
-          cp -r src/maoto_agent/* bin/maoto_agent/
-          pyarmor gen -O bin/maoto_agent -r src/maoto_agent/maoto_agent.py
-          mkdir -p bin/pyarmor_runtime_000000
-          mv bin/maoto_agent/pyarmor_runtime_000000/* bin/pyarmor_runtime_000000
-
       - name: Build the package
         run: python -m build
 
