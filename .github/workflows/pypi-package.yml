@@ -6,43 +6,29 @@ on:
       - 'v*'  # Runs when a version tag is pushed
   workflow_dispatch:  # Allows manual trigger from GitHub Actions
 
-jobs:
-  build:
-    name: Build and Publish
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+ jobs:
+   build-and-publish:
+     runs-on: ubuntu-latest
+     environment: release_pypi
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
+     steps:
+       - name: Checkout code
+         uses: actions/checkout@v2
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
+       - name: Set up Python
+         uses: actions/setup-python@v2
+         with:
+           python-version: '3.10'
 
-      - name: Install Dependencies
-        run: |
-          pip install setuptools setuptools-scm cython wheel twine
+       - name: Install build and twine
+         run: |
+           python -m pip install --upgrade pip
+           pip install build twine
+       - name: Build the package
+         run: python -m build
 
-      - name: Install Dependencies
-        run: |
-          pip install cython wheel twine
-
-      - name: Build Cython Extension
-        run: |
-          python setup.py build_ext --inplace
-          python setup.py bdist_wheel
-
-      # - name: Upload Distribution to PyPI
-      #   if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10' && startsWith(github.ref, 'refs/tags/')
-      #   env:
-      #     TWINE_USERNAME: __token__
-      #     TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      #   run: |
-      #     twine upload dist/*
+      #  - name: Publish to PyPI
+      #    env:
+      #      TWINE_USERNAME: __token__
+      #      TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      #    run: twine upload dist/*
