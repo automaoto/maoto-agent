@@ -765,7 +765,7 @@ class PersonalAssistant:
             self.methods = [
                 {
                     "name": "create_maoto_post",
-                    "description": "If there is something the user asks you to do, that you cannot do or that exceeds your capabilities, then you can try to solve it by creating a post on „Maoto“.",
+                    "description": "If there is something the user asks you to do, that you cannot do or that exceeds your capabilities or where you do, then you can try to solve it by creating a post on „Maoto“. You can also create a post, when you need to fetch information.",
                     "parameters": {
                         "type": "object",
                         "properties": {
