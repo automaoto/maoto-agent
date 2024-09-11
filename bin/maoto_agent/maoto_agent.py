@@ -31,12 +31,12 @@ class AsyncQueueWrapper :#line:23
     async def put (self ,item ):#line:36
         await self .queue .put (item )#line:37
     def get (self ):#line:39
-        OOO0O0000O0O00OOO =Future ()#line:40
-        asyncio .run_coroutine_threadsafe (self ._get_coroutine (OOO0O0000O0O00OOO ),self .loop )#line:41
-        return OOO0O0000O0O00OOO .result ()#line:43
+        O0O0OOOO00O000O00 =Future ()#line:40
+        asyncio .run_coroutine_threadsafe (self ._get_coroutine (O0O0OOOO00O000O00 ),self .loop )#line:41
+        return O0O0OOOO00O000O00 .result ()#line:43
     async def _get_coroutine (self ,future ):#line:45
-        O000O00OO00O00OO0 =await self .queue .get ()#line:46
-        future .set_result (O000O00OO00O00OO0 )#line:47
+        OO00OOO0O0O0OO0OO =await self .queue .get ()#line:46
+        future .set_result (OO00OOO0O0O0OO0OO )#line:47
         self .queue .task_done ()#line:48
     def start_producer (self ,producer_function ):#line:50
         self .producer_task =asyncio .run_coroutine_threadsafe (producer_function (),self .loop )#line:51
@@ -59,8 +59,8 @@ class AsyncQueueWrapper :#line:23
         if not self ._cleanup_done :#line:74
             try :#line:75
                 asyncio .run (self .cleanup ())#line:76
-            except RuntimeError as O0O00O00O00OO0OOO :#line:77
-                if str (O0O00O00O00OO0OOO )=="Event loop is closed":#line:78
+            except RuntimeError as OOOO00O0O0O0OO0OO :#line:77
+                if str (OOOO00O0O0O0OO0OO )=="Event loop is closed":#line:78
                     pass #line:79
 class AuthenticateProvider (ABC ):#line:81
     @abstractmethod #line:82
@@ -85,50 +85,51 @@ class Maoto :#line:98
         if self .working_dir ==None or self .working_dir =="":#line:110
             raise ValueError ("Working directory is required.")#line:111
         self .download_dir =download_dir or os .environ .get ("MAOTO_DOWNLOAD_DIR")or self .working_dir /'downloaded_files'#line:112
-        self .apikey_value =os .environ .get ("MAOTO_API_KEY")#line:114
-        if self .apikey_value in [None ,""]:#line:115
-            raise ValueError ("API key is required. (Set MAOTO_API_KEY environment variable)")#line:116
-        O00O000OOO0O0O00O =AIOHTTPTransport (url =self .graphql_url ,headers ={"Authorization":self .apikey_value },)#line:121
-        self .client =Client (transport =O00O000OOO0O0O00O ,fetch_schema_from_transport =True )#line:122
-        self ._check_version_compatibility ()#line:124
-        self .apikey =self .get_own_api_keys ()[0 ]#line:125
-        self .queue_wrapper =AsyncQueueWrapper ()#line:127
-        if "provider"in self .apikey .get_roles ():#line:128
-            self .queue_wrapper .start_producer (self .subscribe_to_responses )#line:129
-        elif "resolver"in self .apikey .get_roles ():#line:130
-            self .queue_wrapper .start_producer (self .subscribe_to_actioncalls )#line:131
-        self .id_action_map ={}#line:133
-        self .action_registry ={}#line:134
-    def _check_version_compatibility (self ):#line:136
-        O0OOO0OO000OOO00O =gql ('''
+        os .makedirs (self .download_dir ,exist_ok =True )#line:113
+        self .apikey_value =os .environ .get ("MAOTO_API_KEY")#line:115
+        if self .apikey_value in [None ,""]:#line:116
+            raise ValueError ("API key is required. (Set MAOTO_API_KEY environment variable)")#line:117
+        OO00O00000OOO0OO0 =AIOHTTPTransport (url =self .graphql_url ,headers ={"Authorization":self .apikey_value },)#line:122
+        self .client =Client (transport =OO00O00000OOO0OO0 ,fetch_schema_from_transport =True )#line:123
+        self ._check_version_compatibility ()#line:125
+        self .apikey =self .get_own_api_keys ()[0 ]#line:126
+        self .queue_wrapper =AsyncQueueWrapper ()#line:128
+        if "provider"in self .apikey .get_roles ():#line:129
+            self .queue_wrapper .start_producer (self .subscribe_to_responses )#line:130
+        elif "resolver"in self .apikey .get_roles ():#line:131
+            self .queue_wrapper .start_producer (self .subscribe_to_actioncalls )#line:132
+        self .id_action_map ={}#line:134
+        self .action_registry ={}#line:135
+    def _check_version_compatibility (self ):#line:137
+        OOO000OOOO0OO0OOO =gql ('''
         query CheckVersionCompatibility($version: String!) {
             checkVersionCompatibility(version: $version)
         }
-        ''')#line:141
-        OO0OOOOOOOOOOOO0O ={'version':'1.0.2'}#line:145
-        O00OOOO0OOO0000O0 =self .client .execute (O0OOO0OO000OOO00O ,OO0OOOOOOOOOOOO0O )#line:147
-        OO0OOOOOO00O00OOO =O00OOOO0OOO0000O0 ["checkVersionCompatibility"]#line:148
-        if not OO0OOOOOO00O00OOO :#line:149
-            raise ValueError ("Incompatible version. Please update the agent to the latest version.")#line:150
-    def init_authentication (self ,authenticate_provider :AuthenticateProvider ):#line:152
-        if not isinstance (authenticate_provider ,AuthenticateProvider ):#line:154
-            raise ValueError ("authenticate_provider must be an instance of AuthenticateProvider.")#line:155
-        self .authenticate_provider =authenticate_provider #line:156
-    def register_action (self ,name :str ):#line:158
-        def O0OOOOO0OOO0OOOO0 (func ):#line:159
-            self .action_registry [name ]=func #line:160
-            return func #line:161
-        return O0OOOOO0OOO0OOOO0 #line:162
-    def resolver_loop (self ):#line:164
-        while True :#line:165
-            print ("Waiting for next action call...")#line:166
-            OOO00OOOOOOOOOO0O =self .listen ()#line:167
-            print (f"Received action call: {OOO00OOOOOOOOOO0O}\n")#line:168
-            OOO0OOOO0000OO0O0 =self .resolve_actioncall (OOO00OOOOOOOOOO0O )#line:169
-            print (f"Sending response: {OOO0OOOO0000OO0O0}\n")#line:170
-            OO000O0O00000O0O0 =self .create_responses ([OOO0OOOO0000OO0O0 ])[0 ]#line:171
-    def get_own_user (self )->User :#line:173
-        OOOO0O0000OO0O00O =gql ('''
+        ''')#line:142
+        OO00OO0000OOO0OO0 ={'version':'1.0.2'}#line:146
+        O00OOO0OOOO0OOO0O =self .client .execute (OOO000OOOO0OO0OOO ,OO00OO0000OOO0OO0 )#line:148
+        OO0OO0OOO0O0000O0 =O00OOO0OOOO0OOO0O ["checkVersionCompatibility"]#line:149
+        if not OO0OO0OOO0O0000O0 :#line:150
+            raise ValueError ("Incompatible version. Please update the agent to the latest version.")#line:151
+    def init_authentication (self ,authenticate_provider :AuthenticateProvider ):#line:153
+        if not isinstance (authenticate_provider ,AuthenticateProvider ):#line:155
+            raise ValueError ("authenticate_provider must be an instance of AuthenticateProvider.")#line:156
+        self .authenticate_provider =authenticate_provider #line:157
+    def register_action (self ,name :str ):#line:159
+        def O00OOO0000O0OOOO0 (func ):#line:160
+            self .action_registry [name ]=func #line:161
+            return func #line:162
+        return O00OOO0000O0OOOO0 #line:163
+    def resolver_loop (self ):#line:165
+        while True :#line:166
+            print ("Waiting for next action call...")#line:167
+            OOO00OO0O0OO0OO0O =self .listen ()#line:168
+            print (f"Received action call: {OOO00OO0O0OO0OO0O}\n")#line:169
+            O00O0OO0O00OO000O =self .resolve_actioncall (OOO00OO0O0OO0OO0O )#line:170
+            print (f"Sending response: {O00O0OO0O00OO000O}\n")#line:171
+            O0000O0OOO0O0O0O0 =self .create_responses ([O00O0OO0O00OO000O ])[0 ]#line:172
+    def get_own_user (self )->User :#line:174
+        OOO0O0OO00000000O =gql ('''
         query {
             getOwnUser {
                 user_id
@@ -137,12 +138,12 @@ class Maoto :#line:98
                 roles
             }
         }
-        ''')#line:183
-        O000OO0OOOOO0OO00 =self .client .execute (OOOO0O0000OO0O00O )#line:185
-        OOOO00OO0OOOOOO0O =O000OO0OOOOO0OO00 ["getOwnUser"]#line:186
-        return User (OOOO00OO0OOOOOO0O ["username"],uuid .UUID (OOOO00OO0OOOOOO0O ["user_id"]),datetime .fromisoformat (OOOO00OO0OOOOOO0O ["time"]),OOOO00OO0OOOOOO0O ["roles"])#line:187
-    def get_own_api_keys (self )->list [bool ]:#line:189
-        OOO00000OOOOO00OO =gql ('''
+        ''')#line:184
+        O000000O0000O0000 =self .client .execute (OOO0O0OO00000000O )#line:186
+        OO00O0O000O0O00OO =O000000O0000O0000 ["getOwnUser"]#line:187
+        return User (OO00O0O000O0O00OO ["username"],uuid .UUID (OO00O0O000O0O00OO ["user_id"]),datetime .fromisoformat (OO00O0O000O0O00OO ["time"]),OO00O0O000O0O00OO ["roles"])#line:188
+    def get_own_api_keys (self )->list [bool ]:#line:190
+        OO0OO00O0O000OOO0 =gql ('''
         query {
             getOwnApiKeys {
                 apikey_id
@@ -152,13 +153,13 @@ class Maoto :#line:98
                 roles
             }
         }
-        ''')#line:200
-        O0OOOOOO0OO000OO0 =self .client .execute (OOO00000OOOOO00OO )#line:202
-        OOO00O0OO000O0000 =O0OOOOOO0OO000OO0 ["getOwnApiKeys"]#line:203
-        return [ApiKey (uuid .UUID (O0O0O0OOOOO00O00O ["apikey_id"]),uuid .UUID (O0O0O0OOOOO00O00O ["user_id"]),datetime .fromisoformat (O0O0O0OOOOO00O00O ["time"]),O0O0O0OOOOO00O00O ["name"],O0O0O0OOOOO00O00O ["roles"])for O0O0O0OOOOO00O00O in OOO00O0OO000O0000 ]#line:204
-    def create_users (self ,new_users :list [NewUser ]):#line:206
-        OO000OO0O00OO000O =[{'username':O0OOOOOOO00O00O0O .username ,'password':O0OOOOOOO00O00O0O .password ,'roles':O0OOOOOOO00O00O0O .roles }for O0OOOOOOO00O00O0O in new_users ]#line:207
-        O00O000O0000OO00O =gql ('''
+        ''')#line:201
+        O000O00OO000O00O0 =self .client .execute (OO0OO00O0O000OOO0 )#line:203
+        O0OO00OOOOO000O0O =O000O00OO000O00O0 ["getOwnApiKeys"]#line:204
+        return [ApiKey (uuid .UUID (O0OOOOOO0O0O0OOO0 ["apikey_id"]),uuid .UUID (O0OOOOOO0O0O0OOO0 ["user_id"]),datetime .fromisoformat (O0OOOOOO0O0O0OOO0 ["time"]),O0OOOOOO0O0O0OOO0 ["name"],O0OOOOOO0O0O0OOO0 ["roles"])for O0OOOOOO0O0O0OOO0 in O0OO00OOOOO000O0O ]#line:205
+    def create_users (self ,new_users :list [NewUser ]):#line:207
+        O0OOO00OOO0O000OO =[{'username':O0OOO0OO0OO0O0OO0 .username ,'password':O0OOO0OO0OO0O0OO0 .password ,'roles':O0OOO0OO0OO0O0OO0 .roles }for O0OOO0OO0OO0O0OO0 in new_users ]#line:208
+        O000O00OOOO0OOO0O =gql ('''
         mutation createUsers($new_users: [NewUser!]!) {
             createUsers(new_users: $new_users) {
                 username
@@ -167,21 +168,21 @@ class Maoto :#line:98
                 roles
             }
         }
-        ''')#line:217
-        OOOOO00O0OOOO0OO0 =self .client .execute (O00O000O0000OO00O ,variable_values ={"new_users":OO000OO0O00OO000O })#line:219
-        OOOO0O0000O0OO0O0 =OOOOO00O0OOOO0OO0 ["createUsers"]#line:220
-        return [User (O000O00O000O0OOO0 ["username"],uuid .UUID (O000O00O000O0OOO0 ["user_id"]),datetime .fromisoformat (O000O00O000O0OOO0 ["time"]),O000O00O000O0OOO0 ["roles"])for O000O00O000O0OOO0 in OOOO0O0000O0OO0O0 ]#line:221
-    def delete_users (self ,user_ids :list [User |str ])->bool :#line:223
-        user_ids =[str (O00000O0O0OO00O0O .get_user_id ())if isinstance (O00000O0O0OO00O0O ,User )else str (O00000O0O0OO00O0O )for O00000O0O0OO00O0O in user_ids ]#line:224
-        OOOOOO0OO0OOO0OOO =gql ('''
+        ''')#line:218
+        OOO0OOOO0000O0000 =self .client .execute (O000O00OOOO0OOO0O ,variable_values ={"new_users":O0OOO00OOO0O000OO })#line:220
+        O0000OO0OO0OO0O0O =OOO0OOOO0000O0000 ["createUsers"]#line:221
+        return [User (O0OOO000OOO000O0O ["username"],uuid .UUID (O0OOO000OOO000O0O ["user_id"]),datetime .fromisoformat (O0OOO000OOO000O0O ["time"]),O0OOO000OOO000O0O ["roles"])for O0OOO000OOO000O0O in O0000OO0OO0OO0O0O ]#line:222
+    def delete_users (self ,user_ids :list [User |str ])->bool :#line:224
+        user_ids =[str (OOOOO00O0O0O0OO00 .get_user_id ())if isinstance (OOOOO00O0O0O0OO00 ,User )else str (OOOOO00O0O0O0OO00 )for OOOOO00O0O0O0OO00 in user_ids ]#line:225
+        OOO00O0O0O0000000 =gql ('''
         mutation deleteUsers($user_ids: [ID!]!) {
             deleteUsers(user_ids: $user_ids)
         }
-        ''')#line:229
-        OOO000OOO00000O00 =self .client .execute (OOOOOO0OO0OOO0OOO ,variable_values ={"user_ids":user_ids })#line:231
-        return OOO000OOO00000O00 ["deleteUsers"]#line:232
-    def get_users (self )->list [User ]:#line:234
-        OOOOOO0OOOOOO0000 =gql ('''
+        ''')#line:230
+        OOOO0OOO0O00O000O =self .client .execute (OOO00O0O0O0000000 ,variable_values ={"user_ids":user_ids })#line:232
+        return OOOO0OOO0O00O000O ["deleteUsers"]#line:233
+    def get_users (self )->list [User ]:#line:235
+        O00O0O00O0O0O00O0 =gql ('''
         query {
             getUsers {
                 user_id
@@ -190,13 +191,13 @@ class Maoto :#line:98
                 roles
             }
         }
-        ''')#line:244
-        OOO0O0O00000OO000 =self .client .execute (OOOOOO0OOOOOO0000 )#line:246
-        O0O0OO0OO00OOO000 =OOO0O0O00000OO000 ["getUsers"]#line:247
-        return [User (O0OO000O0OOOO00O0 ["username"],uuid .UUID (O0OO000O0OOOO00O0 ["user_id"]),datetime .fromisoformat (O0OO000O0OOOO00O0 ["time"]),O0OO000O0OOOO00O0 ["roles"])for O0OO000O0OOOO00O0 in O0O0OO0OO00OOO000 ]#line:248
-    def create_apikeys (self ,api_keys :list [NewApiKey ])->list [ApiKey ]:#line:250
-        OO0O00OOO00OO0O0O =[{'name':OOO0O0000OOO00O0O .get_name (),'user_id':str (OOO0O0000OOO00O0O .get_user_id ()),'roles':OOO0O0000OOO00O0O .get_roles ()}for OOO0O0000OOO00O0O in api_keys ]#line:251
-        OO000OO00OOO0O0O0 =gql ('''
+        ''')#line:245
+        OOOO0O000OO000000 =self .client .execute (O00O0O00O0O0O00O0 )#line:247
+        O000000O0OOOO0000 =OOOO0O000OO000000 ["getUsers"]#line:248
+        return [User (OO000OOOO00O0O000 ["username"],uuid .UUID (OO000OOOO00O0O000 ["user_id"]),datetime .fromisoformat (OO000OOOO00O0O000 ["time"]),OO000OOOO00O0O000 ["roles"])for OO000OOOO00O0O000 in O000000O0OOOO0000 ]#line:249
+    def create_apikeys (self ,api_keys :list [NewApiKey ])->list [ApiKey ]:#line:251
+        OO00O0OO000OO0OOO =[{'name':O00O0OOOO0000OOOO .get_name (),'user_id':str (O00O0OOOO0000OOOO .get_user_id ()),'roles':O00O0OOOO0000OOOO .get_roles ()}for O00O0OOOO0000OOOO in api_keys ]#line:252
+        O0O0O0O000000OO00 =gql ('''
         mutation createApiKeys($new_apikeys: [NewApiKey!]!) {
             createApiKeys(new_apikeys: $new_apikeys) {
                 apikey_id
@@ -207,22 +208,22 @@ class Maoto :#line:98
                 value
             }
         }
-        ''')#line:263
-        OOOO00OO0O00000OO =self .client .execute (OO000OO00OOO0O0O0 ,variable_values ={"new_apikeys":OO0O00OOO00OO0O0O })#line:265
-        O0O0O00OO00000OO0 =OOOO00OO0O00000OO ["createApiKeys"]#line:266
-        return [ApiKeyWithSecret (uuid .UUID (O0OO0OO0O0000OOO0 ["apikey_id"]),uuid .UUID (O0OO0OO0O0000OOO0 ["user_id"]),datetime .fromisoformat (O0OO0OO0O0000OOO0 ["time"]),O0OO0OO0O0000OOO0 ["name"],O0OO0OO0O0000OOO0 ["roles"],O0OO0OO0O0000OOO0 ["value"])for O0OO0OO0O0000OOO0 in O0O0O00OO00000OO0 ]#line:267
-    def delete_apikeys (self ,apikey_ids :list [ApiKey |str ])->list [bool ]:#line:269
-        O0OO0O0O0000O0000 =[str (OOOO00OOO00000O00 .get_apikey_id ())if isinstance (OOOO00OOO00000O00 ,ApiKey )else str (OOOO00OOO00000O00 )for OOOO00OOO00000O00 in apikey_ids ]#line:270
-        OO0O0OO00OO0OOOOO =gql ('''
+        ''')#line:264
+        O0OO0OO000O0O0OOO =self .client .execute (O0O0O0O000000OO00 ,variable_values ={"new_apikeys":OO00O0OO000OO0OOO })#line:266
+        O000OO0OO0O0000OO =O0OO0OO000O0O0OOO ["createApiKeys"]#line:267
+        return [ApiKeyWithSecret (uuid .UUID (OOOOOO0O0O0OO000O ["apikey_id"]),uuid .UUID (OOOOOO0O0O0OO000O ["user_id"]),datetime .fromisoformat (OOOOOO0O0O0OO000O ["time"]),OOOOOO0O0O0OO000O ["name"],OOOOOO0O0O0OO000O ["roles"],OOOOOO0O0O0OO000O ["value"])for OOOOOO0O0O0OO000O in O000OO0OO0O0000OO ]#line:268
+    def delete_apikeys (self ,apikey_ids :list [ApiKey |str ])->list [bool ]:#line:270
+        OO0000O00000O000O =[str (O0OOOO0OO0O0OO000 .get_apikey_id ())if isinstance (O0OOOO0OO0O0OO000 ,ApiKey )else str (O0OOOO0OO0O0OO000 )for O0OOOO0OO0O0OO000 in apikey_ids ]#line:271
+        O00O000OOO0OO0O00 =gql ('''
         mutation deleteApiKeys($apikey_ids: [ID!]!) {
             deleteApiKeys(apikey_ids: $apikey_ids)
         }
-        ''')#line:275
-        O0OOO0OOO0000OO00 =self .client .execute (OO0O0OO00OO0OOOOO ,variable_values ={"apikey_ids":O0OO0O0O0000O0000 })#line:277
-        return O0OOO0OOO0000OO00 ["deleteApiKeys"]#line:278
-    def get_apikeys (self ,user_ids :list [User |str ])->list [ApiKey ]:#line:280
-        user_ids =[str (O0OO00OOO00O0O000 .get_user_id ())if isinstance (O0OO00OOO00O0O000 ,User )else str (O0OO00OOO00O0O000 )for O0OO00OOO00O0O000 in user_ids ]#line:281
-        OO00000000O0O0OO0 =gql ('''
+        ''')#line:276
+        OOOOOOO0OO000OOO0 =self .client .execute (O00O000OOO0OO0O00 ,variable_values ={"apikey_ids":OO0000O00000O000O })#line:278
+        return OOOOOOO0OO000OOO0 ["deleteApiKeys"]#line:279
+    def get_apikeys (self ,user_ids :list [User |str ])->list [ApiKey ]:#line:281
+        user_ids =[str (O0OO00OO0O00O0O0O .get_user_id ())if isinstance (O0OO00OO0O00O0O0O ,User )else str (O0OO00OO0O00O0O0O )for O0OO00OO0O00O0O0O in user_ids ]#line:282
+        O0O00O0O00O0000OO =gql ('''
         query getApiKeys($user_ids: [ID!]!) {
             getApiKeys(user_ids: $user_ids) {
                 apikey_id
@@ -232,13 +233,13 @@ class Maoto :#line:98
                 roles
             }
         }
-        ''')#line:292
-        OO0O00O0OO0OO00O0 =self .client .execute (OO00000000O0O0OO0 ,variable_values ={"user_ids":user_ids })#line:294
-        O0O0OOO000000OOOO =OO0O00O0OO0OO00O0 ["getApiKeys"]#line:295
-        return [ApiKey (uuid .UUID (OO0O0OO0OOOO0O00O ["apikey_id"]),uuid .UUID (OO0O0OO0OOOO0O00O ["user_id"]),datetime .fromisoformat (OO0O0OO0OOOO0O00O ["time"]),OO0O0OO0OOOO0O00O ["name"],OO0O0OO0OOOO0O00O ["roles"])for OO0O0OO0OOOO0O00O in O0O0OOO000000OOOO ]#line:296
-    def create_actions (self ,new_actions :list [NewAction ])->list [Action ]:#line:298
-        OOOOOO0O000000000 =[{'name':O0OO000O0OO0OOOO0 .name ,'parameters':O0OO000O0OO0OOOO0 .parameters ,'description':O0OO000O0OO0OOOO0 .description ,'tags':O0OO000O0OO0OOOO0 .tags ,'cost':O0OO000O0OO0OOOO0 .cost ,'followup':O0OO000O0OO0OOOO0 .followup }for O0OO000O0OO0OOOO0 in new_actions ]#line:299
-        O000OOO00O0O00000 =gql ('''
+        ''')#line:293
+        O0OOO0O00OOO0O0OO =self .client .execute (O0O00O0O00O0000OO ,variable_values ={"user_ids":user_ids })#line:295
+        OOO00O0O0O00O000O =O0OOO0O00OOO0O0OO ["getApiKeys"]#line:296
+        return [ApiKey (uuid .UUID (OOOOO000O0OOOO00O ["apikey_id"]),uuid .UUID (OOOOO000O0OOOO00O ["user_id"]),datetime .fromisoformat (OOOOO000O0OOOO00O ["time"]),OOOOO000O0OOOO00O ["name"],OOOOO000O0OOOO00O ["roles"])for OOOOO000O0OOOO00O in OOO00O0O0O00O000O ]#line:297
+    def create_actions (self ,new_actions :list [NewAction ])->list [Action ]:#line:299
+        O0OOO0O0000000OOO =[{'name':OOO000O00OO0O00OO .name ,'parameters':OOO000O00OO0O00OO .parameters ,'description':OOO000O00OO0O00OO .description ,'tags':OOO000O00OO0O00OO .tags ,'cost':OOO000O00OO0O00OO .cost ,'followup':OOO000O00OO0O00OO .followup }for OOO000O00OO0O00OO in new_actions ]#line:300
+        OO0OO0O00000OOO0O =gql ('''
         mutation createActions($new_actions: [NewAction!]!) {
             createActions(new_actions: $new_actions) {
                 action_id
@@ -252,23 +253,23 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:314
-        O00OOO000OOOOOOO0 =self .client .execute (O000OOO00O0O00000 ,variable_values ={"new_actions":OOOOOO0O000000000 })#line:316
-        OO000000000000O0O =O00OOO000OOOOOOO0 ["createActions"]#line:317
-        self .id_action_map .update ({O0O00OOOO00O0O00O ["action_id"]:O0O00OOOO00O0O00O ["name"]for O0O00OOOO00O0O00O in OO000000000000O0O })#line:318
-        return [Action (action_id =uuid .UUID (OO00000O00O000OO0 ["action_id"]),apikey_id =uuid .UUID (OO00000O00O000OO0 ["apikey_id"]),name =OO00000O00O000OO0 ["name"],parameters =OO00000O00O000OO0 ["parameters"],description =OO00000O00O000OO0 ["description"],tags =OO00000O00O000OO0 ["tags"],cost =OO00000O00O000OO0 ["cost"],followup =OO00000O00O000OO0 ["followup"],time =datetime .fromisoformat (OO00000O00O000OO0 ["time"]))for OO00000O00O000OO0 in OO000000000000O0O ]#line:330
-    def delete_actions (self ,action_ids :list [Action |str ])->list [bool ]:#line:332
-        action_ids =[str (O0O00OO0OO00OO0O0 .get_action_id ())if isinstance (O0O00OO0OO00OO0O0 ,Action )else str (O0O00OO0OO00OO0O0 )for O0O00OO0OO00OO0O0 in action_ids ]#line:333
-        OOOOOO0O0O0000OOO =gql ('''
+        ''')#line:315
+        O00OOOO0O00OO000O =self .client .execute (OO0OO0O00000OOO0O ,variable_values ={"new_actions":O0OOO0O0000000OOO })#line:317
+        OO0O000O0O00OOOOO =O00OOOO0O00OO000O ["createActions"]#line:318
+        self .id_action_map .update ({OOO0O0000OO00O000 ["action_id"]:OOO0O0000OO00O000 ["name"]for OOO0O0000OO00O000 in OO0O000O0O00OOOOO })#line:319
+        return [Action (action_id =uuid .UUID (O00000000O000OOO0 ["action_id"]),apikey_id =uuid .UUID (O00000000O000OOO0 ["apikey_id"]),name =O00000000O000OOO0 ["name"],parameters =O00000000O000OOO0 ["parameters"],description =O00000000O000OOO0 ["description"],tags =O00000000O000OOO0 ["tags"],cost =O00000000O000OOO0 ["cost"],followup =O00000000O000OOO0 ["followup"],time =datetime .fromisoformat (O00000000O000OOO0 ["time"]))for O00000000O000OOO0 in OO0O000O0O00OOOOO ]#line:331
+    def delete_actions (self ,action_ids :list [Action |str ])->list [bool ]:#line:333
+        action_ids =[str (OO00OOOOO0OOOO000 .get_action_id ())if isinstance (OO00OOOOO0OOOO000 ,Action )else str (OO00OOOOO0OOOO000 )for OO00OOOOO0OOOO000 in action_ids ]#line:334
+        OOO00OO0O0OO00O00 =gql ('''
         mutation deleteActions($action_ids: [ID!]!) {
             deleteActions(action_ids: $action_ids)
         }
-        ''')#line:338
-        O0O0000OOOOO0O0OO =self .client .execute (OOOOOO0O0O0000OOO ,variable_values ={"action_ids":action_ids })#line:340
-        return O0O0000OOOOO0O0OO ["deleteActions"]#line:341
-    def get_actions (self ,apikey_ids :list [ApiKey |str ])->list [Action ]:#line:343
-        apikey_ids =[str (OOOO0OO000OOOOOO0 .get_apikey_id ())if isinstance (OOOO0OO000OOOOOO0 ,ApiKey )else str (OOOO0OO000OOOOOO0 )for OOOO0OO000OOOOOO0 in apikey_ids ]#line:344
-        O00O000OO0O0OOO00 =gql ('''
+        ''')#line:339
+        O0OOO00O0OO0O00O0 =self .client .execute (OOO00OO0O0OO00O00 ,variable_values ={"action_ids":action_ids })#line:341
+        return O0OOO00O0OO0O00O0 ["deleteActions"]#line:342
+    def get_actions (self ,apikey_ids :list [ApiKey |str ])->list [Action ]:#line:344
+        apikey_ids =[str (OOO00OOO00O0OO0O0 .get_apikey_id ())if isinstance (OOO00OOO00O0OO0O0 ,ApiKey )else str (OOO00OOO00O0OO0O0 )for OOO00OOO00O0OO0O0 in apikey_ids ]#line:345
+        OO0000OO00O000O00 =gql ('''
         query getActions($apikey_ids: [ID!]!) {
             getActions(apikey_ids: $apikey_ids) {
                 action_id
@@ -282,12 +283,12 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:359
-        O0OO0OO0OO00O0OOO =self .client .execute (O00O000OO0O0OOO00 ,variable_values ={"apikey_ids":apikey_ids })#line:361
-        OO0OO00O00OO0O000 =O0OO0OO0OO00O0OOO ["getActions"]#line:362
-        return [Action (action_id =uuid .UUID (O0OOOOOOOO0OO0000 ["action_id"]),apikey_id =uuid .UUID (O0OOOOOOOO0OO0000 ["apikey_id"]),name =O0OOOOOOOO0OO0000 ["name"],parameters =O0OOOOOOOO0OO0000 ["parameters"],description =O0OOOOOOOO0OO0000 ["description"],tags =O0OOOOOOOO0OO0000 ["tags"],cost =O0OOOOOOOO0OO0000 ["cost"],followup =O0OOOOOOOO0OO0000 ["followup"],time =datetime .fromisoformat (O0OOOOOOOO0OO0000 ["time"]))for O0OOOOOOOO0OO0000 in OO0OO00O00OO0O000 ]#line:373
-    def get_own_actions (self )->list [Action ]:#line:375
-        OOOOOOO0OO0000O00 =gql ('''
+        ''')#line:360
+        O00O0O0OO0OO00O0O =self .client .execute (OO0000OO00O000O00 ,variable_values ={"apikey_ids":apikey_ids })#line:362
+        OO00O0000OOOOO00O =O00O0O0OO0OO00O0O ["getActions"]#line:363
+        return [Action (action_id =uuid .UUID (O0OOO00O0O000000O ["action_id"]),apikey_id =uuid .UUID (O0OOO00O0O000000O ["apikey_id"]),name =O0OOO00O0O000000O ["name"],parameters =O0OOO00O0O000000O ["parameters"],description =O0OOO00O0O000000O ["description"],tags =O0OOO00O0O000000O ["tags"],cost =O0OOO00O0O000000O ["cost"],followup =O0OOO00O0O000000O ["followup"],time =datetime .fromisoformat (O0OOO00O0O000000O ["time"]))for O0OOO00O0O000000O in OO00O0000OOOOO00O ]#line:374
+    def get_own_actions (self )->list [Action ]:#line:376
+        OOO00OO0OOO0OO000 =gql ('''
         query {
             getOwnActions {
                 action_id
@@ -301,13 +302,13 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:390
-        O0000O00O0O00O00O =self .client .execute (OOOOOOO0OO0000O00 )#line:392
-        OOOOO00OO0000OOOO =O0000O00O0O00O00O ["getOwnActions"]#line:393
-        return [Action (action_id =uuid .UUID (O0OOOOOO00O00OOO0 ["action_id"]),apikey_id =uuid .UUID (O0OOOOOO00O00OOO0 ["apikey_id"]),name =O0OOOOOO00O00OOO0 ["name"],parameters =O0OOOOOO00O00OOO0 ["parameters"],description =O0OOOOOO00O00OOO0 ["description"],tags =O0OOOOOO00O00OOO0 ["tags"],cost =O0OOOOOO00O00OOO0 ["cost"],followup =O0OOOOOO00O00OOO0 ["followup"],time =datetime .fromisoformat (O0OOOOOO00O00OOO0 ["time"]))for O0OOOOOO00O00OOO0 in OOOOO00OO0000OOOO ]#line:404
-    def create_posts (self ,new_posts :list [NewPost ])->list [Post ]:#line:406
-        OO00O000O0000O0O0 =[{'description':O00O000O0O00OO0O0 .description ,'context':O00O000O0O00OO0O0 .context }for O00O000O0O00OO0O0 in new_posts ]#line:407
-        O00OO0OOO0O0O0OO0 =gql ('''
+        ''')#line:391
+        OOO00O0O000000O00 =self .client .execute (OOO00OO0OOO0OO000 )#line:393
+        OO00O00O00O0O00O0 =OOO00O0O000000O00 ["getOwnActions"]#line:394
+        return [Action (action_id =uuid .UUID (O00OO0O00OOO000OO ["action_id"]),apikey_id =uuid .UUID (O00OO0O00OOO000OO ["apikey_id"]),name =O00OO0O00OOO000OO ["name"],parameters =O00OO0O00OOO000OO ["parameters"],description =O00OO0O00OOO000OO ["description"],tags =O00OO0O00OOO000OO ["tags"],cost =O00OO0O00OOO000OO ["cost"],followup =O00OO0O00OOO000OO ["followup"],time =datetime .fromisoformat (O00OO0O00OOO000OO ["time"]))for O00OO0O00OOO000OO in OO00O00O00O0O00O0 ]#line:405
+    def create_posts (self ,new_posts :list [NewPost ])->list [Post ]:#line:407
+        OOO00OO0O000OOO0O =[{'description':O0O0OO0O0OOOO000O .description ,'context':O0O0OO0O0OOOO000O .context }for O0O0OO0O0OOOO000O in new_posts ]#line:408
+        O00OO000O0OO00000 =gql ('''
         mutation createPosts($new_posts: [NewPost!]!) {
             createPosts(new_posts: $new_posts) {
                 post_id
@@ -318,22 +319,22 @@ class Maoto :#line:98
                 resolved
             }
         }
-        ''')#line:419
-        O0O0OO0000OOOOO00 =self .client .execute (O00OO0OOO0O0O0OO0 ,variable_values ={"new_posts":OO00O000O0000O0O0 })#line:421
-        OO0O00OOO0O00OO0O =O0O0OO0000OOOOO00 ["createPosts"]#line:422
-        return [Post (post_id =uuid .UUID (OO0O00O000OO0OO00 ["post_id"]),description =OO0O00O000OO0OO00 ["description"],context =OO0O00O000OO0OO00 ["context"],apikey_id =uuid .UUID (OO0O00O000OO0OO00 ["apikey_id"]),time =datetime .fromisoformat (OO0O00O000OO0OO00 ["time"]),resolved =OO0O00O000OO0OO00 ["resolved"])for OO0O00O000OO0OO00 in OO0O00OOO0O00OO0O ]#line:430
-    def delete_posts (self ,post_ids :list [Post |str ])->list [bool ]:#line:432
-        post_ids =[str (O000O0O0O0OO00O00 .get_post_id ())if isinstance (O000O0O0O0OO00O00 ,Post )else str (O000O0O0O0OO00O00 )for O000O0O0O0OO00O00 in post_ids ]#line:433
-        OOO0O000O000O000O =gql ('''
+        ''')#line:420
+        OO00000O0O00OOO00 =self .client .execute (O00OO000O0OO00000 ,variable_values ={"new_posts":OOO00OO0O000OOO0O })#line:422
+        O0O0OOOO0000000O0 =OO00000O0O00OOO00 ["createPosts"]#line:423
+        return [Post (post_id =uuid .UUID (OOO0O0O0000000OOO ["post_id"]),description =OOO0O0O0000000OOO ["description"],context =OOO0O0O0000000OOO ["context"],apikey_id =uuid .UUID (OOO0O0O0000000OOO ["apikey_id"]),time =datetime .fromisoformat (OOO0O0O0000000OOO ["time"]),resolved =OOO0O0O0000000OOO ["resolved"])for OOO0O0O0000000OOO in O0O0OOOO0000000O0 ]#line:431
+    def delete_posts (self ,post_ids :list [Post |str ])->list [bool ]:#line:433
+        post_ids =[str (O0000OO0OO0O0O000 .get_post_id ())if isinstance (O0000OO0OO0O0O000 ,Post )else str (O0000OO0OO0O0O000 )for O0000OO0OO0O0O000 in post_ids ]#line:434
+        OOO0O000O00O000O0 =gql ('''
         mutation deletePosts($post_ids: [ID!]!) {
             deletePosts(post_ids: $post_ids)
         }
-        ''')#line:438
-        O0OOOOOOO0O00O0OO =self .client .execute (OOO0O000O000O000O ,variable_values ={"post_ids":post_ids })#line:440
-        return O0OOOOOOO0O00O0OO ["deletePosts"]#line:441
-    def get_posts (self ,apikey_ids :list [ApiKey |str ])->list [Post ]:#line:443
-        apikey_ids =[str (OO00OO0OO0O0OOOO0 .get_apikey_id ())if isinstance (OO00OO0OO0O0OOOO0 ,ApiKey )else str (OO00OO0OO0O0OOOO0 )for OO00OO0OO0O0OOOO0 in apikey_ids ]#line:444
-        OOO00000O000O0OO0 =gql ('''
+        ''')#line:439
+        OOOOO000OO0OOO000 =self .client .execute (OOO0O000O00O000O0 ,variable_values ={"post_ids":post_ids })#line:441
+        return OOOOO000OO0OOO000 ["deletePosts"]#line:442
+    def get_posts (self ,apikey_ids :list [ApiKey |str ])->list [Post ]:#line:444
+        apikey_ids =[str (O0000O0OOOOOO0OO0 .get_apikey_id ())if isinstance (O0000O0OOOOOO0OO0 ,ApiKey )else str (O0000O0OOOOOO0OO0 )for O0000O0OOOOOO0OO0 in apikey_ids ]#line:445
+        O0O0O0O0O000OO0O0 =gql ('''
         query getPosts($apikey_ids: [ID!]!) {
             getPosts(apikey_ids: $apikey_ids) {
                 post_id
@@ -344,12 +345,12 @@ class Maoto :#line:98
                 resolved
             }
         }
-        ''')#line:456
-        O0000O00OO0O00000 =self .client .execute (OOO00000O000O0OO0 ,variable_values ={"apikey_ids":apikey_ids })#line:458
-        OOO000OOOOO000O0O =O0000O00OO0O00000 ["getPosts"]#line:459
-        return [Post (post_id =uuid .UUID (OO0OOOO0OO000OOOO ["post_id"]),description =OO0OOOO0OO000OOOO ["description"],context =OO0OOOO0OO000OOOO ["context"],apikey_id =uuid .UUID (OO0OOOO0OO000OOOO ["apikey_id"]),time =datetime .fromisoformat (OO0OOOO0OO000OOOO ["time"]),resolved =OO0OOOO0OO000OOOO ["resolved"])for OO0OOOO0OO000OOOO in OOO000OOOOO000O0O ]#line:467
-    def get_own_posts (self )->list [Post ]:#line:469
-        O0000OO00O00OO000 =gql ('''
+        ''')#line:457
+        O00OO0O000O0OO0O0 =self .client .execute (O0O0O0O0O000OO0O0 ,variable_values ={"apikey_ids":apikey_ids })#line:459
+        O0000OOO0O0O0OOO0 =O00OO0O000O0OO0O0 ["getPosts"]#line:460
+        return [Post (post_id =uuid .UUID (O00000O00OOO0O0OO ["post_id"]),description =O00000O00OOO0O0OO ["description"],context =O00000O00OOO0O0OO ["context"],apikey_id =uuid .UUID (O00000O00OOO0O0OO ["apikey_id"]),time =datetime .fromisoformat (O00000O00OOO0O0OO ["time"]),resolved =O00000O00OOO0O0OO ["resolved"])for O00000O00OOO0O0OO in O0000OOO0O0O0OOO0 ]#line:468
+    def get_own_posts (self )->list [Post ]:#line:470
+        O0O00OO000OOO00OO =gql ('''
         query {
             getOwnPosts {
                 post_id
@@ -360,13 +361,13 @@ class Maoto :#line:98
                 resolved
             }
         }
-        ''')#line:481
-        O00O00O0OOO00000O =self .client .execute (O0000OO00O00OO000 )#line:483
-        O0O0O0O0O00000000 =O00O00O0OOO00000O ["getOwnPosts"]#line:484
-        return [Post (post_id =uuid .UUID (O0OOO0O0OOOO0OOOO ["post_id"]),description =O0OOO0O0OOOO0OOOO ["description"],context =O0OOO0O0OOOO0OOOO ["context"],apikey_id =uuid .UUID (O0OOO0O0OOOO0OOOO ["apikey_id"]),time =datetime .fromisoformat (O0OOO0O0OOOO0OOOO ["time"]),resolved =O0OOO0O0OOOO0OOOO ["resolved"])for O0OOO0O0OOOO0OOOO in O0O0O0O0O00000000 ]#line:492
-    def create_actioncalls (self ,new_actioncalls :list [NewActioncall ])->list [Actioncall ]:#line:494
-        O00OOO0O0OO0O0OO0 =[{'action_id':str (OO00O0OO0OOO0OO00 .action_id ),'post_id':str (OO00O0OO0OOO0OO00 .post_id ),'parameters':OO00O0OO0OOO0OO00 .parameters ,'cost':OO00O0OO0OOO0OO00 .cost }for OO00O0OO0OOO0OO00 in new_actioncalls ]#line:495
-        O0OOOO00OOO0000OO =gql ('''
+        ''')#line:482
+        O0OO000OO0O0OOOO0 =self .client .execute (O0O00OO000OOO00OO )#line:484
+        OOOO0O0OO0O0O0O00 =O0OO000OO0O0OOOO0 ["getOwnPosts"]#line:485
+        return [Post (post_id =uuid .UUID (OO0000O0O000OOO00 ["post_id"]),description =OO0000O0O000OOO00 ["description"],context =OO0000O0O000OOO00 ["context"],apikey_id =uuid .UUID (OO0000O0O000OOO00 ["apikey_id"]),time =datetime .fromisoformat (OO0000O0O000OOO00 ["time"]),resolved =OO0000O0O000OOO00 ["resolved"])for OO0000O0O000OOO00 in OOOO0O0OO0O0O0O00 ]#line:493
+    def create_actioncalls (self ,new_actioncalls :list [NewActioncall ])->list [Actioncall ]:#line:495
+        OOO00OO0000O0O0O0 =[{'action_id':str (O000O0O00O0O0OO00 .action_id ),'post_id':str (O000O0O00O0O0OO00 .post_id ),'parameters':O000O0O00O0O0OO00 .parameters ,'cost':O000O0O00O0O0OO00 .cost }for O000O0O00O0O0OO00 in new_actioncalls ]#line:496
+        OO0000O0OOOO0OOOO =gql ('''
         mutation createActioncalls($new_actioncalls: [NewActioncall!]!) {
             createActioncalls(new_actioncalls: $new_actioncalls) {
                 actioncall_id
@@ -378,13 +379,13 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:508
-        OOOO00OO0000OO000 =self .client .execute (O0OOOO00OOO0000OO ,variable_values ={"new_actioncalls":O00OOO0O0OO0O0OO0 })#line:510
-        OO0O00O0O00O0OOO0 =OOOO00OO0000OO000 ["createActioncalls"]#line:511
-        return [Actioncall (actioncall_id =uuid .UUID (OOOO0OO0OOO000O0O ["actioncall_id"]),action_id =uuid .UUID (OOOO0OO0OOO000O0O ["action_id"]),post_id =uuid .UUID (OOOO0OO0OOO000O0O ["post_id"]),apikey_id =uuid .UUID (OOOO0OO0OOO000O0O ["apikey_id"]),parameters =OOOO0OO0OOO000O0O ["parameters"],cost =OOOO0OO0OOO000O0O ["cost"],time =datetime .fromisoformat (OOOO0OO0OOO000O0O ["time"]))for OOOO0OO0OOO000O0O in OO0O00O0O00O0OOO0 ]#line:520
-    def create_responses (self ,new_responses :list [NewResponse ])->list [Response ]:#line:522
-        O000O00O0OOO000O0 =[{'post_id':str (OOO00OO0000OOOOOO .post_id ),'description':OOO00OO0000OOOOOO .description }for OOO00OO0000OOOOOO in new_responses ]#line:523
-        O0OOO0O0O0000000O =gql ('''
+        ''')#line:509
+        OOOOO000OO0O0O000 =self .client .execute (OO0000O0OOOO0OOOO ,variable_values ={"new_actioncalls":OOO00OO0000O0O0O0 })#line:511
+        O00OOO0O0O0O0O00O =OOOOO000OO0O0O000 ["createActioncalls"]#line:512
+        return [Actioncall (actioncall_id =uuid .UUID (OOO0000000OO0OO00 ["actioncall_id"]),action_id =uuid .UUID (OOO0000000OO0OO00 ["action_id"]),post_id =uuid .UUID (OOO0000000OO0OO00 ["post_id"]),apikey_id =uuid .UUID (OOO0000000OO0OO00 ["apikey_id"]),parameters =OOO0000000OO0OO00 ["parameters"],cost =OOO0000000OO0OO00 ["cost"],time =datetime .fromisoformat (OOO0000000OO0OO00 ["time"]))for OOO0000000OO0OO00 in O00OOO0O0O0O0O00O ]#line:521
+    def create_responses (self ,new_responses :list [NewResponse ])->list [Response ]:#line:523
+        O00O0O0O0000OO00O =[{'post_id':str (O00000O00OO0O000O .post_id ),'description':O00000O00OO0O000O .description }for O00000O00OO0O000O in new_responses ]#line:524
+        O0O0000000OO000O0 =gql ('''
         mutation createResponses($new_responses: [NewResponse!]!) {
             createResponses(new_responses: $new_responses) {
                 response_id
@@ -394,12 +395,12 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:534
-        OOOO0OO0OOOOO00O0 =self .client .execute (O0OOO0O0O0000000O ,variable_values ={"new_responses":O000O00O0OOO000O0 })#line:536
-        OO0O0O0O0OO00O000 =OOOO0OO0OOOOO00O0 ["createResponses"]#line:537
-        return [Response (response_id =uuid .UUID (OO000OOOOOOOOO00O ["response_id"]),post_id =uuid .UUID (OO000OOOOOOOOO00O ["post_id"]),description =OO000OOOOOOOOO00O ["description"],apikey_id =uuid .UUID (OO000OOOOOOOOO00O ["apikey_id"]),time =datetime .fromisoformat (OO000OOOOOOOOO00O ["time"]))for OO000OOOOOOOOO00O in OO0O0O0O0OO00O000 ]#line:544
-    async def subscribe_to_responses (self ):#line:546
-        OO00OO00O0O00OO0O =gql ('''
+        ''')#line:535
+        O0OOOOO00OO0O0OOO =self .client .execute (O0O0000000OO000O0 ,variable_values ={"new_responses":O00O0O0O0000OO00O })#line:537
+        O0O00OO00O0000O0O =O0OOOOO00OO0O0OOO ["createResponses"]#line:538
+        return [Response (response_id =uuid .UUID (O000O0000OO0OO00O ["response_id"]),post_id =uuid .UUID (O000O0000OO0OO00O ["post_id"]),description =O000O0000OO0OO00O ["description"],apikey_id =uuid .UUID (O000O0000OO0OO00O ["apikey_id"]),time =datetime .fromisoformat (O000O0000OO0OO00O ["time"]))for O000O0000OO0OO00O in O0O00OO00O0000O0O ]#line:545
+    async def subscribe_to_responses (self ):#line:547
+        OOOO0OOO0O000OOO0 =gql ('''
         subscription subscribeToResponses {
             subscribeToResponses {
                 response_id
@@ -409,15 +410,15 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:557
-        OOOOO00OOOO000OO0 =WebsocketsTransport (url =self .subscription_url ,headers ={"Authorization":self .apikey_value },)#line:562
-        async with Client (transport =OOOOO00OOOO000OO0 ,fetch_schema_from_transport =True ,)as O00O000O00O00O00O :#line:566
-            async for O0O00O0OOO0O00OO0 in O00O000O00O00O00O .subscribe (OO00OO00O0O00OO0O ):#line:567
-                OOO0O0OOOOOOO0O0O =O0O00O0OOO0O00OO0 ['subscribeToResponses']#line:569
-                O000OO0000O00OO00 =Response (response_id =uuid .UUID (OOO0O0OOOOOOO0O0O ["response_id"]),post_id =uuid .UUID (OOO0O0OOOOOOO0O0O ["post_id"]),description =OOO0O0OOOOOOO0O0O ["description"],apikey_id =OOO0O0OOOOOOO0O0O ["apikey_id"],time =datetime .fromisoformat (OOO0O0OOOOOOO0O0O ["time"]))#line:576
-                await self .queue_wrapper .put (O000OO0000O00OO00 )#line:577
-    async def subscribe_to_actioncalls (self ):#line:579
-        OO0OO00O000OO0O00 =gql ('''
+        ''')#line:558
+        O0O00O00000OO0000 =WebsocketsTransport (url =self .subscription_url ,headers ={"Authorization":self .apikey_value },)#line:563
+        async with Client (transport =O0O00O00000OO0000 ,fetch_schema_from_transport =True ,)as O0O00O00O000OO0OO :#line:567
+            async for OOOOOOOO0O00O0000 in O0O00O00O000OO0OO .subscribe (OOOO0OOO0O000OOO0 ):#line:568
+                O0000OO0O0OO000O0 =OOOOOOOO0O00O0000 ['subscribeToResponses']#line:570
+                OOOOOO00OO00O0O00 =Response (response_id =uuid .UUID (O0000OO0O0OO000O0 ["response_id"]),post_id =uuid .UUID (O0000OO0O0OO000O0 ["post_id"]),description =O0000OO0O0OO000O0 ["description"],apikey_id =O0000OO0O0OO000O0 ["apikey_id"],time =datetime .fromisoformat (O0000OO0O0OO000O0 ["time"]))#line:577
+                await self .queue_wrapper .put (OOOOOO00OO00O0O00 )#line:578
+    async def subscribe_to_actioncalls (self ):#line:580
+        OO000OOOOO00O0O0O =gql ('''
         subscription subscribeToActioncalls {
             subscribeToActioncalls {
                 actioncall_id
@@ -429,20 +430,20 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:592
-        OOOOOOO0O0000O0OO =WebsocketsTransport (url =self .subscription_url ,headers ={"Authorization":self .apikey_value },)#line:597
-        async with Client (transport =OOOOOOO0O0000O0OO ,fetch_schema_from_transport =True ,)as OOOOO0000000OOO00 :#line:601
-            async for O0O0O00O0OO0OO0O0 in OOOOO0000000OOO00 .subscribe (OO0OO00O000OO0O00 ):#line:602
-                O000O0000OOOO0O00 =O0O0O00O0OO0OO0O0 ['subscribeToActioncalls']#line:604
-                O00000OOOO00O0OOO =Actioncall (actioncall_id =uuid .UUID (O000O0000OOOO0O00 ["actioncall_id"]),action_id =uuid .UUID (O000O0000OOOO0O00 ["action_id"]),post_id =uuid .UUID (O000O0000OOOO0O00 ["post_id"]),apikey_id =uuid .UUID (O000O0000OOOO0O00 ["apikey_id"]),parameters =O000O0000OOOO0O00 ["parameters"],cost =O000O0000OOOO0O00 ["cost"],time =datetime .fromisoformat (O000O0000OOOO0O00 ["time"]))#line:613
-                await self .queue_wrapper .put (O00000OOOO00O0OOO )#line:614
-    def listen (self ,block =True )->Response |Actioncall |None :#line:616
-            if block :#line:617
-                return self .queue_wrapper .get ()#line:618
-            else :#line:619
-                raise NotImplementedError ("Implementation missing error")#line:621
-    async def _download_file_async (self ,file_id :str ,destination_dir :Path )->File :#line:624
-        O00O0000OOO000O0O =gql ('''
+        ''')#line:593
+        OO0OO00000OO0O0OO =WebsocketsTransport (url =self .subscription_url ,headers ={"Authorization":self .apikey_value },)#line:598
+        async with Client (transport =OO0OO00000OO0O0OO ,fetch_schema_from_transport =True ,)as OOOO0OO00O00O0O0O :#line:602
+            async for O0O0O0O0O0OO0000O in OOOO0OO00O00O0O0O .subscribe (OO000OOOOO00O0O0O ):#line:603
+                OO0O00OOOOO0O0OO0 =O0O0O0O0O0OO0000O ['subscribeToActioncalls']#line:605
+                OOOO0OO0O0OO0O00O =Actioncall (actioncall_id =uuid .UUID (OO0O00OOOOO0O0OO0 ["actioncall_id"]),action_id =uuid .UUID (OO0O00OOOOO0O0OO0 ["action_id"]),post_id =uuid .UUID (OO0O00OOOOO0O0OO0 ["post_id"]),apikey_id =uuid .UUID (OO0O00OOOOO0O0OO0 ["apikey_id"]),parameters =OO0O00OOOOO0O0OO0 ["parameters"],cost =OO0O00OOOOO0O0OO0 ["cost"],time =datetime .fromisoformat (OO0O00OOOOO0O0OO0 ["time"]))#line:614
+                await self .queue_wrapper .put (OOOO0OO0O0OO0O00O )#line:615
+    def listen (self ,block =True )->Response |Actioncall |None :#line:617
+            if block :#line:618
+                return self .queue_wrapper .get ()#line:619
+            else :#line:620
+                raise NotImplementedError ("Implementation missing error")#line:622
+    async def _download_file_async (self ,file_id :str ,destination_dir :Path )->File :#line:625
+        O0O0OOO00000O0O00 =gql ('''
         query downloadFile($file_id: ID!) {
             downloadFile(file_id: $file_id) {
                 file_id
@@ -451,34 +452,34 @@ class Maoto :#line:98
                 time
             }
         }
-        ''')#line:634
-        O0O00OOO0O0000OO0 =await self .client .execute_async (O00O0000OOO000O0O ,variable_values ={"file_id":file_id })#line:636
-        O0O0OO0O0OO0000OO =O0O00OOO0O0000OO0 ["downloadFile"]#line:637
-        O0O0OOO00O0O0OOO0 =f"{self.server_url}/download/{str(file_id)}"#line:639
-        async with aiohttp .ClientSession ()as O000O000OO0O00OOO :#line:640
-            async with O000O000OO0O00OOO .get (O0O0OOO00O0O0OOO0 ,headers ={"Authorization":self .apikey_value })as OO00O0OOO0OO00OOO :#line:641
-                if OO00O0OOO0OO00OOO .status ==200 :#line:642
-                    OOOOO0O0OO000OOO0 =f"{str(file_id)}{O0O0OO0O0OO0000OO['extension']}"#line:643
-                    O000OO00O0O0O00OO =destination_dir /OOOOO0O0OO000OOO0 #line:644
-                    async with aiofiles .open (O000OO00O0O0O00OO ,'wb')as OO0O0OO000O0O0O00 :#line:646
-                        while True :#line:647
-                            OO00OO00OOO0OO0O0 =await OO00O0OOO0OO00OOO .content .read (DATA_CHUNK_SIZE )#line:648
-                            if not OO00OO00OOO0OO0O0 :#line:649
-                                break #line:650
-                            await OO0O0OO000O0O0O00 .write (OO00OO00OOO0OO0O0 )#line:651
-                    return File (file_id =uuid .UUID (O0O0OO0O0OO0000OO ["file_id"]),apikey_id =uuid .UUID (O0O0OO0O0OO0000OO ["apikey_id"]),extension =O0O0OO0O0OO0000OO ["extension"],time =datetime .fromisoformat (O0O0OO0O0OO0000OO ["time"]))#line:658
-                else :#line:659
-                    raise Exception (f"Failed to download file: {OO00O0OOO0OO00OOO.status}")#line:660
-    def download_files (self ,file_ids :list [str ])->list [File ]:#line:662
-        OO000OOOOOO00OOO0 =[]#line:663
-        for OOOO0O0O00O00OO00 in file_ids :#line:664
-            OO00OOOOO00OO0OO0 =asyncio .run_coroutine_threadsafe (self ._download_file_async (OOOO0O0O00O00OO00 ,self .download_dir ),self .queue_wrapper .loop )#line:665
-            O0O0O0OO000OOO000 =OO00OOOOO00OO0OO0 .result ()#line:666
-            OO000OOOOOO00OOO0 .append (O0O0O0OO000OOO000 )#line:667
-        return OO000OOOOOO00OOO0 #line:668
-    async def _upload_file_async (self ,file_path :Path )->File :#line:670
-        OO0OOOOO0O00OO000 =NewFile (extension =file_path .suffix ,)#line:673
-        OO0O0000OOO000O00 ='''
+        ''')#line:635
+        O0OOO00OOO0OOOO0O =await self .client .execute_async (O0O0OOO00000O0O00 ,variable_values ={"file_id":file_id })#line:637
+        OO00OOO0O0OO0OOOO =O0OOO00OOO0OOOO0O ["downloadFile"]#line:638
+        O000O00OO00O0OOO0 =f"{self.server_url}/download/{str(file_id)}"#line:640
+        async with aiohttp .ClientSession ()as OOO00OO000OO00OO0 :#line:641
+            async with OOO00OO000OO00OO0 .get (O000O00OO00O0OOO0 ,headers ={"Authorization":self .apikey_value })as OO0OOO00OO000000O :#line:642
+                if OO0OOO00OO000000O .status ==200 :#line:643
+                    O00OO0O000000OO00 =f"{str(file_id)}{OO00OOO0O0OO0OOOO['extension']}"#line:644
+                    O00OO0000OO00OOOO =destination_dir /O00OO0O000000OO00 #line:645
+                    async with aiofiles .open (O00OO0000OO00OOOO ,'wb')as OOO0O0OOO0O0O00O0 :#line:647
+                        while True :#line:648
+                            O0OOOO000O0OO0OO0 =await OO0OOO00OO000000O .content .read (DATA_CHUNK_SIZE )#line:649
+                            if not O0OOOO000O0OO0OO0 :#line:650
+                                break #line:651
+                            await OOO0O0OOO0O0O00O0 .write (O0OOOO000O0OO0OO0 )#line:652
+                    return File (file_id =uuid .UUID (OO00OOO0O0OO0OOOO ["file_id"]),apikey_id =uuid .UUID (OO00OOO0O0OO0OOOO ["apikey_id"]),extension =OO00OOO0O0OO0OOOO ["extension"],time =datetime .fromisoformat (OO00OOO0O0OO0OOOO ["time"]))#line:659
+                else :#line:660
+                    raise Exception (f"Failed to download file: {OO0OOO00OO000000O.status}")#line:661
+    def download_files (self ,file_ids :list [str ])->list [File ]:#line:663
+        OOOO000000OOOO0OO =[]#line:664
+        for O000O00OOO0O0OO00 in file_ids :#line:665
+            O00OO0OOOOOO0O000 =asyncio .run_coroutine_threadsafe (self ._download_file_async (O000O00OOO0O0OO00 ,self .download_dir ),self .queue_wrapper .loop )#line:666
+            O0O0OOOOOOO00000O =O00OO0OOOOOO0O000 .result ()#line:667
+            OOOO000000OOOO0OO .append (O0O0OOOOOOO00000O )#line:668
+        return OOOO000000OOOO0OO #line:669
+    async def _upload_file_async (self ,file_path :Path )->File :#line:671
+        O00O00OOOOO0000O0 =NewFile (extension =file_path .suffix ,)#line:674
+        OO00OO0O0O00OO0OO ='''
         mutation uploadFile($new_file: NewFile!, $file: Upload!) {
             uploadFile(new_file: $new_file, file: $file) {
                 file_id
@@ -486,48 +487,47 @@ class Maoto :#line:98
                 extension
                 time
             }
-        }'''#line:682
-        async with aiohttp .ClientSession ()as O0OOOOO000OOOOOOO :#line:683
-            async with aiofiles .open (file_path ,'rb')as O0OOO0000O0OO0OO0 :#line:684
-                O00OOOO00OO0O0OOO =aiohttp .FormData ()#line:685
-                O00OOOO00OO0O0OOO .add_field ('operations',json .dumps ({'query':OO0O0000OOO000O00 ,'variables':{"new_file":{"extension":OO0OOOOO0O00OO000 .get_extension ()},"file":None }}))#line:689
-                O00OOOO00OO0O0OOO .add_field ('map',json .dumps ({'0':['variables.file']}))#line:692
-                O00OOOO00OO0O0OOO .add_field ('0',await O0OOO0000O0OO0OO0 .read (),filename =str (file_path ))#line:693
-                O0O00000OOO0OOOOO ={"Authorization":self .apikey_value }#line:697
-                async with O0OOOOO000OOOOOOO .post (self .graphql_url ,data =O00OOOO00OO0O0OOO ,headers =O0O00000OOO0OOOOO )as O0OO0OO0O00OOO000 :#line:698
-                    if O0OO0OO0O00OOO000 .status !=200 :#line:699
-                        raise Exception (f"Failed to upload file: {O0OO0OO0O00OOO000.status}")#line:700
-                    OOO000OOOOO0OO000 =await O0OO0OO0O00OOO000 .json ()#line:701
-        OOOOO000OOO0O00OO =OOO000OOOOO0OO000 ["data"]["uploadFile"]#line:703
-        return File (file_id =uuid .UUID (OOOOO000OOO0O00OO ["file_id"]),apikey_id =uuid .UUID (OOOOO000OOO0O00OO ["apikey_id"]),extension =OOOOO000OOO0O00OO ["extension"],time =datetime .fromisoformat (OOOOO000OOO0O00OO ["time"]))#line:709
-    def upload_files (self ,file_paths :list [Path ])->list [File ]:#line:711
-        file_paths =[self .working_dir /O0O000000O0O0O0OO for O0O000000O0O0O0OO in file_paths ]#line:712
-        OO000OOO00O00O0OO =[]#line:713
-        for OOO0OOO00OOO0OO00 in file_paths :#line:714
-            O0O00O0O0OO00000O =asyncio .run_coroutine_threadsafe (self ._upload_file_async (OOO0OOO00OOO0OO00 ),self .queue_wrapper .loop )#line:715
-            O0000O00OO0O00OO0 =O0O00O0O0OO00000O .result ()#line:716
-            OO000OOO00O00O0OO .append (O0000O00OO0O00OO0 )#line:717
-        return OO000OOO00O00O0OO #line:718
-    def _check_if_downloaded (self ,file_ids :list [str ])->list [str ]:#line:720
-        O000O00O0OOO00OOO =[]#line:721
-        for O00O000O0OOO000OO in file_ids :#line:722
-            os .makedirs (self .download_dir ,exist_ok =True )#line:723
-            O0OO0OOOOOOO00OOO =self .download_dir /str (O00O000O0OOO000OO )#line:724
-            if not O0OO0OOOOOOO00OOO .exists ():#line:725
-                O000O00O0OOO00OOO .append (O00O000O0OOO000OO )#line:726
-        return O000O00O0OOO00OOO #line:727
+        }'''#line:683
+        async with aiohttp .ClientSession ()as O0000O0000O0OO0O0 :#line:684
+            async with aiofiles .open (file_path ,'rb')as OO00OOOO0OO0OOOO0 :#line:685
+                OOO00O000OO000OO0 =aiohttp .FormData ()#line:686
+                OOO00O000OO000OO0 .add_field ('operations',json .dumps ({'query':OO00OO0O0O00OO0OO ,'variables':{"new_file":{"extension":O00O00OOOOO0000O0 .get_extension ()},"file":None }}))#line:690
+                OOO00O000OO000OO0 .add_field ('map',json .dumps ({'0':['variables.file']}))#line:693
+                OOO00O000OO000OO0 .add_field ('0',await OO00OOOO0OO0OOOO0 .read (),filename =str (file_path ))#line:694
+                O0O0OO00OOOO00O0O ={"Authorization":self .apikey_value }#line:698
+                async with O0000O0000O0OO0O0 .post (self .graphql_url ,data =OOO00O000OO000OO0 ,headers =O0O0OO00OOOO00O0O )as OO0OOOOOOO0OO0O00 :#line:699
+                    if OO0OOOOOOO0OO0O00 .status !=200 :#line:700
+                        raise Exception (f"Failed to upload file: {OO0OOOOOOO0OO0O00.status}")#line:701
+                    O0O0000OOO0O0O0OO =await OO0OOOOOOO0OO0O00 .json ()#line:702
+        O0O0000000OOOO0O0 =O0O0000OOO0O0O0OO ["data"]["uploadFile"]#line:704
+        return File (file_id =uuid .UUID (O0O0000000OOOO0O0 ["file_id"]),apikey_id =uuid .UUID (O0O0000000OOOO0O0 ["apikey_id"]),extension =O0O0000000OOOO0O0 ["extension"],time =datetime .fromisoformat (O0O0000000OOOO0O0 ["time"]))#line:710
+    def upload_files (self ,file_paths :list [Path ])->list [File ]:#line:712
+        file_paths =[self .working_dir /OO00O0OO00O0000O0 for OO00O0OO00O0000O0 in file_paths ]#line:713
+        OO0OOO00000OOOO00 =[]#line:714
+        for OOOOO0O000O0O0O0O in file_paths :#line:715
+            O000O00OOO0O00O00 =asyncio .run_coroutine_threadsafe (self ._upload_file_async (OOOOO0O000O0O0O0O ),self .queue_wrapper .loop )#line:716
+            OO000O0O0OOO00O0O =O000O00OOO0O00O00 .result ()#line:717
+            OO0OOO00000OOOO00 .append (OO000O0O0OOO00O0O )#line:718
+        return OO0OOO00000OOOO00 #line:719
+    def _check_if_downloaded (self ,file_ids :list [str ])->list [str ]:#line:721
+        O0O0O00000OOO0000 =[]#line:722
+        for OO0O0OOO0OOO00OO0 in file_ids :#line:723
+            OO0O0O0OO0OOOOO00 =self .download_dir /str (OO0O0OOO0OOO00OO0 )#line:724
+            if not OO0O0O0OO0OOOOO00 .exists ():#line:725
+                O0O0O00000OOO0000 .append (OO0O0OOO0OOO00OO0 )#line:726
+        return O0O0O00000OOO0000 #line:727
     def download_missing_files (self ,file_ids :list [str ])->list [File ]:#line:729
-        O000O0OOOO0OOOO00 =self ._check_if_downloaded (file_ids )#line:730
-        OO0O0OOOOOO0O0000 =self .download_files (O000O0OOOO0OOOO00 )#line:731
-        return OO0O0OOOOOO0O0000 #line:732
+        O00OO0000OOO00OOO =self ._check_if_downloaded (file_ids )#line:730
+        OOOO0OOOO00O0O0OO =self .download_files (O00OO0000OOO00OOO )#line:731
+        return OOOO0OOOO00O0O0OO #line:732
     def _id_to_action (self ,action_id :uuid )->callable :#line:734
         return self .action_registry [self .id_action_map [str (action_id )]]#line:735
     def resolve_actioncall (self ,actioncall :Actioncall )->Response :#line:737
-        OO0OO000O0O000O0O =self ._id_to_action (actioncall .get_action_id ())#line:738
-        O0O0000OOO00000O0 =OO0OO000O0O000O0O (actioncall .get_apikey_id (),actioncall .get_parameters ())#line:739
-        O000OO0000OO0OO0O =NewResponse (post_id =actioncall .get_post_id (),description =O0O0000OOO00000O0 )#line:743
-        OO0OOO0OO0OOOOOO0 =self .create_responses ([O000OO0000OO0OO0O ])[0 ]#line:744
-        return OO0OOO0OO0OOOOOO0 #line:745
+        O0O0O0OO0000000OO =self ._id_to_action (actioncall .get_action_id ())#line:738
+        OO000OOO00OOOO000 =O0O0O0OO0000000OO (actioncall .get_apikey_id (),actioncall .get_parameters ())#line:739
+        O0000OOO0OOOO000O =NewResponse (post_id =actioncall .get_post_id (),description =OO000OOO00OOOO000 )#line:743
+        OOO000000O00OO000 =self .create_responses ([O0000OOO0OOOO000O ])[0 ]#line:744
+        return OOO000000O00OO000 #line:745
 from openai import OpenAI #line:750
 from shutil import copyfile #line:751
 class PersonalAssistant :#line:753
@@ -539,92 +539,104 @@ class PersonalAssistant :#line:753
             self .model =model #line:760
             self .working_dir =working_dir #line:761
             self .messages_history =[{"role":"system","content":"You are a helpful assistant."}]#line:764
-            self .methods =[{"name":"create_maoto_post","description":"If there is something the user asks you to do, that you cannot do or that exceeds your capabilities, then you can try to solve it by creating a post on „Maoto“.","parameters":{"type":"object","properties":{"task_description":{"type":"string","description":"A short description of all details that are necessary to solve the task. Refer to a file solely by its Maoto file ID."}},"required":["task_description"]}},{"name":"upload_maoto_file","description":"Upload a file before referencing to it, if it does not have a file ID assigned yet.","parameters":{"type":"object","properties":{"file_path":{"type":"string","description":"A file path relative to the main directory."}},"required":["file_path"]}},{"name":"create_maoto_actioncall","description":"Call an “action“ which can be attached to responses and may help to solve the users tasks. These actioncalls again return a response which can have actions attached. If the action requires a file you need to upload it first to make it available to Maoto and aquire a file ID.","parameters":{"type":"object","properties":{"post_id":{"type":"string","description":"The ID of the post, that returned the action called."},"action_id":{"type":"string","description":"The ID of the action, that is to be called."},"cost":{"type":"number","description":"The cost of the action that was specified in the post response."}},"additionalProperties":{"type":["string","integer","number","boolean"],"description":"Additional dynamic parameters for the action that is called (if any)."},"required":["post_id","action_id"]}},{"name":"download_maoto_file","description":"Download a file by its file ID.","parameters":{"type":"object","properties":{"file_id":{"type":"string","description":"The ID of the file to download without extension."}},"required":["file_id"]}}]#line:834
+            self .methods =[{"name":"create_maoto_post","description":"If there is something the user asks you to do, that you cannot do or that exceeds your capabilities or where you do, then you can try to solve it by creating a post on „Maoto“. You can also create a post, when you need to fetch information.","parameters":{"type":"object","properties":{"task_description":{"type":"string","description":"A short description of all details that are necessary to solve the task. Refer to a file solely by its Maoto file ID."}},"required":["task_description"]}},{"name":"upload_maoto_file","description":"Upload a file before referencing to it, if it does not have a file ID assigned yet.","parameters":{"type":"object","properties":{"file_path":{"type":"string","description":"A file path relative to the main directory."}},"required":["file_path"]}},{"name":"create_maoto_actioncall","description":"Call an “action“ which can be attached to responses and may help to solve the users tasks. These actioncalls again return a response which can have actions attached. If the action requires a file you need to upload it first to make it available to Maoto and aquire a file ID.","parameters":{"type":"object","properties":{"post_id":{"type":"string","description":"The ID of the post, that returned the action called."},"action_id":{"type":"string","description":"The ID of the action, that is to be called."},"cost":{"type":"number","description":"The cost of the action that was specified in the post response."}},"additionalProperties":{"type":["string","integer","number","boolean"],"description":"Additional dynamic parameters for the action that is called (if any)."},"required":["post_id","action_id"]}},{"name":"download_maoto_file","description":"Download a file by its file ID.","parameters":{"type":"object","properties":{"file_id":{"type":"string","description":"The ID of the file to download without extension."}},"required":["file_id"]}}]#line:834
         def _create_completion (self ):#line:836
-                OOOO00O00O0OO0O0O =self ._describe_directory_structure (self .working_dir )#line:837
-                O000O000O0O0000O0 =[{"role":"system","content":"Current working directory:\n"+OOOO00O00O0OO0O0O }]#line:840
-                return self .client .chat .completions .create (model =self .model ,stop =None ,max_tokens =150 ,stream =False ,messages =self .messages_history +O000O000O0O0000O0 ,functions =self .methods )#line:848
+                O00OO00OOO0O00OOO =self ._describe_directory_structure (self .working_dir )#line:837
+                OO0OOOOO0OOOO00O0 =[{"role":"system","content":"Current working directory:\n"+O00OO00OOO0O00OOO }]#line:840
+                return self .client .chat .completions .create (model =self .model ,stop =None ,max_tokens =150 ,stream =False ,messages =self .messages_history +OO0OOOOO0OOOO00O0 ,functions =self .methods )#line:848
         def _extend_history (self ,role ,content ,name =None ):#line:850
             if role not in ["assistant","user","function","system"]:#line:851
                 raise ValueError ("Role must be 'assistant', 'user', 'function' or 'system'.")#line:852
-            OOO00OOO000O0O0O0 ={"role":role ,"content":content ,"timestamp":datetime .now ().strftime ("%Y-%m-%d %H:%M:%S")}#line:858
+            O0OOOO0O0O0O00O00 ={"role":role ,"content":content ,"timestamp":datetime .now ().strftime ("%Y-%m-%d %H:%M:%S")}#line:858
             if name is not None :#line:859
-                OOO00OOO000O0O0O0 ["name"]=name #line:860
-            self .messages_history .append (OOO00OOO000O0O0O0 )#line:861
+                O0OOOO0O0O0O00O00 ["name"]=name #line:860
+            self .messages_history .append (O0OOOO0O0O0O00O00 )#line:861
         def _describe_directory_structure (self ,root_dir ):#line:863
-            def OO0OO000OO0OO00OO (path ):#line:864
-                O00000OO00OOOOOOO =os .path .getsize (path )#line:865
-                OOO00O0OO0O0OO000 =os .path .getmtime (path )#line:866
-                OOO00OOOOO0OO000O =datetime .fromtimestamp (OOO00O0OO0O0OO000 ).strftime ('%Y-%m-%d')#line:867
-                return O00000OO00OOOOOOO ,OOO00OOOOO0OO000O #line:868
-            def _O0O0OOO00O0000000 (path ,indent =0 ):#line:870
-                OOOOO00000OOO0OOO =[]#line:871
-                for O00OO0O00OOO0OOOO in sorted (os .listdir (path )):#line:872
-                    O000OOOO0O0OO00OO =os .path .join (path ,O00OO0O00OOO0OOOO )#line:873
-                    if os .path .isdir (O000OOOO0O0OO00OO ):#line:874
-                        OOOOO00000OOO0OOO .append (f"{'  ' * indent}{O00OO0O00OOO0OOOO}/ (dir)")#line:875
-                        OOOOO00000OOO0OOO .extend (_O0O0OOO00O0000000 (O000OOOO0O0OO00OO ,indent +1 ))#line:876
+            def O0OO00OOO000O0O0O (path ):#line:864
+                OO0OOOOOO0O00O0OO =os .path .getsize (path )#line:865
+                O0000000O00OO0O0O =os .path .getmtime (path )#line:866
+                OO000O0OOO0O0O000 =datetime .fromtimestamp (O0000000O00OO0O0O ).strftime ('%Y-%m-%d')#line:867
+                return OO0OOOOOO0O00O0OO ,OO000O0OOO0O0O000 #line:868
+            def _OOO0O000OOO00OOOO (path ,indent =0 ):#line:870
+                O0O0O0000OOOOO000 =[]#line:871
+                for O0OOO00O00O00O0O0 in sorted (os .listdir (path )):#line:872
+                    OO0O000OOOOO00O00 =os .path .join (path ,O0OOO00O00O00O0O0 )#line:873
+                    if os .path .isdir (OO0O000OOOOO00O00 ):#line:874
+                        O0O0O0000OOOOO000 .append (f"{'  ' * indent}{O0OOO00O00O00O0O0}/ (dir)")#line:875
+                        O0O0O0000OOOOO000 .extend (_OOO0O000OOO00OOOO (OO0O000OOOOO00O00 ,indent +1 ))#line:876
                     else :#line:877
-                        if O00OO0O00OOO0OOOO !=".DS_Store":#line:878
-                            O0O0O0O0000OO00OO ,O0O0OO0OOOO000O00 =OO0OO000OO0OO00OO (O000OOOO0O0OO00OO )#line:879
-                            O0000O0O0OO0OO00O =f"{O0O0O0O0000OO00OO // 1024}KB"if O0O0O0O0000OO00OO <1048576 else f"{O0O0O0O0000OO00OO // 1048576}MB"#line:880
-                            OOOOO00000OOO0OOO .append (f"{'  ' * indent}{O00OO0O00OOO0OOOO} (file, {O0000O0O0OO0OO00O}, {O0O0OO0OOOO000O00})")#line:881
-                return OOOOO00000OOO0OOO #line:882
-            O0O0O00O000000OOO =_O0O0OOO00O0000000 (root_dir )#line:884
-            return "\n".join (O0O0O00O000000OOO )#line:885
+                        if O0OOO00O00O00O0O0 !=".DS_Store":#line:878
+                            OO0OO0O0O00OO0O0O ,O00O00OO0OO00OO0O =O0OO00OOO000O0O0O (OO0O000OOOOO00O00 )#line:879
+                            OO0OO000O0OOO0O00 =f"{OO0OO0O0O00OO0O0O // 1024}KB"if OO0OO0O0O00OO0O0O <1048576 else f"{OO0OO0O0O00OO0O0O // 1048576}MB"#line:880
+                            O0O0O0000OOOOO000 .append (f"{'  ' * indent}{O0OOO00O00O00O0O0} (file, {OO0OO000O0OOO0O00}, {O00O00OO0OO00OO0O})")#line:881
+                return O0O0O0000OOOOO000 #line:882
+            O00OO00OO00O0O0O0 =_OOO0O000OOO00OOOO (root_dir )#line:884
+            return "\n".join (O00OO00OO00O0O0O0 )#line:885
     def __init__ (self ,working_dir ):#line:887
         self .working_dir =Path (working_dir )#line:888
         self .user_interface_dir =self .working_dir /"user_interface"#line:889
-        self .maoto_provider =Maoto (working_dir =self .working_dir )#line:890
-        self .llm =self .llm =PersonalAssistant .Maoto_LLM (model ="gpt-4o-mini",working_dir =self .working_dir )#line:891
-    def _completion_loop (self )->str :#line:893
-            O0O00OOOO00O00OOO =self .llm ._create_completion ()#line:894
-            while O0O00OOOO00O00OOO .choices [0 ].message .function_call !=None :#line:895
-                O0OOOOOOO000O0OO0 =O0O00OOOO00O00OOO .choices [0 ].message .function_call .name #line:896
-                OOOO00OO000OO00OO =json .loads (O0O00OOOO00O00OOO .choices [0 ].message .function_call .arguments )#line:897
-                if O0OOOOOOO000O0OO0 =="create_maoto_post":#line:899
-                    print ("Creating post...")#line:900
-                    O0000OO0O000OO0O0 =OOOO00OO000OO00OO ["task_description"]#line:901
-                    print ("Task description:",O0000OO0O000OO0O0 )#line:902
-                    O0OOO0O00O00O0OOO =NewPost (description =O0000OO0O000OO0O0 ,context ="",)#line:906
-                    OOOOO0O00O000O000 =self .maoto_provider .create_posts ([O0OOO0O00O00O0OOO ])[0 ]#line:907
-                    self .llm ._extend_history ("function",f"Created post:\n{OOOOO0O00O000O000}","create_maoto_post")#line:908
-                    O0O0OO0O000OOOO0O =self .maoto_provider .listen ()#line:910
-                    self .llm ._extend_history ("function",f"Received response:\n{O0O0OO0O000OOOO0O}","create_maoto_post")#line:911
-                elif O0OOOOOOO000O0OO0 =="create_maoto_actioncall":#line:913
-                    print ("Creating actioncall...")#line:914
-                    O00OOOO000OOOOOO0 =OOOO00OO000OO00OO ["post_id"]#line:915
-                    O0000OOO000000000 =OOOO00OO000OO00OO ["action_id"]#line:916
-                    OO0000OOOO00O0O0O =OOOO00OO000OO00OO ["cost"]#line:917
-                    O0O0000O000OO0000 ={O00O000OO0O0OO00O :O0O0O00O000OO0O00 for O00O000OO0O0OO00O ,O0O0O00O000OO0O00 in OOOO00OO000OO00OO .items ()if O00O000OO0O0OO00O not in ["post_id","action_id"]}#line:918
-                    OO0O000O0OO0OOO00 =NewActioncall (action_id =O0000OOO000000000 ,post_id =O00OOOO000OOOOOO0 ,parameters =json .dumps (O0O0000O000OO0000 ),cost =OO0000OOOO00O0O0O )#line:924
-                    OO00O00OO000OO000 =self .maoto_provider .create_actioncalls ([OO0O000O0OO0OOO00 ])[0 ]#line:926
-                    self .llm ._extend_history ("function",f"Created actioncall:\n{OO00O00OO000OO000}","create_maoto_actioncall")#line:927
-                    O0O0OO0O000OOOO0O =self .maoto_provider .listen ()#line:929
-                    self .llm ._extend_history ("function",f"Received response:\n{O0O0OO0O000OOOO0O}","create_maoto_actioncall")#line:930
-                elif O0OOOOOOO000O0OO0 =="upload_maoto_file":#line:932
-                    print ("Uploading file...")#line:933
-                    OO00O00O000O00O0O =OOOO00OO000OO00OO ["file_path"]#line:934
-                    O0O000OOOO0O0OO0O =self .maoto_provider .upload_files ([Path (OO00O00O000O00O0O )])[0 ]#line:935
-                    self .llm ._extend_history ("function",f"Uploaded file:\n{O0O000OOOO0O0OO0O}","upload_maoto_file")#line:936
-                elif O0OOOOOOO000O0OO0 =="download_maoto_file":#line:938
-                    print ("Downloading file...")#line:939
-                    OOO0OO0000O0OOO00 =OOOO00OO000OO00OO ["file_id"]#line:940
-                    O0O000OOOO0O0OO0O =self .maoto_provider .download_files ([OOO0OO0000O0OOO00 ])[0 ]#line:941
-                    self .llm ._extend_history ("function",f"Downloaded file:\n{O0O000OOOO0O0OO0O}","download_maoto_file")#line:942
-                O0O00OOOO00O00OOO =self .llm ._create_completion ()#line:944
-            O0000O00000O0000O =O0O00OOOO00O00OOO .choices [0 ].message .content #line:946
-            self .llm ._extend_history ("assistant",O0000O00000O0000O )#line:947
-            return O0000O00000O0000O #line:948
-    def run (self ,input_text :str ,attachment_path :str =None ):#line:950
-        if attachment_path !=None :#line:951
-            attachment_path =Path (attachment_path )#line:952
-            O000O0000OO00O00O =self .user_interface_dir /attachment_path .name #line:953
-            if O000O0000OO00O00O .exists ():#line:955
-                raise FileExistsError ("File with the same name already exists.")#line:956
-            copyfile (attachment_path ,O000O0000OO00O00O )#line:957
-            O0O0O0OO00O000OO0 =Path ("user_interface")/attachment_path .name #line:958
-            self .llm ._extend_history ("system",f"File added by user: {O0O0O0OO00O000OO0}")#line:959
-        self .llm ._extend_history ("user",input_text )#line:960
-        O00O00OO00OO000OO =self ._completion_loop ()#line:961
-        print (f"\nAssistant: {O00O00OO00OO000OO}\n")#line:962
+        os .makedirs (self .user_interface_dir ,exist_ok =True )#line:890
+        self .download_dir =self .working_dir /"downloaded_files"#line:891
+        os .makedirs (self .download_dir ,exist_ok =True )#line:892
+        self .maoto_provider =Maoto (working_dir =self .working_dir )#line:893
+        self .llm =self .llm =PersonalAssistant .Maoto_LLM (model ="gpt-4o-mini",working_dir =self .working_dir )#line:894
+    def _completion_loop (self )->str :#line:896
+            O0OO000OOO00000OO =self .llm ._create_completion ()#line:897
+            while O0OO000OOO00000OO .choices [0 ].message .function_call !=None :#line:898
+                O00OO0O0O0O00OOOO =O0OO000OOO00000OO .choices [0 ].message .function_call .name #line:899
+                O0O0O000O0O0O0O0O =json .loads (O0OO000OOO00000OO .choices [0 ].message .function_call .arguments )#line:900
+                if O00OO0O0O0O00OOOO =="create_maoto_post":#line:902
+                    print ("Creating post...")#line:903
+                    OOOOO00O0O0O000OO =O0O0O000O0O0O0O0O ["task_description"]#line:904
+                    print ("Task description:",OOOOO00O0O0O000OO )#line:905
+                    O0OO00000OOO0O000 =NewPost (description =OOOOO00O0O0O000OO ,context ="",)#line:909
+                    OOOO0OOOOOOO0O0OO =self .maoto_provider .create_posts ([O0OO00000OOO0O000 ])[0 ]#line:910
+                    self .llm ._extend_history ("function",f"Created post:\n{OOOO0OOOOOOO0O0OO}","create_maoto_post")#line:911
+                    OOOO000OOO0OOO00O =self .maoto_provider .listen ()#line:913
+                    self .llm ._extend_history ("function",f"Received response:\n{OOOO000OOO0OOO00O}","create_maoto_post")#line:914
+                elif O00OO0O0O0O00OOOO =="create_maoto_actioncall":#line:916
+                    print ("Creating actioncall...")#line:917
+                    OO0O0O0OO0O0O00OO =O0O0O000O0O0O0O0O ["post_id"]#line:918
+                    O0OOO00OOO000OO0O =O0O0O000O0O0O0O0O ["action_id"]#line:919
+                    OO0OOOO000000OOOO =O0O0O000O0O0O0O0O ["cost"]#line:920
+                    O0O0OOOOOO00OOO0O ={OO0O000000000000O :OO00O0OO000O0O0OO for OO0O000000000000O ,OO00O0OO000O0O0OO in O0O0O000O0O0O0O0O .items ()if OO0O000000000000O not in ["post_id","action_id"]}#line:921
+                    OOO000O000OO00OO0 =NewActioncall (action_id =O0OOO00OOO000OO0O ,post_id =OO0O0O0OO0O0O00OO ,parameters =json .dumps (O0O0OOOOOO00OOO0O ),cost =OO0OOOO000000OOOO )#line:927
+                    O0O00OO00O000OOOO =self .maoto_provider .create_actioncalls ([OOO000O000OO00OO0 ])[0 ]#line:929
+                    self .llm ._extend_history ("function",f"Created actioncall:\n{O0O00OO00O000OOOO}","create_maoto_actioncall")#line:930
+                    OOOO000OOO0OOO00O =self .maoto_provider .listen ()#line:932
+                    self .llm ._extend_history ("function",f"Received response:\n{OOOO000OOO0OOO00O}","create_maoto_actioncall")#line:933
+                elif O00OO0O0O0O00OOOO =="upload_maoto_file":#line:935
+                    print ("Uploading file...")#line:936
+                    O0O00OOOOO000O000 =O0O0O000O0O0O0O0O ["file_path"]#line:937
+                    O00O0OO0O000OOOOO =self .maoto_provider .upload_files ([Path (O0O00OOOOO000O000 )])[0 ]#line:938
+                    self .llm ._extend_history ("function",f"Uploaded file:\n{O00O0OO0O000OOOOO}","upload_maoto_file")#line:939
+                elif O00OO0O0O0O00OOOO =="download_maoto_file":#line:941
+                    print ("Downloading file...")#line:942
+                    OO0000OO00000000O =O0O0O000O0O0O0O0O ["file_id"]#line:943
+                    O00O0OO0O000OOOOO =self .maoto_provider .download_files ([OO0000OO00000000O ])[0 ]#line:944
+                    self .llm ._extend_history ("function",f"Downloaded file:\n{O00O0OO0O000OOOOO}","download_maoto_file")#line:945
+                O0OO000OOO00000OO =self .llm ._create_completion ()#line:947
+            O0O0OOOOOO0O00OOO =O0OO000OOO00000OO .choices [0 ].message .content #line:949
+            self .llm ._extend_history ("assistant",O0O0OOOOOO0O00OOO )#line:950
+            return O0O0OOOOOO0O00OOO #line:951
+    def run (self ,input_text :str ,attachment_path :str =None ):#line:953
+        if attachment_path !=None :#line:955
+            attachment_path =Path (attachment_path )#line:956
+            OOO00O00OOOOOOO0O =self .user_interface_dir /attachment_path .name #line:957
+            if OOO00O00OOOOOOO0O .exists ():#line:958
+                if OOO00O00OOOOOOO0O .read_bytes ()!=attachment_path .read_bytes ():#line:960
+                    O0OOOOO0OOOO000O0 =1 #line:962
+                    while (OOO00O00OOOOOOO0O .parent /(OOO00O00OOOOOOO0O .stem +f"_{O0OOOOO0OOOO000O0}"+OOO00O00OOOOOOO0O .suffix )).exists ():#line:963
+                        O0OOOOO0OOOO000O0 +=1 #line:964
+                    OOO00O00OOOOOOO0O =OOO00O00OOOOOOO0O .parent /(OOO00O00OOOOOOO0O .stem +f"_{O0OOOOO0OOOO000O0}"+OOO00O00OOOOOOO0O .suffix )#line:965
+                    copyfile (attachment_path ,OOO00O00OOOOOOO0O )#line:967
+                    OOOOO000O0000OOO0 =Path ("user_interface")/OOO00O00OOOOOOO0O .name #line:968
+                    self .llm ._extend_history ("system",f"File re-added by user: {OOOOO000O0000OOO0}")#line:969
+            else :#line:970
+                copyfile (attachment_path ,OOO00O00OOOOOOO0O )#line:971
+                OOOOO000O0000OOO0 =Path ("user_interface")/OOO00O00OOOOOOO0O .name #line:972
+                self .llm ._extend_history ("system",f"File added by user: {OOOOO000O0000OOO0}")#line:973
+        self .llm ._extend_history ("user",input_text )#line:975
+        O00OOOOO00OO000O0 =self ._completion_loop ()#line:976
+        print (f"\nAssistant: {O00OOOOO00OO000O0}\n")#line:977
+        return O00OOOOO00OO000O0 #line:978
