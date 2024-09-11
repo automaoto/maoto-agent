@@ -6,6 +6,22 @@ pip install -e .
 ## Build locally with Conda
 TODO
 
+## Test locally
+
+`.secrets_01`:
+```bash
+DEBUG=False
+MAOTO_API_KEY=test_apikey_resolver
+```
+
+`.secrets_02`:
+```bash
+OPENAI_API_KEY=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
+DEBUG=False
+MAOTO_API_KEY=test_apikey_provider
+```
+
+
 ## Create a Git Tag for Versioning
 ```bash
 git tag v1.0.2

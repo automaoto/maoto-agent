@@ -110,6 +110,7 @@ class Maoto:
         if self.working_dir == None or self.working_dir == "":
             raise ValueError("Working directory is required.")
         self.download_dir = download_dir or os.environ.get("MAOTO_DOWNLOAD_DIR") or self.working_dir / 'downloaded_files'
+        os.makedirs(self.download_dir, exist_ok=True)
 
         self.apikey_value = os.environ.get("MAOTO_API_KEY")
         if self.apikey_value in [None, ""]:
@@ -720,7 +721,6 @@ class Maoto:
     def _check_if_downloaded(self, file_ids: list[str]) -> list[str]:
         missing_files = []
         for file_id in file_ids:
-            os.makedirs(self.download_dir, exist_ok=True)
             file_path = self.download_dir / str(file_id)
             if not file_path.exists():
                 missing_files.append(file_id)
@@ -887,6 +887,9 @@ class PersonalAssistant:
     def __init__(self, working_dir):
         self.working_dir = Path(working_dir)
         self.user_interface_dir = self.working_dir / "user_interface"
+        os.makedirs(self.user_interface_dir, exist_ok=True)
+        self.download_dir = self.working_dir / "downloaded_files"
+        os.makedirs(self.download_dir, exist_ok=True)
         self.maoto_provider = Maoto(working_dir=self.working_dir)
         self.llm = self.llm = PersonalAssistant.Maoto_LLM(model="gpt-4o-mini", working_dir=self.working_dir) 
 
@@ -948,15 +951,28 @@ class PersonalAssistant:
             return response_content        
     
     def run(self, input_text: str, attachment_path: str = None):
+
         if attachment_path != None:
             attachment_path = Path(attachment_path)
             new_file_path = self.user_interface_dir / attachment_path.name
-            # check if new_file_path already exists
             if new_file_path.exists():
-                raise FileExistsError("File with the same name already exists.")
-            copyfile(attachment_path, new_file_path)
-            new_file_path_workdir = Path("user_interface") / attachment_path.name
-            self.llm._extend_history("system", f"File added by user: {new_file_path_workdir}")
+                # check if file content is same as the one that exists
+                if new_file_path.read_bytes() != attachment_path.read_bytes():
+                    # if not the same, rename the new file and then copy the new file with a counting number
+                    i = 1
+                    while (new_file_path.parent / (new_file_path.stem + f"_{i}" + new_file_path.suffix)).exists():
+                        i += 1
+                    new_file_path = new_file_path.parent / (new_file_path.stem + f"_{i}" + new_file_path.suffix)
+
+                    copyfile(attachment_path, new_file_path)
+                    new_file_path_workdir = Path("user_interface") / new_file_path.name
+                    self.llm._extend_history("system", f"File re-added by user: {new_file_path_workdir}")
+            else:
+                copyfile(attachment_path, new_file_path)
+                new_file_path_workdir = Path("user_interface") / new_file_path.name
+                self.llm._extend_history("system", f"File added by user: {new_file_path_workdir}")
+
         self.llm._extend_history("user", input_text)
         response_content = self._completion_loop()
         print(f"\nAssistant: {response_content}\n")
+        return response_content
