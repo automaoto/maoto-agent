@@ -50,3 +50,4 @@ jobs:
             echo "Uploading to Test PyPI..."
           else
             echo "Uploading to PyPI..."
+          fi
