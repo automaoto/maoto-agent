@@ -17,17 +17,15 @@ jobs:
         id: prerelease
         run: |
           if [[ "${GITHUB_REF#refs/tags/}" =~ [a] ]]; then
-            echo "is_prerelease=true" >> $GITHUB_ENV
             echo "is_prerelease=true" > $GITHUB_OUTPUT
           else
-            echo "is_prerelease=false" >> $GITHUB_ENV
             echo "is_prerelease=false" > $GITHUB_OUTPUT
           fi
 
       - name: Set use_matrix output
         id: set_matrix
         run: |
-          echo "use_matrix=true" > $GITHUB_OUTPUT # Or false if no matrix is required
+          echo "use_matrix=false" > $GITHUB_OUTPUT # Or false if no matrix is required
 
   build_wheels_with_matrix:
     needs: prerelease_check
