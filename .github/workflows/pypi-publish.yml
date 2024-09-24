@@ -5,30 +5,33 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      use_matrix:
-        description: 'Use cibuildwheel with matrix'
-        required: true
-        default: 'true'
 
 jobs:
   prerelease_check:
     runs-on: ubuntu-latest
     outputs:
       is_prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+      use_matrix: ${{ steps.set_matrix.outputs.use_matrix }}
     steps:
       - name: Determine if it's a pre-release
         id: prerelease
         run: |
           if [[ "${GITHUB_REF#refs/tags/}" =~ [a] ]]; then
+            echo "is_prerelease=true" >> $GITHUB_ENV
             echo "is_prerelease=true" > $GITHUB_OUTPUT
           else
+            echo "is_prerelease=false" >> $GITHUB_ENV
             echo "is_prerelease=false" > $GITHUB_OUTPUT
           fi
 
+      - name: Set use_matrix output
+        id: set_matrix
+        run: |
+          echo "use_matrix=true" > $GITHUB_OUTPUT # Or false if no matrix is required
+
   build_wheels_with_matrix:
     needs: prerelease_check
-    if: needs.prerelease_check.outputs.is_prerelease == 'false' && github.event.inputs.use_matrix == 'true'
+    if: needs.prerelease_check.outputs.is_prerelease == 'false' && needs.prerelease_check.outputs.use_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +66,7 @@ jobs:
 
   build_wheels_without_matrix:
     needs: prerelease_check
-    if: needs.prerelease_check.outputs.is_prerelease == 'false' && github.event.inputs.use_matrix == 'false'
+    if: needs.prerelease_check.outputs.is_prerelease == 'false' && needs.prerelease_check.outputs.use_matrix == 'false'
 
     runs-on: ubuntu-latest
 
