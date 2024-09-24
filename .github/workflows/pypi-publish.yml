@@ -48,7 +48,5 @@ jobs:
         run: |
           if [ "${{ env.pre_release }}" = "true" ]; then
             echo "Uploading to Test PyPI..."
-            # python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/* -u __token__ -p ${{ secrets.TWINE_PASSWORD_TEST }}
           else
             echo "Uploading to PyPI..."
-            # python -m twine upload dist/* -u __token__ -p ${{ secrets.TWINE_PASSWORD }}
