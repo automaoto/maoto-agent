@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 name = "maoto-agent"
 description = "Maoto Agent"
 readme = "README.md"
-requires-python = ">=3.10,<=3.12"
+requires-python = ">=3.10,<3.13"
 license = {file = "LICENSE"}
 keywords = ["Maoto", "Agent"]
 authors = [
