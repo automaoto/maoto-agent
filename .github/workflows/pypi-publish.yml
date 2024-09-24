@@ -35,18 +35,27 @@ jobs:
       - name: Determine if it's a pre-release
         id: prerelease-check
         run: |
-          if [[ "${GITHUB_REF#refs/tags/}" =~ [abrc] ]]; then
-            echo "pre_release=true" >> $GITHUB_ENV
+          if [[ "${GITHUB_REF#refs/tags/}" =~ a ]]; then
+            echo "alpha_version=true" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
+            echo "beta_version=true" >> $GITHUB_ENV
           else
-            echo "pre_release=false" >> $GITHUB_ENV
+            echo "beta_version=false" >> $GITHUB_ENV
           fi
-  
+
+      - name: Skip alpha release
+        if: env.alpha_version == 'true'
+        run: |
+          echo "This is an alpha version. Skipping publish."
+          exit 0
+
       - name: Publish to PyPI or Test PyPI
+        if: env.alpha_version != 'true'  # Only run if it's not an alpha version
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
           TWINE_PASSWORD_TEST: ${{ secrets.PYPI_PASSWORD_TEST }}  # Add Test PyPI password
         run: |
-          if [ "${{ env.pre_release }}" = "true" ]; then
+          if [ "${{ env.beta_version }}" = "true" ]; then
             echo "Uploading to Test PyPI..."
             python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/* -u __token__ -p $TWINE_PASSWORD_TEST
           else
