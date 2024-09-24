@@ -21,7 +21,6 @@ jobs:
           else
             echo "is_prerelease=false" > $GITHUB_OUTPUT
           fi
-
       - name: Set use_matrix output
         id: set_matrix
         run: |
@@ -65,7 +64,6 @@ jobs:
   build_wheels_without_matrix:
     needs: prerelease_check
     if: needs.prerelease_check.outputs.is_prerelease == 'false' && needs.prerelease_check.outputs.use_matrix == 'false'
-
     runs-on: ubuntu-latest
 
     steps:
@@ -79,7 +77,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install wheel
+          python -m pip install wheel compileall2
+
+      - name: Precompile Python files to bytecode
+        run: |
+          python -m compileall .
+          find . -name "*.py" -type f -delete
 
       - name: Build wheels without cibuildwheel
         run: python -m pip wheel . --no-deps --wheel-dir ./wheelhouse
