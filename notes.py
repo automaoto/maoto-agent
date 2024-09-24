@@ -2,6 +2,21 @@
 
 # TODO: J.A.V.I.S. – "Joint Artificial Virtual Intelligence System"
 
+# TODO: UI can:
+# - call API with public user to login with email and password and get API key
+# - call API with public user to sign-up with email and password and get API key
+# - store apikey value in local storage (with cookie has or telegram id)
+# - manage sessions (incl. directory): 
+#     - view all sessions,
+#     - delete sessions,
+#     - create new sessions,
+#     - load session (prompts and interaction_sessions_id)
+# - add prompt (with file) to session -> for this, upload file at first autom. to maoto and interprete file if possible, then add interpreted content to context (replace file referral by ID with /file_id/filename)
+# - edit prompt (with parameter: previous_pompt_id) -> for this: introduce change from list to tree structure, where one leave is chosen as the latest / shown prompt
+
+# dont rename file and only provide file_id for download ??
+
+
 # TODO: associate actions with responses using responses_actions table and check for actioncalls if they follow up on a response that has the action attached
 # TODO: enable overwriting an actioncall (when same name)
 # TODO: encryption

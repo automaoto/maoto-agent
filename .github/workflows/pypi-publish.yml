@@ -15,8 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0  # Fetch all history including tags
-          fetch-tags: true  # Ensure tags are fetched
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -31,11 +30,32 @@ jobs:
         run: git describe --tags
 
       - name: Build the package
-        run: python -m build
+        run: python -m build --wheel
 
       - name: Publish to PyPI
         env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           python -m twine upload dist/*
+
+      - name: Determine if it's a pre-release
+        id: prerelease-check
+        run: |
+          if [[ "${GITHUB_REF#refs/tags/}" =~ [abrc] ]]; then
+            echo "pre_release=true" >> $GITHUB_ENV
+          else
+            echo "pre_release=false" >> $GITHUB_ENV
+          fi
+  
+      - name: Publish to PyPI or Test PyPI
+        env:
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          TWINE_PASSWORD_TEST: ${{ secrets.PYPI_PASSWORD_TEST }}  # Add Test PyPI password
+        run: |
+          if [ "${{ env.pre_release }}" = "true" ]; then
+            echo "Uploading to Test PyPI..."
+            # python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/* -u __token__ -p ${{ secrets.TWINE_PASSWORD_TEST }}
+          else
+            echo "Uploading to PyPI..."
+            # python -m twine upload dist/* -u __token__ -p ${{ secrets.TWINE_PASSWORD }}

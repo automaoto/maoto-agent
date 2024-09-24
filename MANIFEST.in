@@ -1,4 +1,11 @@
+# Exclude everything by default
+global-exclude *
+
+# Include specific files
 include README.md
-include pyproject.toml
 include LICENSE
-recursive-include bin *
+include pyproject.toml
+include setup.cfg
+
+# Recursively include all files from the 'maoto_agent' package
+recursive-include maoto_agent *

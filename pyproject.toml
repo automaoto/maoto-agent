@@ -28,7 +28,8 @@ dependencies = [
     "openai==1.43.0",
     "gql==3.5.0",
     "websockets==13.0.1",
-    "numpy==2.1.1"
+    "numpy>=1.26.4",
+    "setuptools>=74.1.1"
 ]
 
 dynamic = ["version"]
@@ -37,8 +38,8 @@ dynamic = ["version"]
 version_scheme = "post-release"
 local_scheme = "node-and-date"
 
-[tool.setuptools.packages.find]
-where = ["bin"]
-
 [project.scripts]
 maoto-agent = "maoto_agent.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["./src"]
