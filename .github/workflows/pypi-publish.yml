@@ -15,7 +15,7 @@ jobs:
       - name: Determine if it's a pre-release
         id: prerelease
         run: |
-          if [[ "${GITHUB_REF#refs/tags/}" =~ [abr] ]]; then
+          if [[ "${GITHUB_REF#refs/tags/}" =~ [a] ]]; then
             echo "is_prerelease=true" >> $GITHUB_ENV
             echo "::set-output name=is_prerelease::true"
           else
