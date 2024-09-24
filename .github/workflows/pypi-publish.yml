@@ -3,35 +3,48 @@ name: Build and Publish Pypi Package
 on:
   push:
     tags:
-      - 'v*'  # Runs when a version tag is pushed
-  workflow_dispatch:  # Allows manual trigger from GitHub Actions
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
-  build-and-publish:
-    runs-on: ubuntu-latest
-    environment: release_pypi
+  build_wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.8", "3.9", "3.10"]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install Build Dependencies
+      - name: Install cibuildwheel
         run: |
-          pip install build twine setuptools-scm
+          python -m pip install cibuildwheel
 
-      - name: Ensure Git Tags Exist for Setuptools-SCM
-        run: git describe --tags
+      - name: Build wheels
+        run: cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_SKIP: "*-win32"
 
-      - name: Build the package
-        run: python -m build --wheel
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: python-wheels-${{ matrix.os }}-${{ matrix.python-version }}
+          path: ./wheelhouse/
 
+  deploy:
+    runs-on: ubuntu-latest
+    environment: release_pypi
+    needs: build_wheels
+    steps:
       - name: Determine if it's a pre-release
         id: prerelease-check
         run: |
@@ -49,16 +62,25 @@ jobs:
           echo "This is an alpha version. Skipping publish."
           exit 0
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: wheelhouse
+
+      - name: Print content of wheelhouse
+        run: |
+          ls -l wheelhouse
+
       - name: Publish to PyPI or Test PyPI
-        if: env.alpha_version != 'true'  # Only run if it's not an alpha version
+        if: env.alpha_version != 'true'
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-          TWINE_PASSWORD_TEST: ${{ secrets.PYPI_PASSWORD_TEST }}  # Add Test PyPI password
+          TWINE_PASSWORD_TEST: ${{ secrets.PYPI_PASSWORD_TEST }}
         run: |
           if [ "${{ env.beta_version }}" = "true" ]; then
             echo "Uploading to Test PyPI..."
-            python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/* -u __token__ -p $TWINE_PASSWORD_TEST
+            python -m twine upload --repository-url https://test.pypi.org/legacy/ wheelhouse/* -u __token__ -p $TWINE_PASSWORD_TEST
           else
             echo "Uploading to PyPI..."
-            python -m twine upload dist/* -u __token__ -p $TWINE_PASSWORD
+            python -m twine upload wheelhouse/* -u __token__ -p $TWINE_PASSWORD
           fi
