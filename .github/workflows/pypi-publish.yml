@@ -69,15 +69,16 @@ jobs:
         with:
           path: wheelhouse
 
-      - name: Print content of wheelhouse
+      - name: Install twine
         run: |
-          ls -l wheelhouse
+          python -m pip install --upgrade twine
 
       - name: Publish to PyPI or Test PyPI
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
           TWINE_PASSWORD_TEST: ${{ secrets.PYPI_PASSWORD_TEST }}
         run: |
+          ls -l wheelhouse
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test PyPI..."
             python -m twine upload --repository-url https://test.pypi.org/legacy/ wheelhouse/* -u __token__ -p $TWINE_PASSWORD_TEST
