@@ -93,7 +93,7 @@ jobs:
           path: ./wheelhouse/
 
   deploy:
-    needs: [prerelease_check]
+    needs: [prerelease_check, build_wheels_without_matrix]
     if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
     environment: release_pypi
