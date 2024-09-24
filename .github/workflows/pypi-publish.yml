@@ -32,13 +32,6 @@ jobs:
       - name: Build the package
         run: python -m build --wheel
 
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        run: |
-          python -m twine upload dist/*
-
       - name: Determine if it's a pre-release
         id: prerelease-check
         run: |
