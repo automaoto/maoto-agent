@@ -6,6 +6,7 @@ pip install -e .
 ```
 Local Build
 ```bash
+export SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
 pip install build
 ```
 
