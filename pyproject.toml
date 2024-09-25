@@ -36,6 +36,7 @@ dynamic = ["version"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"
+version_scheme = "post-release
 
 [project.scripts]
 maoto-agent = "maoto_agent.__main__:main"
