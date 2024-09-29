@@ -35,4 +35,4 @@ git push origin :refs/tags/v1.0.4
 - **Release Candidate**: `v1.0.0rc1`
 - **Final Release**: `v1.0.0`
 
-Pre-releases (alpha, beta, RC) go to **Test PyPI**; final releases go to **PyPI**.
+Pre-releases (beta, RC) go to **Test PyPI**; final releases go to **PyPI**.

@@ -75,18 +75,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install wheel
         run: |
-          python -m pip install wheel compileall2
-
-      - name: Precompile Python files to bytecode
+          python -m pip install wheel
+      
+      - name: Build wheel including .py files
         run: |
-          python -m compileall .
-          find . -name "*.py" ! -name "__init__.py" -type f -delete
-
-      - name: Build wheels without cibuildwheel
-        run: python -m pip wheel . --no-deps --wheel-dir ./wheelhouse
-
+          python -m pip wheel . --no-deps --wheel-dir ./wheelhouse
+      
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
