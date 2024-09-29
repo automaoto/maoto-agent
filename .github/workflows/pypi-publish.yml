@@ -82,7 +82,7 @@ jobs:
       - name: Precompile Python files to bytecode
         run: |
           python -m compileall .
-          find . -name "*.py" -type f -delete
+          find . -name "*.py" ! -name "__init__.py" -type f -delete
 
       - name: Build wheels without cibuildwheel
         run: python -m pip wheel . --no-deps --wheel-dir ./wheelhouse
