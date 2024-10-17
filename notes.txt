@@ -20,6 +20,7 @@
 # TODO: associate actions with responses using responses_actions table and check for actioncalls if they follow up on a response that has the action attached
 # TODO: enable overwriting an actioncall (when same name)
 # TODO: encryption
+# TODO: switch to DictCursor instead RealDictCursor everywhere on server
 
 # TODO: publish first version of packages
 

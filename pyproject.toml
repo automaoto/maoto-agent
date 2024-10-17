@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 name = "maoto-agent"
 description = "Maoto Agent"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 keywords = ["Maoto", "Agent"]
 authors = [
@@ -21,15 +21,15 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "graphqlclient==0.2.4",
-    "aiohttp==3.10.5",
-    "aiofiles==24.1.0",
-    "requests==2.32.3",
-    "openai==1.43.0",
-    "gql==3.5.0",
-    "websockets==13.0.1",
+    "graphqlclient>=0.2.4",
+    "aiohttp>=3.10.5",
+    "aiofiles>=24.1.0",
+    "requests>=2.32.3",
+    "gql>=3.5.0",
+    "websockets>=13.0.1",
     "numpy>=1.26.4",
-    "setuptools>=74.1.1"
+    "setuptools>=74.1.1",
+    "psutil>=6.0.0"
 ]
 
 dynamic = ["version"]
