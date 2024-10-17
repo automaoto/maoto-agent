@@ -914,16 +914,19 @@ class Maoto:
         return decorator
     
     async def _resolve_response(self, response: Response):
-        await self.response_handler_method(response)
+        if self.response_handler_method:
+            await self.response_handler_method(response)
         
     async def _resolve_historyelement(self, historyelement: HistoryElement):
-        await self.history_handler_method(historyelement)
+        if self.history_handler_method:
+            await self.history_handler_method(historyelement)
 
     async def _resolve_actioncall(self, actioncall: Actioncall):
         try:
             action = self.action_handler_registry[self.id_action_map[str(actioncall.get_action_id())]]
         except KeyError:
-            action = self.default_action_handler_method
+            if self.default_action_handler_method:
+                action = self.default_action_handler_method
 
         response_description = action(actioncall.get_apikey_id(), actioncall.get_parameters())
         new_response = NewResponse(
