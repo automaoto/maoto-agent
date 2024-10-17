@@ -191,7 +191,7 @@ class Maoto:
                     
     def __init__(self, logging_level=logging.INFO):
         self.server_domain = os.environ.get("API_DOMAIN", "api.maoto.world")
-        if os.environ.get("DEBUG") == "True":
+        if os.environ.get("DEBUG") == "True" or os.environ.get("LOCALHOST") == "True":
             self.server_domain = "localhost"
         self.protocol = "http"
         self.server_url = self.protocol + "://" + self.server_domain + ":4000"
