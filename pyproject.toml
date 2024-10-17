@@ -21,7 +21,7 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "graphqlclient>=0.2.4",
+    "graphqlclient>=0.2.3",
     "aiohttp>=3.10.5",
     "aiofiles>=24.1.0",
     "requests>=2.32.3",
