@@ -191,10 +191,14 @@ class Maoto:
                     
     def __init__(self, logging_level=logging.INFO):
         self.server_domain = os.environ.get("API_DOMAIN", "api.maoto.world")
-        if os.environ.get("DEBUG") == "True" or os.environ.get("LOCALHOST") == "True":
+        if os.environ.get("DEBUG") == "True" or os.environ.get("SERVER_LOCAL") == "True":
             self.server_domain = "localhost"
         self.protocol = "http"
-        self.server_url = self.protocol + "://" + self.server_domain + ":4000"
+        if os.environ.get("SERVER_PORT"):
+            server_port = os.environ.get("SERVER_PORT")
+        else:
+            server_port = "4000"
+        self.server_url = self.protocol + "://" + self.server_domain + ":" + server_port
         self.graphql_url = self.server_url + "/graphql"
         self.subscription_url = self.graphql_url.replace(self.protocol, "ws")
 
