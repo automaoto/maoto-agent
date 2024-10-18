@@ -759,11 +759,12 @@ class Maoto:
                         time=datetime.fromisoformat(event_data["time"])
                     )
                 elif event_data["__typename"] == "Response":
+                    print(event_data)
                     event = Response(
                         response_id=uuid.UUID(event_data["response_id"]),
                         post_id=uuid.UUID(event_data["post_id"]),
                         description=event_data["description"],
-                        apikey_id=uuid.UUID(event_data["apikey_id"]),
+                        apikey_id=uuid.UUID(event_data["apikey_id"]) if event_data["apikey_id"] else None,
                         time=datetime.fromisoformat(event_data["time"])
                     )
                 elif event_data["__typename"] == "HistoryElement":
@@ -933,13 +934,14 @@ class Maoto:
                 action = self.default_action_handler_method
 
         response_description = action(actioncall.get_apikey_id(), actioncall.get_parameters())
+        
         new_response = NewResponse(
             post_id=actioncall.get_post_id(),
             description=response_description
         )
-        response = self.create_responses([new_response])[0]
-        created_response = self.create_responses([response])[0]
-        print(f"Sent response: {response}\n")
+        created_responses = await self.create_responses([new_response])
+        created_response = created_responses[0]
+        #created_response = self.create_responses([response])[0]
 
     @_sync_or_async
     async def create_historyelements(self, new_historyelements: list[NewHistoryElement]) -> list[HistoryElement]:

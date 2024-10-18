@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+from typing import Optional
 import uuid
 
 class NewUser:
@@ -225,7 +226,7 @@ class NewResponse:
         return f"NewResponse(post_id='{self.post_id}', description='{self.description}')"
     
 class Response(NewResponse):
-    def __init__(self, response_id: uuid.UUID, time: datetime, post_id: uuid.UUID, apikey_id: uuid.UUID, description: str):
+    def __init__(self, response_id: uuid.UUID, time: datetime, post_id: uuid.UUID, apikey_id: Optional[uuid.UUID], description: str):
         super().__init__(post_id, description)
         self.response_id = response_id
         self.apikey_id = apikey_id
@@ -239,6 +240,31 @@ class Response(NewResponse):
 
     def get_time(self):
         return self.time
+    
+    # Serialization method (to_dict)
+    def to_dict(self):
+        # Initial dictionary with all fields
+        data = {
+            "response_id": str(self.response_id),
+            "time": self.time.isoformat(),  # Convert datetime to ISO 8601 string
+            "post_id": str(self.post_id),
+            "apikey_id": str(self.apikey_id) if self.apikey_id else None,
+            "description": self.description
+        }
+
+        # Remove None values
+        return {k: v for k, v in data.items() if v is not None}
+
+    # Deserialization method (from_dict)
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            response_id=uuid.UUID(data["response_id"]),
+            time=datetime.fromisoformat(data["time"]),  # Convert ISO 8601 string back to datetime
+            post_id=uuid.UUID(data["post_id"]),
+            apikey_id=uuid.UUID(data["apikey_id"]) if data.get("apikey_id") else None,
+            description=data.get("description", '')  # Defaults to an empty string if 'description' is missing
+        )
 
     def __str__(self):
         return f"\nResponse ID: {self.response_id}\nTime: {self.time}\nPost ID: {self.post_id}\nAPI Key ID: {self.apikey_id}\nDescription: {self.description}"
@@ -282,6 +308,29 @@ class Actioncall(NewActioncall):
     
     def get_time(self):
         return self.time
+    
+    # Serialization method (to_dict)
+    def to_dict(self):
+        return {
+            "actioncall_id": str(self.actioncall_id),
+            "apikey_id": str(self.apikey_id),
+            "time": self.time.isoformat(),  # Convert datetime to ISO 8601 string
+            "action_id": str(self.action_id),
+            "post_id": str(self.post_id),
+            "parameters": self.parameters
+        }
+
+    # Deserialization method (from_dict)
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            actioncall_id=uuid.UUID(data["actioncall_id"]),
+            apikey_id=uuid.UUID(data["apikey_id"]),
+            time=datetime.fromisoformat(data["time"]),
+            action_id=uuid.UUID(data["action_id"]),
+            post_id=uuid.UUID(data["post_id"]),
+            parameters=data["parameters"]
+        )
     
     def __str__(self):
         return f"\nActioncall ID: {self.actioncall_id}\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nAction ID: {self.action_id}\nPost ID: {self.post_id}\nParameters: {self.parameters}"
@@ -350,7 +399,7 @@ class NewHistoryElement:
         return f"NewHistoryElement(text='{self.text}', file_ids='{self.file_ids}', tree_id='{self.tree_id}', parent_id='{self.parent_id}')"
 
 class HistoryElement(NewHistoryElement):
-    def __init__(self, history_id: uuid.UUID, role: uuid.UUID, name: str, text: str, time: datetime, apikey_id: uuid.UUID, file_ids: list[uuid.UUID] = None, tree_id: uuid.UUID = None, parent_id: uuid.UUID = None):
+    def __init__(self, history_id: uuid.UUID, role: uuid.UUID, name: str, text: str, time: datetime, apikey_id: uuid.UUID | None, file_ids: list[uuid.UUID] = None, tree_id: uuid.UUID = None, parent_id: uuid.UUID = None):
         super().__init__(text, file_ids, tree_id, parent_id)
         self.role = role
         self.name = name
@@ -382,7 +431,7 @@ class HistoryElement(NewHistoryElement):
             "name": self.name,
             "text": self.text,
             "time": self.time.isoformat(),  # Convert datetime to ISO 8601 string
-            "apikey_id": str(self.apikey_id),
+            "apikey_id": str(self.apikey_id) if self.apikey_id else None,
             # Convert file_ids to JSON string if it's not empty, otherwise use an empty string
             "file_ids": json.dumps([str(file_id) for file_id in self.file_ids]) if self.file_ids else '[]',
             "tree_id": str(self.tree_id) if self.tree_id else None,
@@ -402,7 +451,7 @@ class HistoryElement(NewHistoryElement):
             name=data.get('name'),  # Handle missing 'name', defaults to None
             text=data["text"],
             time=datetime.fromisoformat(data["time"]),  # Convert ISO 8601 string back to datetime
-            apikey_id=uuid.UUID(data["apikey_id"]),
+            apikey_id=uuid.UUID(data["apikey_id"]) if data.get("apikey_id") else None,  
             
             # Decode file_ids JSON string into a list of strings, or None if missing
             file_ids=[uuid.UUID(file_id) for file_id in json.loads(data.get("file_ids", "[]"))],
