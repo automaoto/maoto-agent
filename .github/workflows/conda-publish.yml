@@ -68,7 +68,7 @@ jobs:
 
       - name: Install Anaconda client
         run: |
-          conda install -y anaconda-client
+          pip install -y anaconda-client
 
       - name: Publish to Conda or Test Channel
         run: |
@@ -76,7 +76,7 @@ jobs:
           echo "Uploading artifact: $artifact"
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test Conda Channel..."
-            anaconda upload --label test $artifact
+            anaconda upload --label beta $artifact
           else
             echo "Uploading to Production Conda Channel..."
             anaconda upload $artifact
