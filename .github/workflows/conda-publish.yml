@@ -75,6 +75,18 @@ jobs:
         run: |
           artifact=${{ needs.build_conda_package.outputs.artifact_path }}
           echo "Uploading artifact: $artifact"
+          
+          if [ -e "$artifact" ]; then
+              echo "The file exists."
+              if [ -r "$artifact" ]; then
+                  echo "The file is readable."
+              else
+                  echo "The file is not readable."
+              fi
+          else
+              echo "The file does not exist."
+          fi
+
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test Conda Channel..."
             anaconda upload --label beta $artifact
