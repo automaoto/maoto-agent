@@ -1,48 +1,78 @@
-name: Publish Conda Package
+name: Build and Publish Conda Package
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  build-and-publish:
+  prerelease_check:
     runs-on: ubuntu-latest
-    environment: release_conda
+    outputs:
+      is_prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+    steps:
+      - name: Determine if it's a pre-release
+        id: prerelease
+        run: |
+          if [[ "${GITHUB_REF#refs/tags/}" =~ [a] ]]; then
+            echo "is_prerelease=true" > $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" > $GITHUB_OUTPUT
+          fi
+
+  build_conda_package:
+    needs: prerelease_check
+    if: needs.prerelease_check.outputs.is_prerelease == 'false'
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Set up Conda
+      - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
           python-version: '3.10'
-          miniforge-variant: 'mambaforge'
-          channels: conda-forge
 
-      - name: Install dependencies
+      - name: Install Conda build tools
         run: |
-          mamba install conda-build conda-verify anaconda-client
+          conda install -y conda-build anaconda-client
 
-      - name: Create conda build environment
+      - name: Build Conda package
         run: |
-          conda create --name build-env python=3.8
+          conda build .
+      
+      - name: Upload Conda build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: conda-packages
+          path: /home/runner/miniconda3/conda-bld/***.tar.bz2
 
-      - name: Initialize Conda and Build Package
-        shell: bash -l {0}
+  deploy:
+    needs: [prerelease_check, build_conda_package]
+    if: needs.prerelease_check.outputs.is_prerelease == 'false'
+    runs-on: ubuntu-latest
+    environment: release_conda
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: conda-bld
+
+      - name: Install Anaconda client
         run: |
-          conda init bash
-          source ~/.bashrc
-          conda activate build-env
-          conda build conda-recipe
+          conda install -y anaconda-client
 
-      - name: Upload to conda-forge
+      - name: Publish to Conda or Test Channel
         env:
-          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          conda install -n base anaconda-client
-          anaconda login --username __token__ --password $ANACONDA_API_TOKEN
-          anaconda upload --user conda-forge $(conda-build --output conda-recipe)
+          ls -l conda-bld
+          if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
+            echo "Uploading to Test Conda Channel..."
+            anaconda upload --label test conda-bld/***.tar.bz2 --token $ANACONDA_TOKEN
+          else
+            echo "Uploading to Production Conda Channel..."
+            anaconda upload conda-bld/***.tar.bz2 --token $ANACONDA_TOKEN
