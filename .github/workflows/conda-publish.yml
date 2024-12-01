@@ -77,8 +77,9 @@ jobs:
           echo "Uploading artifact: $artifact"
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test Conda Channel..."
-            conda upload --label beta $artifact
+            anaconda upload --label beta $artifact
           else
             echo "Uploading to Production Conda Channel..."
-            conda upload $artifact
+            ls -a usr/share/miniconda/conda-bld/linux-64/
+            anaconda upload $artifact
           fi
