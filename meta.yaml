@@ -1,4 +1,4 @@
-{% set version = subprocess.run(["python", "-m", "setuptools_scm"], capture_output=True, text=True).stdout.strip() %}
+{% set version = load_setup_py_data().get("version", "0.0.0") %}
 
 package:
   name: "maoto-agent"
@@ -10,6 +10,9 @@ source:
 build:
   number: 0
   script: |
+    # Get the version dynamically using setuptools_scm
+    export VERSION=$(python -m setuptools_scm)
+    sed -i "s/^version:.*/version: \"${VERSION}\"/" meta.yaml
     {{ PYTHON }} -m pip install . --no-deps --ignore-installed -v
 
 requirements:
