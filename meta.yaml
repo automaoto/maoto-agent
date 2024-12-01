@@ -40,3 +40,7 @@ about:
     Maoto Agent
   authors:
     - Maoto
+
+build:
+  channels:
+    - conda-forge
