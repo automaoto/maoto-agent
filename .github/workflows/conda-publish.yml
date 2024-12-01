@@ -16,15 +16,17 @@ jobs:
         id: prerelease
         run: |
           if [[ "${GITHUB_REF#refs/tags/}" =~ [a] ]]; then
-            echo "is_prerelease=true" > $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
           else
-            echo "is_prerelease=false" > $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
   build_conda_package:
     needs: prerelease_check
     if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
+    outputs:
+      artifact_path: ${{ steps.build.outputs.artifact_path }}
 
     steps:
       - name: Checkout repository
@@ -41,27 +43,21 @@ jobs:
           conda install -y conda-build anaconda-client
 
       - name: Build Conda package
+        id: build
         run: |
-          conda build . -c conda-forge
-
-      - name: Locate built Conda package
-        id: locate-conda-package
-        run: |
-          # Locate the output tar.bz2 file from the Conda build directory
-          PACKAGE_PATH=$(find /home/runner/miniconda3/conda-bld/ -name "*.tar.bz2" | head -n 1)
-          echo "package-path=${PACKAGE_PATH}" >> $GITHUB_ENV
+          artifact_path=$(conda build . --output)
+          echo "artifact_path=${artifact_path}" >> $GITHUB_OUTPUT
 
       - name: Upload Conda build artifacts
         uses: actions/upload-artifact@v3
         with:
           name: conda-packages
-          path: ${{ env.package-path }}
+          path: ${{ steps.build.outputs.artifact_path }}
 
   deploy:
     needs: [prerelease_check, build_conda_package]
     if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
-    environment: release_conda
 
     steps:
       - name: Download all artifacts
@@ -74,14 +70,12 @@ jobs:
           conda install -y anaconda-client
 
       - name: Publish to Conda or Test Channel
-        env:
-          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          PACKAGE_PATH=$(find conda-bld/ -name "*.tar.bz2" | head -n 1)
-          echo "Found package: ${PACKAGE_PATH}"
+          artifact=${{ needs.build_conda_package.outputs.artifact_path }}
+          ls -l $artifact
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test Conda Channel..."
-            anaconda upload --label test "${PACKAGE_PATH}" --token $ANACONDA_TOKEN
+            anaconda upload --label test $artifact
           else
             echo "Uploading to Production Conda Channel..."
-            anaconda upload "${PACKAGE_PATH}" --token $ANACONDA_TOKEN
+            anaconda upload $artifact
