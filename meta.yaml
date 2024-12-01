@@ -1,39 +1,42 @@
+{% set version = load_setup_py_data().get("version", "0.0.0") %}
+{% set name = load_setup_py_data().get("name", "unknown") %}
+
 package:
-  name: maoto-agent
-  version: "1.0.2"
+  name: "{{ name }}"
+  version: "{{ version }}"
 
 source:
-  path: ..
+  path: .
 
 build:
   number: 0
-  script: python -m build --wheel --outdir .
+  script: |
+    {{ PYTHON }} -m pip install . --no-deps --ignore-installed -v
 
 requirements:
-  build:
-    - python=3.10
-    - setuptools=72.1.0
-    - wheel=0.43.0
+  host:
+    - python >=3.10
+    - pip
+    - setuptools >=74.1.1
+    - wheel >=0.44.0
+    - setuptools-scm >=8.1.0
   run:
-    - python=3.10
-    - aiohttp=3.9.5
-    - aiofiles=24.1.0
-    - graphqlclient=0.2.4
-
-test:
-  imports:
-    - maoto_agent
-  commands:
-    - maoto-agent --help
+    - python >=3.10
+    - aiohttp >=3.10.5
+    - aiofiles >=22.1.0
+    - requests >=2.32.3
+    - gql >=3.5.0
+    - websockets >=13.0.1
+    - numpy >=1.26.4
+    - setuptools >=74.1.1
+    - psutil >=6.0.0
 
 about:
+  home: https://maoto.world
   summary: "Maoto Agent"
-  description: "Maoto Agent"
+  license: BSD-3-Clause
   license_file: LICENSE
-  keywords:
+  description: |
+    Maoto Agent
+  authors:
     - Maoto
-    - Agent
-  classifiers:
-    - "Programming Language :: Python :: 3"
-    - "Operating System :: OS Independent"
-

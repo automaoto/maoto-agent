@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       is_prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
-      use_matrix: ${{ steps.set_matrix.outputs.use_matrix }}
     steps:
       - name: Determine if it's a pre-release
         id: prerelease
@@ -21,49 +20,10 @@ jobs:
           else
             echo "is_prerelease=false" > $GITHUB_OUTPUT
           fi
-      - name: Set use_matrix output
-        id: set_matrix
-        run: |
-          echo "use_matrix=false" > $GITHUB_OUTPUT # Or false if no matrix is required
-
-  build_wheels_with_matrix:
-    needs: prerelease_check
-    if: needs.prerelease_check.outputs.is_prerelease == 'false' && needs.prerelease_check.outputs.use_matrix == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12"]
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install cibuildwheel
-        run: |
-          python -m pip install wheel cibuildwheel
-
-      - name: Build wheels with cibuildwheel
-        run: cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_SKIP: "*-win32"
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: python-wheels-${{ matrix.os }}-${{ matrix.python-version }}
-          path: ./wheelhouse/
 
   build_wheels_without_matrix:
     needs: prerelease_check
-    if: needs.prerelease_check.outputs.is_prerelease == 'false' && needs.prerelease_check.outputs.use_matrix == 'false'
+    if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
 
     steps:
