@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Conda package
         run: |
-          conda build .
+          conda build . -c conda-forge
       
       - name: Upload Conda build artifacts
         uses: actions/upload-artifact@v3
