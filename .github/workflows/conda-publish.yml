@@ -43,18 +43,26 @@ jobs:
       - name: Build Conda package
         run: |
           conda build . -c conda-forge
-      
+
+      - name: Locate built Conda package
+        id: locate-conda-package
+        run: |
+          # Locate the output tar.bz2 file from the Conda build directory
+          PACKAGE_PATH=$(find /home/runner/miniconda3/conda-bld/ -name "*.tar.bz2" | head -n 1)
+          echo "package-path=${PACKAGE_PATH}" >> $GITHUB_ENV
+
       - name: Upload Conda build artifacts
         uses: actions/upload-artifact@v3
         with:
           name: conda-packages
-          path: /home/runner/miniconda3/conda-bld/***.tar.bz2
+          path: ${{ env.package-path }}
 
   deploy:
     needs: [prerelease_check, build_conda_package]
     if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
     environment: release_conda
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v3
@@ -69,10 +77,11 @@ jobs:
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          ls -l conda-bld
+          PACKAGE_PATH=$(find conda-bld/ -name "*.tar.bz2" | head -n 1)
+          echo "Found package: ${PACKAGE_PATH}"
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test Conda Channel..."
-            anaconda upload --label test conda-bld/***.tar.bz2 --token $ANACONDA_TOKEN
+            anaconda upload --label test "${PACKAGE_PATH}" --token $ANACONDA_TOKEN
           else
             echo "Uploading to Production Conda Channel..."
-            anaconda upload conda-bld/***.tar.bz2 --token $ANACONDA_TOKEN
+            anaconda upload "${PACKAGE_PATH}" --token $ANACONDA_TOKEN
