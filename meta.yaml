@@ -1,8 +1,7 @@
-{% set version = load_setup_py_data().get("version", "0.0.0") %}
-{% set name = load_setup_py_data().get("name", "unknown") %}
+{% set version = environ.get("SETUPTOOLS_SCM_VERSION", "0.0.0") %}
 
 package:
-  name: "{{ name }}"
+  name: "maoto-agent"
   version: "{{ version }}"
 
 source:
