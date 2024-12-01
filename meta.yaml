@@ -1,6 +1,4 @@
-{% set version = environ.get("SETUPTOOLS_SCM_VERSION", "0.0.0") %}
 {% set version = subprocess.run(["python", "-m", "setuptools_scm"], capture_output=True, text=True).stdout.strip() %}
-{% endif %}
 
 package:
   name: "maoto-agent"
