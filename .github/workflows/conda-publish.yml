@@ -53,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: conda-packages
-          path: ${{ steps.build.outputs.artifact_path }}
+          path: .${{ steps.build.outputs.artifact_path }}
 
   deploy:
     needs: [prerelease_check, build_conda_package]
@@ -75,7 +75,7 @@ jobs:
         run: |
           artifact=${{ needs.build_conda_package.outputs.artifact_path }}
           echo "Uploading artifact: $artifact"
-          
+
           if [ -e "$artifact" ]; then
               echo "The file exists."
               if [ -r "$artifact" ]; then
