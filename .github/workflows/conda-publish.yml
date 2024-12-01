@@ -80,3 +80,4 @@ jobs:
           else
             echo "Uploading to Production Conda Channel..."
             anaconda upload $artifact
+          fi
