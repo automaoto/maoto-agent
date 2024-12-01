@@ -68,7 +68,7 @@ jobs:
 
       - name: Install Anaconda client
         run: |
-          pip install -y anaconda-client
+          pip install anaconda-client
 
       - name: Publish to Conda or Test Channel
         run: |
