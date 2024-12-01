@@ -68,12 +68,8 @@ jobs:
 
       - name: Install Anaconda client
         run: |
-          pip install anaconda-client
-      
-      - name: Upgrade urllib3
-        run: |
-          pip install --upgrade urllib3
-
+          conda install anaconda-client
+          
       - name: Publish to Conda or Test Channel
         run: |
           artifact=${{ needs.build_conda_package.outputs.artifact_path }}
