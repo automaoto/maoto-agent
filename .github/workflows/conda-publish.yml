@@ -45,7 +45,8 @@ jobs:
       - name: Build Conda package
         id: build
         run: |
-          artifact_path=$(conda build . --output)
+          # Build the package and output the tar.bz2 file path
+          artifact_path=$(conda build . -c conda-forge --output)
           echo "artifact_path=${artifact_path}" >> $GITHUB_OUTPUT
 
       - name: Upload Conda build artifacts
@@ -72,7 +73,7 @@ jobs:
       - name: Publish to Conda or Test Channel
         run: |
           artifact=${{ needs.build_conda_package.outputs.artifact_path }}
-          ls -l $artifact
+          echo "Uploading artifact: $artifact"
           if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
             echo "Uploading to Test Conda Channel..."
             anaconda upload --label test $artifact
