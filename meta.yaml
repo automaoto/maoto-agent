@@ -22,7 +22,7 @@ requirements:
     - setuptools-scm >=8.1.0
   run:
     - python >=3.10
-    - aiohttp >=3.10.5
+    - aiohttp >=3.8.6
     - aiofiles >=22.1.0
     - requests >=2.32.3
     - gql >=3.4.0
