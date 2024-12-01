@@ -69,6 +69,10 @@ jobs:
       - name: Install Anaconda client
         run: |
           pip install anaconda-client
+      
+      - name: Upgrade urllib3
+        run: |
+          pip install --upgrade urllib3
 
       - name: Publish to Conda or Test Channel
         run: |
