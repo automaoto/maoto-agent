@@ -71,6 +71,7 @@ jobs:
           conda install -y anaconda-client
 
       - name: Publish to Conda or Test Channel
+        shell: bash -l {0}
         run: |
           artifact=${{ needs.build_conda_package.outputs.artifact_path }}
           echo "Uploading artifact: $artifact"
