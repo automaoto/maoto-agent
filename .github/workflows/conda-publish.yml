@@ -92,6 +92,8 @@ jobs:
           ls -a
           # Extract filename from the artifact path
           artifact_filename=$(basename "${{ needs.build_conda_package.outputs.artifact_path }}")
+          echo "artifact_filename=$artifact_filename"
+          
           # Construct the new path using conda-bld directory
           artifact_path="conda-bld/$artifact_filename"
 
