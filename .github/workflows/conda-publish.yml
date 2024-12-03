@@ -93,6 +93,9 @@ jobs:
       - name: Create Conda environment
         run: conda env create --file environment.yml || conda env update --file environment.yml
 
+      - name: Install Anaconda CLI
+        run: pip install anaconda-client
+
       - name: Publish to Conda or Test Channel
         run: |
           # Extract filename from the artifact path
