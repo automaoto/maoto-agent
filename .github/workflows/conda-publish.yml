@@ -75,6 +75,9 @@ jobs:
     needs: [prerelease_check, build_conda_package]
     if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
       - name: Download all artifacts
@@ -82,19 +85,23 @@ jobs:
         with:
           path: conda-bld
 
+      - name: Install Anaconda client
+        run: |
+          conda install -y anaconda-client
+          # Explicitly activate base environment
+          source "$(conda info --base)/etc/profile.d/conda.sh"
+          conda activate base
+          bash -l {0}
+
       - name: Publish to Conda or Test Channel
         run: |
           # Extract filename from the artifact path
           artifact_filename=$(basename "${{ needs.build_conda_package.outputs.artifact_path }}")
           echo "artifact_filename=$artifact_filename"
           # Construct the new path using conda-bld directory
-          artifact_path="./conda-bld/conda-packages/$artifact_filename"
+          artifact_path="conda-bld/conda-packages/$artifact_filename"
           echo "artifact_path=$artifact_path"
           ls -l conda-bld/conda-packages/
-
-          set -eux
-          conda install -y anaconda-client
-          conda list
 
           if [ -f "$artifact_path" ]; then
             if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
