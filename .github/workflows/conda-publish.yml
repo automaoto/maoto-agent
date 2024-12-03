@@ -88,7 +88,7 @@ jobs:
 
       - name: Publish to Conda or Test Channel
         run: |
-          ls -al conda-bld
+          ls -al conda-bld/conda-packages/
           ls -a
           # Extract filename from the artifact path
           artifact_filename=$(basename "${{ needs.build_conda_package.outputs.artifact_path }}")
