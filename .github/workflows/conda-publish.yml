@@ -94,6 +94,7 @@ jobs:
           # Construct the new path using conda-bld directory
           artifact_path="conda-bld/conda-packages/$artifact_filename"
           echo "artifact_path=$artifact_path"
+          ls -l conda-bld/conda-packages/
 
           if [ -f "$artifact_path" ]; then
             if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
