@@ -82,10 +82,6 @@ jobs:
         with:
           path: conda-bld
 
-      - name: Install Anaconda client
-        run: |
-          pip install anaconda-client
-
       - name: Publish to Conda or Test Channel
         run: |
           # Extract filename from the artifact path
@@ -95,6 +91,10 @@ jobs:
           artifact_path="./conda-bld/conda-packages/$artifact_filename"
           echo "artifact_path=$artifact_path"
           ls -l conda-bld/conda-packages/
+
+          set -eux
+          conda install -y anaconda-client
+          conda list
 
           if [ -f "$artifact_path" ]; then
             if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
