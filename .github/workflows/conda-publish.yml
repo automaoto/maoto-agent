@@ -43,7 +43,7 @@ jobs:
       - name: Install setuptools_scm
         run: |
           python -m pip install --upgrade pip setuptools setuptools_scm
-      
+
       - name: Compute Version with setuptools_scm
         id: compute-version
         run: |
@@ -87,10 +87,10 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-activate-base: true
-    
+
       - name: Install anaconda-client
         run: conda install -y anaconda-client
-    
+
       - name: Use anaconda command
         run: conda run -n base anaconda --help
 
@@ -100,19 +100,20 @@ jobs:
           artifact_filename=$(basename "${{ needs.build_conda_package.outputs.artifact_path }}")
           echo "artifact_filename=$artifact_filename"
           
-          # Construct the new path using conda-bld directory
-          artifact_path="/usr/share/miniconda/conda-bld/conda-packages/$artifact_filename"
+          # Construct the path using $GITHUB_WORKSPACE
+          artifact_path="$GITHUB_WORKSPACE/conda-bld/conda-packages/$artifact_filename"
           echo "artifact_path=$artifact_path"
-          ls -a ./
-          ls -a ../
+
+          # Debug: list files
+          ls -al $GITHUB_WORKSPACE/conda-bld/conda-packages
 
           if [ -f "$artifact_path" ]; then
             if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
               echo "Uploading to Test Conda Channel..."
-              anaconda upload --label beta "$artifact_path"
+              conda run -n base anaconda upload --label beta "$artifact_path"
             else
               echo "Uploading to Production Conda Channel..."
-              anaconda upload "$artifact_path"
+              conda run -n base anaconda upload "$artifact_path"
             fi
           else
             echo "Artifact not found: $artifact_path"
