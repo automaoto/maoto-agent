@@ -76,12 +76,12 @@ jobs:
     if: needs.prerelease_check.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
+      
       - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:
           path: conda-bld
-
-      - uses: actions/checkout@v2
 
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v2
