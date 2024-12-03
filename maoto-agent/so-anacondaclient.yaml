@@ -1,7 +1,0 @@
-name: so-anacondaclient
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - anaconda-client

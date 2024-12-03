@@ -79,20 +79,19 @@ jobs:
       run:
         shell: bash -el {0}
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          activate-environment: so-anacondaclient
-          environment-file: so-anacondaclient.yaml
-          auto-activate-base: false
-      - run: |
-          conda info
-          conda list
-
       - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:
           path: conda-bld
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.10  # Adjust based on your project requirements
+
+      - name: Create Conda environment
+        run: conda env create --file environment.yml || conda env update --file environment.yml
 
       - name: Publish to Conda or Test Channel
         run: |
