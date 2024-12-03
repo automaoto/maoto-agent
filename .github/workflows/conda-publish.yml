@@ -37,25 +37,30 @@ jobs:
         with:
           auto-update-conda: true
           python-version: '3.10'
+        env:
+          CONDA_PKGS_DIR: /home/runner/conda_pkgs_dir
 
-      - name: Install Conda build tools
+      - name: Install setuptools_scm
         run: |
-          conda install -y conda-build anaconda-client
-
+          python -m pip install --upgrade pip setuptools setuptools_scm
+      
       - name: Compute Version with setuptools_scm
         id: compute-version
         run: |
           VERSION=$(python -m setuptools_scm)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-        
+
       - name: Update meta.yaml with Version
         run: |
           sed -i "s/^  version:.*/  version: \"$VERSION\"/" meta.yaml
-        
+
+      - name: Install Conda build tools
+        run: |
+          conda install -y conda-build anaconda-client
+
       - name: Build Conda package
         id: build
         run: |
-          # Build the package and output the tar.bz2 file path
           artifact_path=$(conda build . -c conda-forge --output)
           echo "artifact_path=${artifact_path}" >> $GITHUB_OUTPUT
 
@@ -63,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: conda-packages
-          path: .${{ steps.build.outputs.artifact_path }}
+          path: ${{ steps.build.outputs.artifact_path }}
 
   deploy:
     needs: [prerelease_check, build_conda_package]
@@ -81,27 +86,17 @@ jobs:
           conda install -y anaconda-client
 
       - name: Publish to Conda or Test Channel
-        shell: bash -l {0}
         run: |
           artifact=${{ needs.build_conda_package.outputs.artifact_path }}
-          echo "Uploading artifact: $artifact"
-
-          if [ -e "$artifact" ]; then
-              echo "The file exists."
-              if [ -r "$artifact" ]; then
-                  echo "The file is readable."
-              else
-                  echo "The file is not readable."
-              fi
+          if [ -f "$artifact" ]; then
+            if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
+              echo "Uploading to Test Conda Channel..."
+              anaconda upload --label beta "$artifact"
+            else
+              echo "Uploading to Production Conda Channel..."
+              anaconda upload "$artifact"
+            fi
           else
-              echo "The file does not exist."
-          fi
-
-          if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
-            echo "Uploading to Test Conda Channel..."
-            anaconda upload --label beta $artifact
-          else
-            echo "Uploading to Production Conda Channel..."
-            ls -a usr/share/miniconda/conda-bld/linux-64/
-            anaconda upload $artifact
+            echo "Artifact not found: $artifact"
+            exit 1
           fi
