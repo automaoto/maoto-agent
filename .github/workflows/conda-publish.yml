@@ -85,6 +85,9 @@ jobs:
       - name: Install Anaconda client
         run: |
           conda install -y anaconda-client
+          # Explicitly activate base environment
+          source "$(conda info --base)/etc/profile.d/conda.sh"
+          conda activate base
 
       - name: Publish to Conda or Test Channel
         run: |
