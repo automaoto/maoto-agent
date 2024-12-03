@@ -81,8 +81,6 @@ jobs:
         with:
           path: conda-bld
 
-      - uses: actions/checkout@v2
-
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v2
         with:
@@ -99,6 +97,7 @@ jobs:
           # Extract filename from the artifact path
           artifact_filename=$(basename "${{ needs.build_conda_package.outputs.artifact_path }}")
           echo "artifact_filename=$artifact_filename"
+          
           # Construct the new path using conda-bld directory
           artifact_path="./conda-bld/conda-packages/$artifact_filename"
           echo "artifact_path=$artifact_path"
