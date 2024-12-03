@@ -83,7 +83,7 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: so-anacondaclient
-          environment-file: env/so-anacondaclient.yaml
+          environment-file: so-anacondaclient.yaml
           auto-activate-base: false
       - run: |
           conda info
