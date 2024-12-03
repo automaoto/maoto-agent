@@ -89,9 +89,11 @@ jobs:
           auto-activate-base: true
     
       - name: Install anaconda-client
+        shell: bash -l {0}
         run: conda install -y anaconda-client
     
       - name: Use anaconda command
+        shell: bash -l {0}
         run: conda run -n base anaconda --help
 
       - name: Publish to Conda or Test Channel
