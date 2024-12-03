@@ -105,7 +105,7 @@ jobs:
           echo "artifact_path=$artifact_path"
 
           # Debug: list files
-          ls -al $GITHUB_WORKSPACE/conda-bld/conda-packages
+          ls -al $GITHUB_WORKSPACE
 
           if [ -f "$artifact_path" ]; then
             if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
