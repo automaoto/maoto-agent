@@ -64,17 +64,12 @@ jobs:
           artifact_path=$(conda build . -c conda-forge --output)
           conda build . -c conda-forge
           echo "artifact_path=${artifact_path}" >> $GITHUB_OUTPUT
-          ls -a
-          ls -al ../
-          ls -al /usr/share/miniconda/conda-bld/
-          ls -al /usr/share/miniconda/conda-bld/linux-64/
 
       - name: Upload Conda build artifacts
         uses: actions/upload-artifact@v3
         with:
           name: conda-packages
           path: ${{ steps.build.outputs.artifact_path }}
-          include-hidden-files: true
 
   deploy:
     needs: [prerelease_check, build_conda_package]
@@ -93,16 +88,20 @@ jobs:
 
       - name: Publish to Conda or Test Channel
         run: |
-          artifact=${{ needs.build_conda_package.outputs.artifact_path }}
-          if [ -f "$artifact" ]; then
+          # Extract filename from the artifact path
+          artifact_filename=$(basename "${{ needs.build_conda_package.outputs.artifact_path }}")
+          # Construct the new path using conda-bld directory
+          artifact_path="conda-bld/$artifact_filename"
+
+          if [ -f "$artifact_path" ]; then
             if [[ "${GITHUB_REF#refs/tags/}" =~ [brc] ]]; then
               echo "Uploading to Test Conda Channel..."
-              anaconda upload --label beta "$artifact"
+              anaconda upload --label beta "$artifact_path"
             else
               echo "Uploading to Production Conda Channel..."
-              anaconda upload "$artifact"
+              anaconda upload "$artifact_path"
             fi
           else
-            echo "Artifact not found: $artifact"
+            echo "Artifact not found: $artifact_path"
             exit 1
           fi
