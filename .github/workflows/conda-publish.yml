@@ -64,6 +64,9 @@ jobs:
           artifact_path=$(conda build . -c conda-forge --output)
           echo "artifact_path=${artifact_path}" >> $GITHUB_OUTPUT
           ls -a
+          ls -al ../
+          ls -al /usr/share/miniconda/conda-bld/
+          ls -al /usr/share/miniconda/conda-bld/linux-64/
 
       - name: Upload Conda build artifacts
         uses: actions/upload-artifact@v3
@@ -71,11 +74,6 @@ jobs:
           name: conda-packages
           path: ${{ steps.build.outputs.artifact_path }}
           include-hidden-files: true
-
-      - name: Debug: List Conda Build Output
-        run: |
-          ls -al /usr/share/miniconda/conda-bld/
-          ls -al /usr/share/miniconda/conda-bld/linux-64/
 
   deploy:
     needs: [prerelease_check, build_conda_package]
