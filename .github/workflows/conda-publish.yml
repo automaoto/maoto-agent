@@ -70,6 +70,12 @@ jobs:
         with:
           name: conda-packages
           path: ${{ steps.build.outputs.artifact_path }}
+          include-hidden-files: true
+
+      - name: Debug: List Conda Build Output
+        run: |
+          ls -al /usr/share/miniconda/conda-bld/
+          ls -al /usr/share/miniconda/conda-bld/linux-64/
 
   deploy:
     needs: [prerelease_check, build_conda_package]
