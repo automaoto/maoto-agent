@@ -63,6 +63,7 @@ jobs:
         run: |
           artifact_path=$(conda build . -c conda-forge --output)
           echo "artifact_path=${artifact_path}" >> $GITHUB_OUTPUT
+          ls -a
 
       - name: Upload Conda build artifacts
         uses: actions/upload-artifact@v3
