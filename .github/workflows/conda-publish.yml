@@ -92,7 +92,7 @@ jobs:
         run: conda install -y anaconda-client
     
       - name: Use anaconda command
-        run: anaconda --help
+        run: conda run -n base anaconda --help
 
       - name: Publish to Conda or Test Channel
         run: |
