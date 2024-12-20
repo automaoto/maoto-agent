@@ -1,6 +1,5 @@
 import os
 import json
-import uuid
 import time
 import queue
 import signal
@@ -15,16 +14,34 @@ import threading
 from pathlib import Path
 from .app_types import *
 from datetime import datetime
-from gql import gql, Client
+from gql import gql as gql_client
+from gql import Client
 from pkg_resources import get_distribution
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.websockets import WebsocketsTransport
+
+# Server Mode:
+import hashlib
+from graphql import GraphQLError, FieldDefinitionNode
+from dateutil import parser
+import psycopg2
+from psycopg2 import pool, OperationalError
+from psycopg2.extras import RealDictCursor, DictCursor
+from ariadne import gql as gql_server
+from ariadne import make_executable_schema, QueryType, MutationType, SchemaDirectiveVisitor, ScalarType, SubscriptionType, upload_scalar, UnionType
+from ariadne.asgi import GraphQL
+from ariadne.asgi.handlers import GraphQLTransportWSHandler
+from starlette.routing import Route, WebSocketRoute
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 DATA_CHUNK_SIZE = 1024 * 1024  # 1 MB in bytes
 
 class Maoto:
     class EventDrivenQueueProcessor:
-        def __init__(self, worker_count=10, min_workers=1, max_workers=20, scale_threshold=5, scale_down_delay=30, logging_level=logging.INFO):
+        def __init__(self, logger, worker_count=10, min_workers=1, max_workers=20, scale_threshold=5, scale_down_delay=30):
             self.task_queue = queue.Queue()
             self.initial_worker_count = worker_count
             self.max_workers = max_workers
@@ -39,13 +56,7 @@ class Maoto:
             self.lock = threading.Lock()
             self.last_scale_down_time = 0
             self.scale_down_delay = scale_down_delay  # Minimum time (seconds) between scale-downs
-
-            # Set up logging
-            logging.basicConfig(level=logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
-            self.logger = logging.getLogger(__name__)
-            # Disable INFO logs for gql and websockets
-            logging.getLogger("gql").setLevel(logging.WARNING)
-            logging.getLogger("websockets").setLevel(logging.WARNING)
+            self.logger = logger
 
             atexit.register(self.cleanup)
 
@@ -188,20 +199,304 @@ class Maoto:
             self.monitor_thread = threading.Thread(target=self.monitor_system, args=(worker_func,))
             self.monitor_thread.daemon = True
             self.monitor_thread.start()
+
+    class ServerMode:
+        class AuthDirective(SchemaDirectiveVisitor):
+            def visit_field_definition(self, field: FieldDefinitionNode, _) -> FieldDefinitionNode:
+                original_resolver = field.resolve
+
+                def resolve_auth(root, info, **kwargs):
+                    request = info.context["request"]
                     
-    def __init__(self, logging_level=logging.INFO):
+                    # Extract the request headers from context
+                    try:
+                        if request.headers.get("Origin", "") != "https://api.maoto.world":
+                            raise GraphQLError("Unauthorized: Request not from allowed domain")
+
+                    except Exception as e:
+                        raise GraphQLError(f"Authorization failed: {str(e)}")
+
+                    # Proceed to the original resolver if authentication passes
+                    return original_resolver(root, info, **kwargs)
+
+                field.resolve = resolve_auth
+                return field
+            
+        def __init__(self, logger, outer_class):
+            self.custom_startup = None
+            self.custom_shutdown = None
+            self.logger = logger
+            self.outer_class = outer_class
+            self.my_server_domain = os.environ.get("MY_DOMAIN", "maoto.world")
+            if os.environ.get("DEBUG") == "True" or os.environ.get("SERVER_LOCAL") == "True":
+                self.my_server_domain = "localhost"
+            my_server_port = os.environ.get("MY_PORT") if os.environ.get("MY_PORT") else "4000"
+            self.my_server_url = self.outer_class.protocol + "://" + self.my_server_domain + ":" + my_server_port
+            self.my_graphql_url = self.my_server_url + "/graphql"
+
+            # Environment variables for database connection
+            self.host_name = os.getenv('POSTGRES_HOST')
+            self.db_name = os.getenv('POSTGRES_DB')
+            self.user_name = os.getenv('POSTGRES_USER')
+            self.user_password = os.getenv('POSTGRES_PASSWORD')
+            self.port = os.getenv('POSTGRES_PORT')
+
+            if not self.host_name or not self.db_name or not self.user_name or not self.user_password:
+                raise EnvironmentError("POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, and POSTGRES_PASSWORD must be set")
+
+            # enable uuid dict to be returned as list of uuids
+            psycopg2.extras.register_uuid()
+
+            self.connection_pool = None
+            self.type_defs = gql_server("""
+                directive @auth on FIELD_DEFINITION
+
+                scalar Datetime
+                            
+                input Response {
+                    response_id: ID! 
+                    apikey_id: ID
+                    time: Datetime!
+                    post_id: ID!
+                    description: String!
+                }
+                            
+                input Actioncall {
+                    actioncall_id: ID!
+                    apikey_id: ID
+                    time: Datetime!
+                    action_id: ID!
+                    post_id: ID!
+                    parameters: String!
+                }
+                            
+                input HistoryElement {
+                    history_id: ID!
+                    apikey_id: ID
+                    name: String
+                    role: String!
+                    time: Datetime!
+                    text: String!
+                    file_ids: [ID!]
+                    tree_id: ID!
+                    parent_id: ID
+                }
+                                        
+                type Query {
+                    _dummy: String
+                }
+
+                type Mutation {
+                    forwardActioncall(actioncalls: [Actioncall!]): [Boolean!] @auth
+                    forwardResponse(responses: [Response!]): [Boolean!] @auth
+                    forwardHistoryElement(historyelements: [HistoryElement!]): [Boolean!] @auth
+                }
+                """)
+                        
+            # Resolver functions
+            self.query = QueryType()
+            self.mutation = MutationType()
+            self.subscription = SubscriptionType()
+            self.datetime_scalar = ScalarType("Datetime")
+            @self.datetime_scalar.serializer
+            def serialize_datetime(value: datetime) -> str:
+                return value.isoformat()
+            @self.datetime_scalar.value_parser
+            def parse_datetime_value(value: str) -> datetime:
+                return parser.parse(value)
+
+            # define other functions here? -----------------------------
+            @self.mutation.field("forwardActioncall")
+            async def forward_actioncall(_, info, forwarded_actioncalls: list[Actioncall]) -> list[bool]:
+                # get actioncalls
+                success = []
+                for forwarded_actioncall in forwarded_actioncalls:
+                    try:
+                        actioncall = Actioncall(
+                            actioncall_id=uuid.UUID(forwarded_actioncall["actioncall_id"]),
+                            action_id=uuid.UUID(forwarded_actioncall["action_id"]),
+                            post_id=uuid.UUID(forwarded_actioncall["post_id"]),
+                            apikey_id=uuid.UUID(forwarded_actioncall["apikey_id"]),
+                            parameters=forwarded_actioncall["parameters"],
+                            time=datetime.fromisoformat(forwarded_actioncall["time"])
+                        )
+                        await self.outer_class._resolve_actioncall(actioncall)
+                        success.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error forwarding actioncall: {e}")
+                        success.append(False)
+                return success
+            
+            @self.mutation.field("forwardResponse")
+            async def forward_response(_, info, forwarded_responses: list[Response]) -> list[bool]:
+                success = []
+                for forwarded_response in forwarded_responses:
+                    try:
+                        response = Response(
+                            response_id=uuid.UUID(forwarded_response["response_id"]),
+                            post_id=uuid.UUID(forwarded_response["post_id"]),
+                            description=forwarded_response["description"],
+                            apikey_id=uuid.UUID(forwarded_response["apikey_id"]) if forwarded_response["apikey_id"] else None,
+                            time=datetime.fromisoformat(forwarded_response["time"])
+                        )
+                        await self.outer_class._resolve_response(response)
+                        success.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error forwarding response: {e}")
+                        success.append(False)
+                return success
+            
+            @self.mutation.field("forwardHistoryElement")
+            async def forward_history_element(_, info, forwarded_historyelements: list[HistoryElement]) -> list[bool]:
+                success = []
+                for forwarded_historyelement in forwarded_historyelements:
+                    try:
+                        historyelement = HistoryElement(
+                            history_id=uuid.UUID(forwarded_historyelement["history_id"]),
+                            role=forwarded_historyelement["role"],
+                            text=forwarded_historyelement["text"],
+                            name=forwarded_historyelement["name"] if forwarded_historyelement["name"] else None,
+                            time=datetime.fromisoformat(forwarded_historyelement["time"]),
+                            apikey_id=uuid.UUID(forwarded_historyelement["apikey_id"]),
+                            file_ids=[uuid.UUID(file_id) for file_id in forwarded_historyelement["file_ids"]],
+                            tree_id=uuid.UUID(forwarded_historyelement["tree_id"]) if forwarded_historyelement["tree_id"] else None,
+                            parent_id=uuid.UUID(forwarded_historyelement["parent_id"]) if forwarded_historyelement["parent_id"] else None
+                        )
+                        await self.outer_class._resolve_historyelement(historyelement)
+                        success.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error forwarding historyelement: {e}")
+                        success.append(False)
+                return success
+
+            self.authdirective = self.AuthDirective
+            
+            # Create the executable schema
+            self.schema = make_executable_schema(self.type_defs, self.query, self.mutation, self.datetime_scalar, directives={"auth": self.authdirective})
+
+            self.graphql_app = GraphQL(
+                self.schema, 
+                debug=True, 
+                websocket_handler=GraphQLTransportWSHandler(on_connect=self.on_connect)
+            )
+            self.routes=[
+                Route("/graphql", self.graphql_app.handle_request, methods=["GET", "POST", "OPTIONS"]),
+                WebSocketRoute("/graphql", self.graphql_app.handle_websocket),
+            ]
+
+            self.middleware = [
+                Middleware(
+                    TrustedHostMiddleware,
+                    allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local']
+                ),
+                # TODO: HTTPS not working yet: incompatible versions?
+                # https://chatgpt.com/c/c50f8b80-05be-4f39-a4de-540725536ed3
+                # Middleware(HTTPSRedirectMiddleware)
+            ]
+
+        def start_server(self):
+            self.app = Starlette(
+                routes=self.routes,
+                middleware=self.middleware,
+                on_startup=[self.startup],
+                on_shutdown=[self.shutdown]
+            )
+            return self.app
+
+        def get_con(self):
+            try:
+                return self.connection_pool.getconn()
+            except Exception as e:
+                self.logger.error("Error getting connection from pool: %s", e)
+                raise GraphQLError("Error getting connection from pool.")
+
+        def put_con(self, conn):
+            try:
+                self.connection_pool.putconn(conn)
+            except Exception as e:
+                self.logger.error("Error putting connection back to pool: %s", e)
+                raise GraphQLError("Error putting connection back to pool.")
+
+        async def on_connect(self, websocket, connection_params) -> None:
+            headers = dict(websocket.scope['headers'])
+            apikey_value_bytes = headers.get(b'authorization')
+            if not apikey_value_bytes:
+                raise Exception("Authentication failed. No API key provided.")
+            hash = hashlib.sha256(apikey_value_bytes).hexdigest()
+            db = self.get_con()
+            try:
+                with db.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("SELECT apikey_id, user_id FROM apikeys WHERE hash = %s", (hash,))
+                    result = cursor.fetchone()
+                    apikey_id = result['apikey_id'] if result else None
+                    user_id = result['user_id'] if result else None
+
+                    if not apikey_id:
+                        raise Exception("Authentication failed. User not found.")
+                    
+                    cursor.execute("SELECT name FROM roles WHERE role_id IN (SELECT role_id FROM apikeys_roles WHERE apikey_id = %s)", (apikey_id,))
+                    roles = [row['name'] for row in cursor.fetchall()]
+            finally:
+                self.put_con(db)
+
+            # Store the values in the websocket state
+            websocket.state.hash = hash
+            websocket.state.apikey_id = apikey_id
+            websocket.state.user_id = user_id
+            websocket.state.roles = roles
+
+            return
+
+        async def startup(self):
+            """
+            Actions to perform on application startup.
+            """
+            try:
+                self.connection_pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=10,
+                    host=self.host_name,
+                    dbname=self.db_name,
+                    user=self.user_name,
+                    password=self.user_password,
+                    port=self.port
+                )
+                self.logger.info("Database connection pool created successfully.")
+            except OperationalError as e:
+                self.logger.error("Error setting up database connection pool: %s", e)
+                raise GraphQLError("Error setting up database connection pool.")
+
+            if self.custom_startup:
+                await self.custom_startup()
+
+        async def shutdown(self):
+            """
+            Actions to perform on application shutdown.
+            """
+            if self.connection_pool:
+                self.connection_pool.closeall()
+                self.logger.info("Database connection pool closed.")
+
+            if self.custom_shutdown:
+                await self.custom_shutdown()
+                    
+    def __init__(self, logging_level=logging.INFO, server_mode=False):
+        # Set up logging
+        logging.basicConfig(level=logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
+        self.logger = logging.getLogger(__name__)
+        # Disable INFO logs for gql and websockets
+        logging.getLogger("gql").setLevel(logging.WARNING)
+        logging.getLogger("websockets").setLevel(logging.WARNING)
+
         self.server_domain = os.environ.get("API_DOMAIN", "api.maoto.world")
         if os.environ.get("DEBUG") == "True" or os.environ.get("SERVER_LOCAL") == "True":
             self.server_domain = "localhost"
         self.protocol = "http"
-        if os.environ.get("SERVER_PORT"):
-            server_port = os.environ.get("SERVER_PORT")
-        else:
-            server_port = "4000"
+        server_port = os.environ.get("SERVER_PORT") if os.environ.get("SERVER_PORT") else "4000"
         self.server_url = self.protocol + "://" + self.server_domain + ":" + server_port
         self.graphql_url = self.server_url + "/graphql"
         self.subscription_url = self.graphql_url.replace(self.protocol, "ws")
-
+        
         self.apikey_value = os.environ.get("MAOTO_API_KEY")
         if self.apikey_value in [None, ""]:
             raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
@@ -214,24 +509,29 @@ class Maoto:
         self._check_version_compatibility()
         self.apikey = self.get_own_api_keys()[0]
 
-        async def example_worker(element):
-            if isinstance(element, HistoryElement):
-                await self._resolve_historyelement(element)
-            elif isinstance(element, Actioncall):
-                await self._resolve_actioncall(element)
-            elif isinstance(element, Response):
-                await self._resolve_response(element)
-            else:
-                print(f"Unknown event type: {element}")
+        if not server_mode:
+            async def maoto_worker(element):
+                if isinstance(element, HistoryElement):
+                    await self._resolve_historyelement(element)
+                elif isinstance(element, Actioncall):
+                    await self._resolve_actioncall(element)
+                elif isinstance(element, Response):
+                    await self._resolve_response(element)
+                else:
+                    print(f"Unknown event type: {element}")
 
-        processor = self.EventDrivenQueueProcessor(worker_count=1, scale_threshold=10, logging_level=logging_level)
-        processor.run(self.subscribe_to_events, example_worker)
+            processor = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10)
+            processor.run(self.subscribe_to_events, maoto_worker)
 
-        self.id_action_map = {}
-        self.action_handler_registry = {}
-        self.default_action_handler_method = None
-        self.history_handler_method = None
-        self.response_handler_method = None
+            self.id_action_map = {}
+            self.action_handler_registry = {}
+            self.default_action_handler_method = None
+            self.auth_handler_method = None
+            self.history_handler_method = None
+            self.response_handler_method = None
+            
+        else:
+            self.server = self.ServerMode(self.logger, self)
 
     # Decorator to allow synchronous and asynchronous usage of the same method
     @staticmethod
@@ -251,7 +551,7 @@ class Maoto:
     @_sync_or_async
     async def _check_version_compatibility(self):
 
-        query = gql('''
+        query = gql_client('''
         query CheckVersionCompatibility($client_version: String!) {
             checkVersionCompatibility(client_version: $client_version)
         }
@@ -264,7 +564,7 @@ class Maoto:
 
     @_sync_or_async
     async def get_own_user(self) -> User:
-        query = gql('''
+        query = gql_client('''
         query {
             getOwnUser {
                 user_id
@@ -282,7 +582,7 @@ class Maoto:
     @_sync_or_async
     async def get_own_api_key(self) -> ApiKey:
         # Query to fetch the user's own API keys, limiting the result to only one
-        query = gql('''
+        query = gql_client('''
         query {
             getOwnApiKeys {
                 apikey_id
@@ -314,7 +614,7 @@ class Maoto:
     @_sync_or_async
     async def get_own_api_keys(self) -> list[bool]:
         # Note: the used API key id is always the first one
-        query = gql('''
+        query = gql_client('''
         query {
             getOwnApiKeys {
                 apikey_id
@@ -333,7 +633,7 @@ class Maoto:
     @_sync_or_async
     async def create_users(self, new_users: list[NewUser]):
         users = [{'username': user.username, 'password': user.password, 'roles': user.roles} for user in new_users]
-        query = gql('''
+        query = gql_client('''
         mutation createUsers($new_users: [NewUser!]!) {
             createUsers(new_users: $new_users) {
                 username
@@ -351,7 +651,7 @@ class Maoto:
     @_sync_or_async
     async def delete_users(self, user_ids: list[User | str]) -> bool:
         user_ids = [str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids]
-        query = gql('''
+        query = gql_client('''
         mutation deleteUsers($user_ids: [ID!]!) {
             deleteUsers(user_ids: $user_ids)
         }
@@ -362,7 +662,7 @@ class Maoto:
     
     @_sync_or_async
     async def get_users(self) -> list[User]:
-        query = gql('''
+        query = gql_client('''
         query {
             getUsers {
                 user_id
@@ -380,7 +680,7 @@ class Maoto:
     @_sync_or_async
     async def create_apikeys(self, api_keys: list[NewApiKey]) -> list[ApiKey]:
         api_keys_data = [{'name': key.get_name(), 'user_id': str(key.get_user_id()), 'roles': key.get_roles()} for key in api_keys]
-        query = gql('''
+        query = gql_client('''
         mutation createApiKeys($new_apikeys: [NewApiKey!]!) {
             createApiKeys(new_apikeys: $new_apikeys) {
                 apikey_id
@@ -400,7 +700,7 @@ class Maoto:
     @_sync_or_async
     async def delete_apikeys(self, apikey_ids: list[ApiKey | str]) -> list[bool]:
         api_key_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
-        query = gql('''
+        query = gql_client('''
         mutation deleteApiKeys($apikey_ids: [ID!]!) {
             deleteApiKeys(apikey_ids: $apikey_ids)
         }
@@ -412,7 +712,7 @@ class Maoto:
     @_sync_or_async
     async def get_apikeys(self, user_ids: list[User | str]) -> list[ApiKey]:
         user_ids = [str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids]
-        query = gql('''
+        query = gql_client('''
         query getApiKeys($user_ids: [ID!]!) {
             getApiKeys(user_ids: $user_ids) {
                 apikey_id
@@ -431,7 +731,7 @@ class Maoto:
     @_sync_or_async
     async def create_actions(self, new_actions: list[NewAction]) -> list[Action]:
         actions = [{'name': action.name, 'parameters': action.parameters, 'description': action.description, 'tags': action.tags, 'cost': action.cost, 'followup': action.followup} for action in new_actions]
-        query = gql('''
+        query = gql_client('''
         mutation createActions($new_actions: [NewAction!]!) {
             createActions(new_actions: $new_actions) {
                 action_id
@@ -466,7 +766,7 @@ class Maoto:
     @_sync_or_async
     async def delete_actions(self, action_ids: list[Action | str]) -> list[bool]:
         action_ids = [str(action.get_action_id()) if isinstance(action, Action) else str(action) for action in action_ids]
-        query = gql('''
+        query = gql_client('''
         mutation deleteActions($action_ids: [ID!]!) {
             deleteActions(action_ids: $action_ids)
         }
@@ -478,7 +778,7 @@ class Maoto:
     @_sync_or_async
     async def get_actions(self, apikey_ids: list[ApiKey | str]) -> list[Action]:
         apikey_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
-        query = gql('''
+        query = gql_client('''
         query getActions($apikey_ids: [ID!]!) {
             getActions(apikey_ids: $apikey_ids) {
                 action_id
@@ -510,7 +810,7 @@ class Maoto:
     
     @_sync_or_async
     async def get_own_actions(self) -> list[Action]:
-        query = gql('''
+        query = gql_client('''
         query {
             getOwnActions {
                 action_id
@@ -543,7 +843,7 @@ class Maoto:
     @_sync_or_async
     async def create_posts(self, new_posts: list[NewPost]) -> list[Post]:
         posts = [{'description': post.description, 'context': post.context} for post in new_posts]
-        query = gql('''
+        query = gql_client('''
         mutation createPosts($new_posts: [NewPost!]!) {
             createPosts(new_posts: $new_posts) {
                 post_id
@@ -570,7 +870,7 @@ class Maoto:
     @_sync_or_async
     async def delete_posts(self, post_ids: list[Post | str]) -> list[bool]:
         post_ids = [str(post.get_post_id()) if isinstance(post, Post) else str(post) for post in post_ids]
-        query = gql('''
+        query = gql_client('''
         mutation deletePosts($post_ids: [ID!]!) {
             deletePosts(post_ids: $post_ids)
         }
@@ -582,7 +882,7 @@ class Maoto:
     @_sync_or_async
     async def get_posts(self, apikey_ids: list[ApiKey | str]) -> list[Post]:
         apikey_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
-        query = gql('''
+        query = gql_client('''
         query getPosts($apikey_ids: [ID!]!) {
             getPosts(apikey_ids: $apikey_ids) {
                 post_id
@@ -608,7 +908,7 @@ class Maoto:
 
     @_sync_or_async
     async def get_own_posts(self) -> list[Post]:
-        query = gql('''
+        query = gql_client('''
         query {
             getOwnPosts {
                 post_id
@@ -635,7 +935,7 @@ class Maoto:
     @_sync_or_async
     async def create_actioncalls(self, new_actioncalls: list[NewActioncall]) -> list[Actioncall]:
         actioncalls = [{'action_id': str(actioncall.action_id), 'post_id': str(actioncall.post_id), 'parameters': actioncall.parameters, 'cost': actioncall.cost} for actioncall in new_actioncalls]
-        query = gql('''
+        query = gql_client('''
         mutation createActioncalls($new_actioncalls: [NewActioncall!]!) {
             createActioncalls(new_actioncalls: $new_actioncalls) {
                 actioncall_id
@@ -662,7 +962,7 @@ class Maoto:
     @_sync_or_async
     async def create_responses(self, new_responses: list[NewResponse]) -> list[Response]:
         responses = [{'post_id': str(response.post_id), 'description': response.description} for response in new_responses]
-        query = gql('''
+        query = gql_client('''
         mutation createResponses($new_responses: [NewResponse!]!) {
             createResponses(new_responses: $new_responses) {
                 response_id
@@ -686,7 +986,7 @@ class Maoto:
 
     async def subscribe_to_events(self, task_queue, stop_event):
         # Subscription to listen for both actioncalls and responses using __typename
-        subscription = gql('''
+        subscription = gql_client('''
         subscription subscribeToEvents {
             subscribeToEvents {
                 __typename
@@ -786,7 +1086,7 @@ class Maoto:
 
     @_sync_or_async
     async def _download_file_async(self, file_id: str, destination_dir: Path) -> File:
-        query = gql('''
+        query = gql_client('''
         query downloadFile($file_id: ID!) {
             downloadFile(file_id: $file_id) {
                 file_id
@@ -894,6 +1194,12 @@ class Maoto:
         downloaded_files = await self.download_files(files_missing)
         return downloaded_files
 
+    def register_auth_handler(self):
+        def decorator(func):
+            self.auth_handler_method = func
+            return func
+        return decorator
+
     def register_history_handler(self):
         def decorator(func):
             self.history_handler_method = func
@@ -919,14 +1225,35 @@ class Maoto:
         return decorator
     
     async def _resolve_response(self, response: Response):
+        try:
+            if self.auth_handler_method:
+                    self.auth_handler_method(response)
+        except Exception as e:
+            self.logger.info(f"Authentication failed: {e}")
+            GraphQLError("Authentication failed")
+
         if self.response_handler_method:
             await self.response_handler_method(response)
         
     async def _resolve_historyelement(self, historyelement: HistoryElement):
+        try:
+            if self.auth_handler_method:
+                    self.auth_handler_method(historyelement)
+        except Exception as e:
+            self.logger.info(f"Authentication failed: {e}")
+            GraphQLError("Authentication failed")
+
         if self.history_handler_method:
             await self.history_handler_method(historyelement)
 
-    async def _resolve_actioncall(self, actioncall: Actioncall):
+    async def _resolve_actioncall(self, actioncall: Actioncall):  
+        try:
+            if self.auth_handler_method:
+                    self.auth_handler_method(actioncall)
+        except Exception as e:
+            self.logger.info(f"Authentication failed: {e}")
+            GraphQLError("Authentication failed")
+
         try:
             action = self.action_handler_registry[self.id_action_map[str(actioncall.get_action_id())]]
         except KeyError:
@@ -939,9 +1266,7 @@ class Maoto:
             post_id=actioncall.get_post_id(),
             description=response_description
         )
-        created_responses = await self.create_responses([new_response])
-        created_response = created_responses[0]
-        #created_response = self.create_responses([response])[0]
+        await self.create_responses([new_response])
 
     @_sync_or_async
     async def create_historyelements(self, new_historyelements: list[NewHistoryElement]) -> list[HistoryElement]:
@@ -955,7 +1280,7 @@ class Maoto:
             for call in new_historyelements
         ]
 
-        query = gql('''
+        query = gql_client('''
         mutation createHistoryElements($new_historyelements: [NewHistoryElement!]!) {
             createHistoryElements(new_historyelements: $new_historyelements) {
                 history_id
