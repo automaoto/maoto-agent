@@ -517,6 +517,8 @@ class Maoto:
                     await self._resolve_actioncall(element)
                 elif isinstance(element, Response):
                     await self._resolve_response(element)
+                elif isinstance(element, BidRequest):
+                    await self._resolve_bidrequest(element)
                 else:
                     print(f"Unknown event type: {element}")
 
@@ -526,6 +528,8 @@ class Maoto:
             self.id_action_map = {}
             self.action_handler_registry = {}
             self.default_action_handler_method = None
+            self.bid_handler_registry = {}
+            self.default_bid_handler_method = None
             self.auth_handler_method = None
             self.history_handler_method = None
             self.response_handler_method = None
@@ -983,6 +987,34 @@ class Maoto:
             apikey_id=uuid.UUID(data["apikey_id"]),
             time=datetime.fromisoformat(data["time"])
         ) for data in data_list]
+    
+    @_sync_or_async
+    async def create_bidresponses(self, bidresponses: list[BidResponse]) -> list[bool]:
+        # Prepare the input
+        bidresponses = [
+            {
+                'action_id': str(bidresponse.get_action_id()),
+                'post_id': str(bidresponse.get_post_id()),
+                'cost': bidresponse.get_cost()
+            }
+            for bidresponse in bidresponses
+        ]
+
+        # Define the GQL mutation
+        query = gql_client('''
+        mutation createBidResponses($bidresponses: [BidResponse!]!) {
+            createBidResponses(bidresponses: $bidresponses)
+        }
+        ''')
+
+        # Execute asynchronously
+        data_list = await self.client.execute_async(
+            query,
+            variable_values={"bidresponses": bidresponses}
+        )
+
+        # 'createBidResponses' is already a list of booleans, so just return it.
+        return data_list['createBidResponses']
 
     async def subscribe_to_events(self, task_queue, stop_event):
         # Subscription to listen for both actioncalls and responses using __typename
@@ -1015,6 +1047,17 @@ class Maoto:
                     file_ids
                     tree_id
                     parent_id
+                }
+                ... on BidRequest {
+                    action_id
+                    post {
+                        post_id
+                        description
+                        context
+                        apikey_id
+                        time
+                        resolved
+                    }
                 }
             }
         }
@@ -1059,7 +1102,6 @@ class Maoto:
                         time=datetime.fromisoformat(event_data["time"])
                     )
                 elif event_data["__typename"] == "Response":
-                    print(event_data)
                     event = Response(
                         response_id=uuid.UUID(event_data["response_id"]),
                         post_id=uuid.UUID(event_data["post_id"]),
@@ -1078,6 +1120,23 @@ class Maoto:
                         file_ids=[uuid.UUID(file_id) for file_id in event_data["file_ids"]],
                         tree_id=uuid.UUID(event_data["tree_id"]) if event_data["tree_id"] else None,
                         parent_id=uuid.UUID(event_data["parent_id"]) if event_data["parent_id"] else None
+                    )
+                elif event_data["__typename"] == "BidRequest":
+                    # Extract the nested Post data
+                    post_data = event_data["post"]
+                    post = Post(
+                        post_id=uuid.UUID(post_data["post_id"]),
+                        description=post_data["description"],
+                        context=post_data["context"],
+                        apikey_id=uuid.UUID(post_data["apikey_id"]),
+                        time=datetime.fromisoformat(post_data["time"]),
+                        resolved=post_data["resolved"]
+                    )
+                    
+                    # Create a BidRequest object
+                    event = BidRequest(
+                        action_id=uuid.UUID(event_data["action_id"]),
+                        post=post
                     )
                 else:
                     print(f"Unknown event type: {event_data['__typename']}")
@@ -1224,6 +1283,18 @@ class Maoto:
             return func
         return decorator
     
+    def register_bid_handler(self, name: str):
+        def decorator(func):
+            self.bid_handler_registry[name] = func
+            return func
+        return decorator
+    
+    def register_bid_handler_fallback(self):
+        def decorator(func):
+            self.default_bid_handler_method = func
+            return func
+        return decorator
+    
     async def _resolve_response(self, response: Response):
         try:
             if self.auth_handler_method:
@@ -1234,6 +1305,22 @@ class Maoto:
 
         if self.response_handler_method:
             await self.response_handler_method(response)
+
+    async def _resolve_bidrequest(self, bid_request: BidRequest):
+        try:
+            bidder = self.bid_handler_registry[self.id_action_map[str(bid_request.get_action_id())]]
+            bid_value = bidder(bid_request.get_post())
+        except KeyError:
+            if self.default_bid_handler_method:
+                bidder = self.default_bid_handler_method
+                bid_value = bidder(bid_request)
+
+        new_bid = BidResponse(
+            action_id=bid_request.get_action_id(),
+            post_id=bid_request.get_post().get_post_id(),
+            cost=bid_value
+        )
+        await self.create_bidresponses([new_bid])
         
     async def _resolve_historyelement(self, historyelement: HistoryElement):
         try:

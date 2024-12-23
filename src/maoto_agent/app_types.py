@@ -201,6 +201,26 @@ class Post(NewPost):
 
     def get_resolved(self):
         return self.resolved
+    
+    def from_dict(data):
+        return Post(
+            post_id=uuid.UUID(data["post_id"]),
+            time=datetime.fromisoformat(data["time"]),
+            description=data["description"],
+            context=data["context"] if "context" in data else None,
+            apikey_id=uuid.UUID(data["apikey_id"]),
+            resolved=data["resolved"]
+        )
+    
+    def to_dict(self):
+        return {
+            "post_id": str(self.post_id),
+            "time": self.time.isoformat(),
+            "description": self.description,
+            "context": self.context,
+            "apikey_id": str(self.apikey_id),
+            "resolved": self.resolved
+        }
 
     def __str__(self):
         return f"\nPost ID: {self.post_id}\nTime: {self.time}\nDescription: {self.description}\nContext: {self.context}\nAPI Key ID: {self.apikey_id}\nResolved: {self.resolved}"
@@ -469,3 +489,67 @@ class HistoryElement(NewHistoryElement):
     
     def __repr__(self):
         return f"HistoryElement(history_id='{self.history_id}', role='{self.role}', name='{self.name}', time='{self.time}', apikey_id='{self.apikey_id}', text='{self.text}', file_ids='{self.file_ids}', tree_id='{self.tree_id}', parent_id='{self.parent_id}')"
+    
+class BidRequest():
+    def __init__(self, action_id: uuid.UUID, post: Post):
+        self.action_id = action_id
+        self.post = post
+
+    def get_action_id(self):
+        return self.action_id
+    
+    def get_post(self):
+        return self.post
+    
+    def from_dict(data):
+        return BidRequest(
+            action_id=uuid.UUID(data["action_id"]),
+            post=Post.from_dict(data["post"])
+        )
+    
+    def to_dict(self):
+        return {
+            "action_id": str(self.action_id),
+            "post": self.post.to_dict()
+        }
+    
+    def __str__(self):
+        return f"\nAction ID: {self.action_id}\nPost: {self.post}"
+    
+    def __repr__(self):
+        return f"BidRequest(action_id='{self.action_id}', post='{self.post}')"
+    
+class BidResponse():
+    def __init__(self, action_id: uuid.UUID, post_id: uuid.UUID, cost: float):
+        self.action_id = action_id
+        self.post_id = post_id
+        self.cost = cost
+
+    def get_action_id(self):
+        return self.action_id
+    
+    def get_post_id(self):
+        return self.post_id
+    
+    def get_cost(self):
+        return self.cost
+    
+    def from_dict(data):
+        return BidResponse(
+            action_id=uuid.UUID(data["action_id"]),
+            post_id=uuid.UUID(data["post_id"]),
+            cost=data["cost"]
+        )
+    
+    def to_dict(self):
+        return {
+            "action_id": str(self.action_id),
+            "post_id": str(self.post_id),
+            "cost": self.cost
+        }
+    
+    def __str__(self):
+        return f"\nAction ID: {self.action_id}\nPost ID: {self.post_id}\nCost: {self.cost}"
+    
+    def __repr__(self):
+        return f"BidResponse(action_id='{self.action_id}', post_id='{self.post_id}', cost='{self.cost}')"
