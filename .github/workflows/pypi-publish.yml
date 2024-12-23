@@ -44,7 +44,7 @@ jobs:
           python -m pip wheel . --no-deps --wheel-dir ./wheelhouse
       
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-wheels
           path: ./wheelhouse/
