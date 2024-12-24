@@ -55,9 +55,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: release_pypi
     steps:
-      - name: Download all artifacts
+      # - name: Download all artifacts
+      #   uses: actions/download-artifact@v3
+      #   with:
+      #     path: wheelhouse
+      - name: Download python-wheels artifact
         uses: actions/download-artifact@v3
         with:
+          name: python-wheels         # <-- must match the "name" used above
           path: wheelhouse
 
       - name: Install twine
