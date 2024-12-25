@@ -506,8 +506,6 @@ class Maoto:
             headers={"Authorization": self.apikey_value},
         )
         self.client = Client(transport=transport, fetch_schema_from_transport=True)
-        self._check_version_compatibility()
-        self.apikey = self.get_own_api_keys()[0]
 
         if not server_mode:
             async def maoto_worker(element):
