@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import queue
@@ -41,7 +42,8 @@ DATA_CHUNK_SIZE = 1024 * 1024  # 1 MB in bytes
 
 class Maoto:
     class EventDrivenQueueProcessor:
-        def __init__(self, logger, worker_count=10, min_workers=1, max_workers=20, scale_threshold=5, scale_down_delay=30):
+        def __init__(self, logger, worker_count=10, min_workers=1, max_workers=20, scale_threshold=5, scale_down_delay=30, outer_class=None):
+            self.outer_class = outer_class
             self.task_queue = queue.Queue()
             self.initial_worker_count = worker_count
             self.max_workers = max_workers
@@ -97,6 +99,10 @@ class Maoto:
             # Wait for the monitor thread to finish
             if self.monitor_thread:
                 self.monitor_thread.join()
+
+            if self.outer_class:
+                if self.outer_class._at_shutdown:
+                    asyncio.run(self.outer_class._at_shutdown())
 
             self.logger.info("All processes have been terminated gracefully.")
 
@@ -193,6 +199,11 @@ class Maoto:
             signal.signal(signal.SIGINT, self.signal_handler)
             signal.signal(signal.SIGTERM, self.signal_handler)
 
+            if self.outer_class:
+                if self.outer_class._at_startup:
+                    asyncio.run(self.outer_class._at_startup())
+                    
+
             self.start_workers(worker_func, self.initial_worker_count)
             self.start_producer(lambda task_queue, stop_event: producer_func(task_queue, stop_event))
 
@@ -210,9 +221,10 @@ class Maoto:
                     
                     # Extract the request headers from context
                     try:
-                        if request.headers.get("Origin", "") != "https://api.maoto.world":
-                            raise GraphQLError("Unauthorized: Request not from allowed domain")
-
+                        address = request.headers.get("Origin", "")
+                        if address not in ["https://api.maoto.world", "http://localhost"]:
+                            raise GraphQLError(f"Unauthorized: Request not from allowed domain {address}.")
+                        
                     except Exception as e:
                         raise GraphQLError(f"Authorization failed: {str(e)}")
 
@@ -222,32 +234,10 @@ class Maoto:
                 field.resolve = resolve_auth
                 return field
             
-        def __init__(self, logger, outer_class):
-            self.custom_startup = None
-            self.custom_shutdown = None
+        def __init__(self, logger, outer_class=None):
             self.logger = logger
             self.outer_class = outer_class
-            self.my_server_domain = os.environ.get("MY_DOMAIN", "maoto.world")
-            if os.environ.get("DEBUG") == "True" or os.environ.get("SERVER_LOCAL") == "True":
-                self.my_server_domain = "localhost"
-            my_server_port = os.environ.get("MY_PORT") if os.environ.get("MY_PORT") else "4000"
-            self.my_server_url = self.outer_class.protocol + "://" + self.my_server_domain + ":" + my_server_port
-            self.my_graphql_url = self.my_server_url + "/graphql"
 
-            # Environment variables for database connection
-            self.host_name = os.getenv('POSTGRES_HOST')
-            self.db_name = os.getenv('POSTGRES_DB')
-            self.user_name = os.getenv('POSTGRES_USER')
-            self.user_password = os.getenv('POSTGRES_PASSWORD')
-            self.port = os.getenv('POSTGRES_PORT')
-
-            if not self.host_name or not self.db_name or not self.user_name or not self.user_password:
-                raise EnvironmentError("POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, and POSTGRES_PASSWORD must be set")
-
-            # enable uuid dict to be returned as list of uuids
-            psycopg2.extras.register_uuid()
-
-            self.connection_pool = None
             self.type_defs = gql_server("""
                 directive @auth on FIELD_DEFINITION
 
@@ -376,12 +366,10 @@ class Maoto:
 
             self.graphql_app = GraphQL(
                 self.schema, 
-                debug=True, 
-                websocket_handler=GraphQLTransportWSHandler(on_connect=self.on_connect)
+                debug=True,
             )
             self.routes=[
                 Route("/graphql", self.graphql_app.handle_request, methods=["GET", "POST", "OPTIONS"]),
-                WebSocketRoute("/graphql", self.graphql_app.handle_websocket),
             ]
 
             self.middleware = [
@@ -403,84 +391,41 @@ class Maoto:
             )
             return self.app
 
-        def get_con(self):
-            try:
-                return self.connection_pool.getconn()
-            except Exception as e:
-                self.logger.error("Error getting connection from pool: %s", e)
-                raise GraphQLError("Error getting connection from pool.")
-
-        def put_con(self, conn):
-            try:
-                self.connection_pool.putconn(conn)
-            except Exception as e:
-                self.logger.error("Error putting connection back to pool: %s", e)
-                raise GraphQLError("Error putting connection back to pool.")
-
-        async def on_connect(self, websocket, connection_params) -> None:
-            headers = dict(websocket.scope['headers'])
-            apikey_value_bytes = headers.get(b'authorization')
-            if not apikey_value_bytes:
-                raise Exception("Authentication failed. No API key provided.")
-            hash = hashlib.sha256(apikey_value_bytes).hexdigest()
-            db = self.get_con()
-            try:
-                with db.cursor(cursor_factory=RealDictCursor) as cursor:
-                    cursor.execute("SELECT apikey_id, user_id FROM apikeys WHERE hash = %s", (hash,))
-                    result = cursor.fetchone()
-                    apikey_id = result['apikey_id'] if result else None
-                    user_id = result['user_id'] if result else None
-
-                    if not apikey_id:
-                        raise Exception("Authentication failed. User not found.")
-                    
-                    cursor.execute("SELECT name FROM roles WHERE role_id IN (SELECT role_id FROM apikeys_roles WHERE apikey_id = %s)", (apikey_id,))
-                    roles = [row['name'] for row in cursor.fetchall()]
-            finally:
-                self.put_con(db)
-
-            # Store the values in the websocket state
-            websocket.state.hash = hash
-            websocket.state.apikey_id = apikey_id
-            websocket.state.user_id = user_id
-            websocket.state.roles = roles
-
-            return
-
         async def startup(self):
             """
             Actions to perform on application startup.
             """
-            try:
-                self.connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=1,
-                    maxconn=10,
-                    host=self.host_name,
-                    dbname=self.db_name,
-                    user=self.user_name,
-                    password=self.user_password,
-                    port=self.port
-                )
-                self.logger.info("Database connection pool created successfully.")
-            except OperationalError as e:
-                self.logger.error("Error setting up database connection pool: %s", e)
-                raise GraphQLError("Error setting up database connection pool.")
 
-            if self.custom_startup:
-                await self.custom_startup()
+            if self.outer_class:
+                if self.outer_class._at_startup:
+                    await self.outer_class._at_startup()
 
         async def shutdown(self):
             """
             Actions to perform on application shutdown.
             """
-            if self.connection_pool:
-                self.connection_pool.closeall()
-                self.logger.info("Database connection pool closed.")
 
-            if self.custom_shutdown:
-                await self.custom_shutdown()
+            if self.outer_class:
+                if self.outer_class._at_shutdown:
+                    await self.outer_class._at_shutdown()
                     
-    def __init__(self, logging_level=logging.INFO, server_mode=False):
+    def __init__(self, logging_level=logging.INFO, receive_messages=True, open_connection=False, db_connection=False):
+        self._db_connection = db_connection
+        self._db_connection_pool = None
+        if self._db_connection:
+            # Environment variables for database connection
+            self._db_hostname = os.getenv('POSTGRES_HOST')
+            self._db_name = os.getenv('POSTGRES_DB')
+            self._db_username = os.getenv('POSTGRES_USER')
+            self._db_user_password = os.getenv('POSTGRES_PASSWORD')
+            self._db_port = os.getenv('POSTGRES_PORT')
+
+            if not self._db_hostname or not self._db_name or not self._db_username or not self._db_user_password or not self._db_port:
+                raise EnvironmentError("POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, and POSTGRES_PASSWORD, POSTGRES_PORT must be set")
+
+            # enable uuid dict to be returned as list of uuids
+            psycopg2.extras.register_uuid()
+            
         # Set up logging
         logging.basicConfig(level=logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
         self.logger = logging.getLogger(__name__)
@@ -489,7 +434,7 @@ class Maoto:
         logging.getLogger("websockets").setLevel(logging.WARNING)
 
         self.server_domain = os.environ.get("API_DOMAIN", "api.maoto.world")
-        if os.environ.get("DEBUG") == "True" or os.environ.get("SERVER_LOCAL") == "True":
+        if os.environ.get("SERVER_LOCAL") == "True":
             self.server_domain = "localhost"
         self.protocol = "http"
         server_port = os.environ.get("SERVER_PORT") if os.environ.get("SERVER_PORT") else "4000"
@@ -507,33 +452,107 @@ class Maoto:
         )
         self.client = Client(transport=transport, fetch_schema_from_transport=True)
 
-        if not server_mode:
-            async def maoto_worker(element):
-                if isinstance(element, HistoryElement):
-                    await self._resolve_historyelement(element)
-                elif isinstance(element, Actioncall):
-                    await self._resolve_actioncall(element)
-                elif isinstance(element, Response):
-                    await self._resolve_response(element)
-                elif isinstance(element, BidRequest):
-                    await self._resolve_bidrequest(element)
-                else:
-                    print(f"Unknown event type: {element}")
+        self.id_action_map = {}
+        self.action_handler_registry = {}
+        self.default_action_handler_method = None
+        self.bid_handler_registry = {}
+        self.default_bid_handler_method = None
+        self.auth_handler_method = None
+        self.history_handler_method = None
+        self.response_handler_method = None
+        self.custom_startup_method = None
+        self.custom_shutdown_method = None
 
-            processor = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10)
-            processor.run(self.subscribe_to_events, maoto_worker)
+        self.receive_messages = receive_messages
+        if self.receive_messages:
+            self._open_connection = open_connection
+            if self._open_connection:
+                self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
+            else:
+                self.server = self.ServerMode(self.logger, self)
 
-            self.id_action_map = {}
-            self.action_handler_registry = {}
-            self.default_action_handler_method = None
-            self.bid_handler_registry = {}
-            self.default_bid_handler_method = None
-            self.auth_handler_method = None
-            self.history_handler_method = None
-            self.response_handler_method = None
+    def start_server(self, blocking=False) -> Starlette | None:
+        if not self.receive_messages:
+            raise ValueError("Message receiving is disabled. Set receive_messages=True to enable.")
+        
+        if self._open_connection:
+            self.server.run(self.subscribe_to_events, self.maoto_worker)
             
+            if blocking:
+                def handler(signum, frame):
+                    self.logger.info("Stopped by Ctrl+C")
+                    sys.exit(0)
+
+                # Assign the SIGINT (Ctrl+C) signal to the handler
+                signal.signal(signal.SIGINT, handler)
+
+                self.logger.info("Running... Press Ctrl+C to stop.")
+                signal.pause()  # Blocks here until a signal (Ctrl+C) is received
+    
+            return None
         else:
-            self.server = self.ServerMode(self.logger, self)
+            return self.server.start_server()
+
+    def custom_startup(self):
+        def decorator(func):
+            self.custom_startup_method = func
+            return func
+        return decorator
+    
+    def custom_shutdown(self):
+        def decorator(func):
+            self.custom_shutdown_method = func
+            return func
+        return decorator
+
+    async def _at_startup(self):
+        if self._db_connection:
+            self._startup_db_conn_pool()
+
+        if self.custom_startup_method:
+            await self.custom_startup_method()
+
+    async def _at_shutdown(self):
+        if self._db_connection:
+            self._shutdown_db_conn_pool()
+
+        if self.custom_shutdown_method:
+            await self.custom_shutdown_method()
+
+    def _startup_db_conn_pool(self):
+        try:
+            self._db_connection_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=self._db_hostname,
+                dbname=self._db_name,
+                user=self._db_username,
+                password=self._db_user_password,
+                port=self._db_port
+            )
+            self.logger.info("Database connection pool created successfully.")
+        except OperationalError as e:
+            self.logger.error("Error setting up database connection pool: %s", e)
+            raise GraphQLError("Error setting up database connection pool.")
+
+    def _shutdown_db_conn_pool(self):
+        if self._db_connection_pool:
+            self._db_connection_pool.closeall()
+            self.logger.info("Database connection pool closed.")
+
+    def get_con(self):
+        try:
+            return self._db_connection_pool.getconn()
+        except Exception as e:
+            self.logger.error("Error getting connection from pool: %s", e)
+            raise GraphQLError("Error getting connection from pool.")
+
+    def put_con(self, conn):
+        try:
+            self._db_connection_pool.putconn(conn)
+        except Exception as e:
+            self.logger.error("Error putting connection back to pool: %s", e)
+            raise GraphQLError("Error putting connection back to pool.")
 
     # Decorator to allow synchronous and asynchronous usage of the same method
     @staticmethod
@@ -1014,6 +1033,20 @@ class Maoto:
         # 'createBidResponses' is already a list of booleans, so just return it.
         return data_list['createBidResponses']
 
+    # only used for open connection server
+    async def maoto_worker(self, element):
+        if isinstance(element, HistoryElement):
+            await self._resolve_historyelement(element)
+        elif isinstance(element, Actioncall):
+            await self._resolve_actioncall(element)
+        elif isinstance(element, Response):
+            await self._resolve_response(element)
+        elif isinstance(element, BidRequest):
+            await self._resolve_bidrequest(element)
+        else:
+            self.logger.error(f"Unknown event type: {element}")
+
+    # only used for open connection server
     async def subscribe_to_events(self, task_queue, stop_event):
         # Subscription to listen for both actioncalls and responses using __typename
         subscription = gql_client('''
@@ -1078,10 +1111,11 @@ class Maoto:
             stop_monitoring_task.cancel()
 
         except asyncio.CancelledError:
-            print("Subscription was cancelled")
+            self.logger.info("Subscription was cancelled")
         except Exception as e:
-            print(f"An error occurred during subscription: {e}")
+            self.logger.error(f"An error occurred during subscription: {e}")
 
+    # only used for open connection server
     async def _run_subscription(self, task_queue, subscription, transport):
         async with Client(
             transport=transport,
@@ -1137,7 +1171,7 @@ class Maoto:
                         post=post
                     )
                 else:
-                    print(f"Unknown event type: {event_data['__typename']}")
+                    self.logger.error(f"Unknown event type: {event_data['__typename']}")
                 
                 task_queue.put(event)
 
