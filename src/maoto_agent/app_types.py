@@ -538,14 +538,14 @@ class BidResponse():
         return BidResponse(
             action_id=uuid.UUID(data["action_id"]),
             post_id=uuid.UUID(data["post_id"]),
-            cost=data["cost"]
+            cost=float.fromhex(data["cost"])
         )
     
     def to_dict(self):
         return {
             "action_id": str(self.action_id),
             "post_id": str(self.post_id),
-            "cost": self.cost
+            "cost": self.cost.hex()
         }
     
     def __str__(self):
