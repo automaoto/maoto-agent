@@ -568,6 +568,16 @@ class Maoto:
                 # If no loop is running, create a new one
                 return asyncio.run(func(*args, **kwargs))
         return wrapper
+    
+    @_sync_or_async
+    async def check_status(self) -> bool:
+        query = gql_client('''
+        query {
+            checkStatus
+        }
+        ''')
+        result = await self.client.execute_async(query)
+        return result["checkStatus"]
 
     @_sync_or_async
     async def _check_version_compatibility(self):
