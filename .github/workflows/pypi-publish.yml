@@ -89,6 +89,7 @@ jobs:
       and upload them to GitHub Release
     needs:
       - publish-to-pypi
+      - publish-to-conda
     runs-on: ubuntu-latest
 
     permissions:
