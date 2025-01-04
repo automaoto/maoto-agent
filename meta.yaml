@@ -36,14 +36,19 @@ requirements:
 
 about:
   home: https://maoto.world
-  summary: "Maoto Agent"
-  license: BSD-3-Clause
+  description: "Maoto Agent"
   license_file: LICENSE
   description: |
     Maoto Agent
   authors:
     - Maoto
-
+  keywords:
+    - "Maoto"
+    - "Agent"
+  classifiers:
+    - "Programming Language :: Python :: 3"
+    - "Operating System :: OS Independent"
+    
 extra:
   channels:
     - conda-forge
