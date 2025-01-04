@@ -1,4 +1,5 @@
-{% set version = load_setuptools_scm_version() %}
+{% set data = load_setup_py_data() %}
+{% set version = data.get('version') %}
 
 package:
   name: "maoto-agent"
