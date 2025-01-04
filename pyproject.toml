@@ -43,6 +43,9 @@ dynamic = ["version"]
 local_scheme = "no-local-version"
 version_scheme = "post-release"
 
+[project.urls]
+Home = "https://maoto.world"
+
 [project.scripts]
 maoto-agent = "maoto_agent.__main__:main"
 

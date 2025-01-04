@@ -1,7 +1,7 @@
 ## Build locally with PyPi
 This command will install the package in editable mode, meaning that any changes you make to the source code will be immediately reflected when you import and use the package in your other programs.
 ```bash
-export SETUPTOOLS_SCM_PRETEND_VERSION=1.0.5a1
+export SETUPTOOLS_SCM_PRETEND_VERSION=1000.0.0a1
 pip install -e .
 ```
 
