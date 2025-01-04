@@ -15,13 +15,12 @@ build:
 
 requirements:
   host:
-    - python >=3.10,<3.12
-    - setuptools >=74.1.1
-    - wheel >=0.44.0
-    - setuptools-scm >=8.1.0
-    - numpy >=2.0.0
+    - python
+    - setuptools
+    - wheel
+    - setuptools-scm
   run:
-    - python >=3.10,<3.12
+    - python
     - aiohttp
     - aiofiles
     - requests
