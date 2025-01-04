@@ -1,5 +1,4 @@
-{% set data = load_setup_py_data() %}
-{% set version = data.get('version') %}
+{% set version = load_setuptools_scm_version() %}
 
 package:
   name: "maoto-agent"
@@ -15,13 +14,12 @@ build:
 
 requirements:
   host:
-    - python >=3.10
-    - pip
+    - python >=3.10,<3.12
     - setuptools >=74.1.1
     - wheel >=0.44.0
     - setuptools-scm >=8.1.0
   run:
-    - python >=3.10
+    - python >=3.10,<3.12
     - aiohttp >=3.8.6
     - aiofiles >=22.1.0
     - requests >=2.32.3
