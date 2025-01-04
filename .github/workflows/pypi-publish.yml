@@ -51,6 +51,38 @@ jobs:
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  publish-to-conda:
+    name: Publish Python 🐍 distribution 📦 to conda
+    # Also only publish on tag pushes
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-activate-base: true
+          channel-priority: flexible
+
+      - name: Install conda-build and anaconda-client
+        run: conda install -y conda-build anaconda-client
+
+      - name: Build conda package
+        run: conda build .
+
+      - name: Upload conda package
+        env:
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          # Get the exact path to the built package
+          PKG_PATH=$(conda build . --output)
+          anaconda -t $ANACONDA_TOKEN upload "$PKG_PATH" --force
+
   github-release:
     name: >-
       Sign the Python 🐍 distribution 📦 with Sigstore
