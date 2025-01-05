@@ -54,3 +54,4 @@ about:
 extra:
   channels:
     - conda-forge
+    - defaults
