@@ -97,6 +97,10 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for sigstore
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Download all the dists
         uses: actions/download-artifact@v4
         with:
@@ -115,7 +119,7 @@ jobs:
           gh release create
           "$GITHUB_REF_NAME"
           --repo "$GITHUB_REPOSITORY"
-          --notes ""
+          --generate-notes
       - name: Upload artifact signatures to GitHub Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
