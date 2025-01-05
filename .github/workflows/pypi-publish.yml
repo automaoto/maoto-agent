@@ -84,7 +84,7 @@ jobs:
           conda search -c conda-forge ariadne
 
       - name: Build conda package
-        run: conda build .
+        run: conda build -c conda-forge -c defaults .
 
       - name: Upload conda package
         env:
