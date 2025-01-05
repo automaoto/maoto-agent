@@ -70,7 +70,12 @@ jobs:
           channel-priority: flexible
 
       - name: Install conda-build and anaconda-client
-        run: conda install -y conda-build anaconda-client
+        run: |
+          conda install -y conda-build anaconda-client
+          conda clean -all
+          conda clean --index-cache
+          conda update conda
+          conda config --set offline false
 
       - name: Build conda package
         run: conda build .
