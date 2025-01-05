@@ -76,6 +76,7 @@ jobs:
           conda clean --index-cache
           conda update conda
           conda config --set offline false
+          conda search -c conda-forge gql psycopg2-binary ariadne
 
       - name: Build conda package
         run: conda build .
