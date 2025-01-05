@@ -69,30 +69,20 @@ jobs:
           auto-activate-base: true
           channel-priority: flexible
 
-      - name: Install dependencies
-        run: conda install -c conda-forge aiohttp aiofiles requests gql websockets numpy setuptools psutil starlette python-dateutil psycopg2-binary gunicorn ariadne uvicorn-standard -y
-
-      - name: Install conda-build and anaconda-client
-        run: |
-          conda install -y conda-build anaconda-client
-          conda clean -all
-          conda clean --index-cache
-          conda update conda
-          conda config --set offline false
-          conda search -c conda-forge gql
-          conda search -c conda-forge psycopg2-binary
-          conda search -c conda-forge ariadne
-
       - name: Build conda package
-        run: conda build -c conda-forge -c defaults .
-
-      - name: Upload conda package
-        env:
-          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        id: build
         run: |
-          # Get the exact path to the built package
-          PKG_PATH=$(conda build . --output)
-          anaconda -t $ANACONDA_TOKEN upload "$PKG_PATH" --force
+          conda install -y conda-build
+          PKG_PATH=$(conda build -c conda-forge -c defaults . --output)
+          echo "PKG_PATH=$PKG_PATH" >> $GITHUB_OUTPUT
+          conda build -c conda-forge -c defaults .
+        
+      # - name: Upload conda package
+      #   env:
+      #     ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      #   run: |
+      #     conda install -y anaconda-client
+      #     anaconda -t $ANACONDA_TOKEN upload "${{ steps.build.outputs.PKG_PATH }}" --force
 
   github-release:
     name: >-
