@@ -32,7 +32,7 @@ requirements:
     - starlette
     - python-dateutil
     - psycopg2-binary
-    - uvicorn[standard]
+    - uvicorn-standard
     - ariadne
     - gunicorn
 
