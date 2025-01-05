@@ -5,9 +5,6 @@ export SETUPTOOLS_SCM_PRETEND_VERSION=1000.0.0a1
 pip install -e .
 ```
 
-## Build locally with Conda
-TODO
-
 ## Create a Git Tag for Versioning
 ```bash
 git tag v<version>
@@ -23,11 +20,3 @@ git tag -d v<version>
 git push origin :refs/tags/v<version>
 ```
 
-### Version Naming Conventions
-
-- **Alpha**: `v1.0.0a1`
-- **Beta**: `v1.0.0b1`
-- **Release Candidate**: `v1.0.0rc1`
-- **Final Release**: `v1.0.0`
-
-Pre-releases (beta, RC) go to **Test PyPI**; final releases go to **PyPI**.
