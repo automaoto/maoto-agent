@@ -106,8 +106,8 @@ jobs:
       Sign the Python 🐍 distribution 📦 with Sigstore
       and upload them to GitHub Release
     needs:
-      - build-pypi
-      - build-conda
+      - publish-to-pypi
+      - publish-to-conda
     runs-on: ubuntu-latest
 
     permissions:
