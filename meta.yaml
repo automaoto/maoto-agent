@@ -1,4 +1,4 @@
-{% set version = environ.get('VERSION', '0.0.0') %}
+{% set version = load_setup_py_data()['version'] %}
 
 package:
   name: "maoto-agent"
