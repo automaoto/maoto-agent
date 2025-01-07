@@ -73,6 +73,8 @@ jobs:
           PKG_PATH=$(conda build -c conda-forge -c defaults . --output)
           echo "PKG_PATH=$PKG_PATH" >> $GITHUB_OUTPUT
           conda build -c conda-forge -c defaults .
+          # print the path to the built package
+          echo "name: $PKG_PATH"
 
   publish-to-conda:
     name: >-
