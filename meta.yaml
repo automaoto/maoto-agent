@@ -1,8 +1,6 @@
-{% set version = external('python -c "import setuptools_scm; print(setuptools_scm.get_version())"') %}
-
 package:
   name: "maoto-agent"
-  version: "{{ version }}"
+  version: "{{ environ['GIT_DESCRIBE_TAG'] }}"
 
 source:
   path: .
@@ -15,6 +13,7 @@ build:
 requirements:
   host:
     - python
+    - pip
     - setuptools
     - wheel
     - setuptools-scm
