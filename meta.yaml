@@ -1,4 +1,4 @@
-{% set version = load_setup_py_data()['version'] %}
+{% set version = external('python -c "import setuptools_scm; print(setuptools_scm.get_version())"') %}
 
 package:
   name: "maoto-agent"
