@@ -69,7 +69,7 @@ jobs:
       - name: Build conda package
         run: |
           conda install -y conda-build conda-verify
-          conda build -c conda-forge -c defaults . --output-folder dist
+          conda build -c conda-forge -c defaults . --output-folder dist #--quiet
 
       - name: Upload conda package artifact
         uses: actions/upload-artifact@v4
@@ -100,7 +100,8 @@ jobs:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
           conda install -y anaconda-client
-          anaconda -t "$ANACONDA_TOKEN" upload dist/**.tar.bz2 --force
+          conda activate base
+          anaconda -t "$ANACONDA_TOKEN" upload dist/**.tar.bz2 --force #--quiet
 
   github-release:
     name: >-
