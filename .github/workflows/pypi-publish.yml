@@ -25,7 +25,7 @@ jobs:
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
         with:
-          name: python-package-distributions
+          name: python-package-distributions-pypi
           path: dist/
 
   publish-to-pypi:
@@ -44,7 +44,7 @@ jobs:
       - name: Download all the dists
         uses: actions/download-artifact@v4
         with:
-          name: python-package-distributions
+          name: python-package-distributions-pypi
           path: dist/
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -67,14 +67,15 @@ jobs:
           auto-activate-base: true
           channel-priority: flexible
       - name: Build conda package
-        id: build
         run: |
           conda install -y conda-build
-          PKG_PATH=$(conda build -c conda-forge -c defaults . --output)
-          echo "PKG_PATH=$PKG_PATH" >> $GITHUB_OUTPUT
-          conda build -c conda-forge -c defaults .
-          # print the path to the built package
-          echo "name: $PKG_PATH"
+          conda build -c conda-forge -c defaults . --output-folder dist
+
+      - name: Upload conda package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions-conda
+          path: dist
 
   publish-to-conda:
     name: >-
@@ -89,19 +90,17 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download all the dists
+      - name: Download conda artifacts
         uses: actions/download-artifact@v4
         with:
-          name: python-package-distributions
-          path: dist/
-
-        
-      # - name: Upload conda package
-      #   env:
-      #     ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-      #   run: |
-      #     conda install -y anaconda-client
-      #     anaconda -t $ANACONDA_TOKEN upload "${{ steps.build.outputs.PKG_PATH }}" --force
+          name: python-package-distributions-conda
+          path: dist
+      - name: Upload conda package to Anaconda
+        env:
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          conda install -y anaconda-client
+          anaconda -t "$ANACONDA_TOKEN" upload dist/**.tar.bz2 --force
 
   github-release:
     name: >-
