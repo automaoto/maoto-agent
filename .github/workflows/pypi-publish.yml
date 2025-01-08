@@ -68,7 +68,7 @@ jobs:
           channel-priority: flexible
       - name: Build conda package
         run: |
-          conda install -y conda-build
+          conda install -y conda-build conda-verify
           conda build -c conda-forge -c defaults . --output-folder dist
 
       - name: Upload conda package artifact
