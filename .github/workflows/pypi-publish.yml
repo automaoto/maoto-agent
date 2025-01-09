@@ -107,7 +107,7 @@ jobs:
           conda install -y anaconda-client
 
           # 3. Login explicitly (or use ANACONDA_API_TOKEN)
-          anaconda login --token "$ANACONDA_TOKEN"
+          anaconda login -t "$ANACONDA_TOKEN"
 
           # 4. Upload
           anaconda upload dist/**.tar.bz2 --force
