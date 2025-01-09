@@ -99,7 +99,6 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          ls -R dist
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
           conda install -y anaconda-client
