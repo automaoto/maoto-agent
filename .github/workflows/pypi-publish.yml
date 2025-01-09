@@ -94,7 +94,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions-conda
-          path: .
+          path: dist
       - name: Upload conda package to Anaconda
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
@@ -116,11 +116,12 @@ jobs:
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
           conda install -y anaconda-client
+          anaconda upload dist/noarch/*.tar.bz2 --force
 
           #anaconda upload dist/**.tar.bz2 --force 
 
-          echo "Uploading files:"
-          find ./dist -name "*.tar.bz2" -exec anaconda upload {} --force \;
+          #echo "Uploading files:"
+          #find . -name "*.tar.bz2" -exec anaconda upload {} --force \;
 
   github-release:
     name: >-
