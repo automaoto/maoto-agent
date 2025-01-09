@@ -7,4 +7,4 @@ The package provides convenient access to the MAOTO agents ecosystem from any Py
 
 ## Documentation and Guide
 
-The REST API documentation can be found here: [Documentation](https://github.com/automaoto/maoto-agent/wiki).
+The API documentation can be found here: [Documentation](https://github.com/automaoto/maoto-agent/wiki).
