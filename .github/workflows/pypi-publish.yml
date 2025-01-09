@@ -100,8 +100,7 @@ jobs:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
           conda install -y anaconda-client
-          conda activate base
-          anaconda -t "$ANACONDA_TOKEN" upload dist/**.tar.bz2 --force #--quiet
+          conda run -n base anaconda -t "$ANACONDA_TOKEN" upload dist/**.tar.bz2 --force #--quiet
 
   github-release:
     name: >-
