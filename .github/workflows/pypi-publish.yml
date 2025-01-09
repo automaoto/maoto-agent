@@ -94,19 +94,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions-conda
-          path: dist
+          path: .
       - name: Upload conda package to Anaconda
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
+          ls -R dist
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
-
           conda install -y anaconda-client
-
-          # Set the environment variable recognized by anaconda-client
-          echo "ANACONDA_API_TOKEN=$ANACONDA_API_TOKEN"
-
           anaconda upload dist/**.tar.bz2 --force
 
   github-release:
