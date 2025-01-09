@@ -99,18 +99,14 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          # 1. Source & activate
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
 
-          # 2. Install client
           conda install -y anaconda-client
 
           # Set the environment variable recognized by anaconda-client
-          export ANACONDA_API_TOKEN="$ANACONDA_TOKEN"
           echo "ANACONDA_API_TOKEN=$ANACONDA_API_TOKEN"
 
-          # Now just run upload without logging in
           anaconda upload dist/**.tar.bz2 --force
 
   github-release:
