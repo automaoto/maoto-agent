@@ -38,6 +38,7 @@ requirements:
 about:
   home: https://maoto.world
   description: "Maoto Agent"
+  license: Custom License
   license_file: LICENSE
   description: |
     Maoto Agent
