@@ -99,20 +99,6 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-
-          echo "===== Current Directory ====="
-          pwd
-          echo "===== List everything here ====="
-          ls -lah
-          echo "===== Recursively list 'dist' if it exists ====="
-          if [ -d "dist" ]; then
-            ls -lR dist
-          else
-            echo "Directory 'dist' does not exist."
-          fi
-          echo "===== Find all .tar.bz2 files ====="
-          find . -name "*.tar.bz2"
-
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
           conda install -y anaconda-client
