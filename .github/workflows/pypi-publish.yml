@@ -108,6 +108,7 @@ jobs:
 
           # Set the environment variable recognized by anaconda-client
           export ANACONDA_API_TOKEN="$ANACONDA_TOKEN"
+          echo "ANACONDA_API_TOKEN=$ANACONDA_API_TOKEN"
 
           # Now just run upload without logging in
           anaconda upload dist/**.tar.bz2 --force
