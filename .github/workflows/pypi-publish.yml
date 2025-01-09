@@ -99,8 +99,18 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
+          # 1. Source & activate
+          source "$(conda info --base)/etc/profile.d/conda.sh"
+          conda activate base
+
+          # 2. Install client
           conda install -y anaconda-client
-          conda run -n base anaconda upload dist/**.tar.bz2 --force #--quiet
+
+          # 3. Login explicitly (or use ANACONDA_API_TOKEN)
+          anaconda login --token "$ANACONDA_TOKEN"
+
+          # 4. Upload
+          anaconda upload dist/**.tar.bz2 --force
 
   github-release:
     name: >-
