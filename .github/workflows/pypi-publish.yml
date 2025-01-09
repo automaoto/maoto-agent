@@ -106,10 +106,10 @@ jobs:
           # 2. Install client
           conda install -y anaconda-client
 
-          # 3. Login explicitly (or use ANACONDA_API_TOKEN)
-          anaconda login -t "$ANACONDA_TOKEN"
+          # Set the environment variable recognized by anaconda-client
+          export ANACONDA_API_TOKEN="$ANACONDA_TOKEN"
 
-          # 4. Upload
+          # Now just run upload without logging in
           anaconda upload dist/**.tar.bz2 --force
 
   github-release:
