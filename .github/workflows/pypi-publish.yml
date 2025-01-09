@@ -117,7 +117,7 @@ jobs:
           conda activate base
           conda install -y anaconda-client
 
-          #anaconda upload dist/**.tar.bz2 --force
+          #anaconda upload dist/**.tar.bz2 --force 
 
           echo "Uploading files:"
           find ./dist -name "*.tar.bz2" -exec anaconda upload {} --force \;
