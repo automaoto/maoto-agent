@@ -7,3 +7,7 @@ The package provides convenient access to the MAOTO agents ecosystem from Python
 ## Documentation and Guide
 
 The API documentation can be found here: [Documentation](https://maoto.world).
+
+## License
+
+See LICENSE file.
