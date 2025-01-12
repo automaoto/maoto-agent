@@ -259,18 +259,6 @@ class Maoto:
                     post_id: ID!
                     parameters: String!
                 }
-                            
-                input HistoryElement {
-                    history_id: ID!
-                    apikey_id: ID
-                    name: String
-                    role: String!
-                    time: Datetime!
-                    text: String!
-                    file_ids: [ID!]
-                    tree_id: ID!
-                    parent_id: ID
-                }
                                         
                 type Query {
                     _dummy: String
@@ -279,7 +267,6 @@ class Maoto:
                 type Mutation {
                     forwardActioncall(actioncalls: [Actioncall!]): [Boolean!] @auth
                     forwardResponse(responses: [Response!]): [Boolean!] @auth
-                    forwardHistoryElement(historyelements: [HistoryElement!]): [Boolean!] @auth
                 }
                 """)
                         
@@ -333,29 +320,6 @@ class Maoto:
                         success.append(True)
                     except Exception as e:
                         self.logger.error(f"Error forwarding response: {e}")
-                        success.append(False)
-                return success
-            
-            @self.mutation.field("forwardHistoryElement")
-            async def forward_history_element(_, info, forwarded_historyelements: list[HistoryElement]) -> list[bool]:
-                success = []
-                for forwarded_historyelement in forwarded_historyelements:
-                    try:
-                        historyelement = HistoryElement(
-                            history_id=uuid.UUID(forwarded_historyelement["history_id"]),
-                            role=forwarded_historyelement["role"],
-                            text=forwarded_historyelement["text"],
-                            name=forwarded_historyelement["name"] if forwarded_historyelement["name"] else None,
-                            time=datetime.fromisoformat(forwarded_historyelement["time"]),
-                            apikey_id=uuid.UUID(forwarded_historyelement["apikey_id"]),
-                            file_ids=[uuid.UUID(file_id) for file_id in forwarded_historyelement["file_ids"]],
-                            tree_id=uuid.UUID(forwarded_historyelement["tree_id"]) if forwarded_historyelement["tree_id"] else None,
-                            parent_id=uuid.UUID(forwarded_historyelement["parent_id"]) if forwarded_historyelement["parent_id"] else None
-                        )
-                        await self.outer_class._resolve_historyelement(historyelement)
-                        success.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error forwarding historyelement: {e}")
                         success.append(False)
                 return success
 
@@ -458,7 +422,6 @@ class Maoto:
         self.bid_handler_registry = {}
         self.default_bid_handler_method = None
         self.auth_handler_method = None
-        self.history_handler_method = None
         self.response_handler_method = None
         self.custom_startup_method = None
         self.custom_shutdown_method = None
@@ -1045,9 +1008,7 @@ class Maoto:
 
     # only used for open connection server
     async def maoto_worker(self, element):
-        if isinstance(element, HistoryElement):
-            await self._resolve_historyelement(element)
-        elif isinstance(element, Actioncall):
+        if isinstance(element, Actioncall):
             await self._resolve_actioncall(element)
         elif isinstance(element, Response):
             await self._resolve_response(element)
@@ -1077,17 +1038,6 @@ class Maoto:
                     description
                     apikey_id
                     time
-                }
-                ... on HistoryElement {
-                    history_id
-                    role
-                    name
-                    text
-                    time
-                    apikey_id
-                    file_ids
-                    tree_id
-                    parent_id
                 }
                 ... on BidRequest {
                     action_id
@@ -1150,18 +1100,6 @@ class Maoto:
                         description=event_data["description"],
                         apikey_id=uuid.UUID(event_data["apikey_id"]) if event_data["apikey_id"] else None,
                         time=datetime.fromisoformat(event_data["time"])
-                    )
-                elif event_data["__typename"] == "HistoryElement":
-                    event = HistoryElement(
-                        history_id=uuid.UUID(event_data["history_id"]),
-                        role=event_data["role"],
-                        text=event_data["text"],
-                        name=event_data["name"] if event_data["name"] else None,
-                        time=datetime.fromisoformat(event_data["time"]),
-                        apikey_id=uuid.UUID(event_data["apikey_id"]),
-                        file_ids=[uuid.UUID(file_id) for file_id in event_data["file_ids"]],
-                        tree_id=uuid.UUID(event_data["tree_id"]) if event_data["tree_id"] else None,
-                        parent_id=uuid.UUID(event_data["parent_id"]) if event_data["parent_id"] else None
                     )
                 elif event_data["__typename"] == "BidRequest":
                     # Extract the nested Post data
@@ -1300,12 +1238,6 @@ class Maoto:
             self.auth_handler_method = func
             return func
         return decorator
-
-    def register_history_handler(self):
-        def decorator(func):
-            self.history_handler_method = func
-            return func
-        return decorator
     
     def register_response_handler(self):
         def decorator(func):
@@ -1363,17 +1295,6 @@ class Maoto:
             cost=bid_value
         )
         await self.create_bidresponses([new_bid])
-        
-    async def _resolve_historyelement(self, historyelement: HistoryElement):
-        try:
-            if self.auth_handler_method:
-                    self.auth_handler_method(historyelement)
-        except Exception as e:
-            self.logger.info(f"Authentication failed: {e}")
-            GraphQLError("Authentication failed")
-
-        if self.history_handler_method:
-            await self.history_handler_method(historyelement)
 
     async def _resolve_actioncall(self, actioncall: Actioncall):  
         try:
@@ -1396,49 +1317,3 @@ class Maoto:
             description=response_description
         )
         await self.create_responses([new_response])
-
-    @_sync_or_async
-    async def create_historyelements(self, new_historyelements: list[NewHistoryElement]) -> list[HistoryElement]:
-        historyelements = [
-            {
-                'text': call.get_text(),
-                'file_ids': [str(file_id) for file_id in call.get_file_ids()] if call.get_file_ids() else [],
-                'tree_id': str(call.get_tree_id()) if call.get_tree_id() else None,
-                'parent_id': str(call.get_parent_id()) if call.get_parent_id() else None
-            }
-            for call in new_historyelements
-        ]
-
-        query = gql_client('''
-        mutation createHistoryElements($new_historyelements: [NewHistoryElement!]!) {
-            createHistoryElements(new_historyelements: $new_historyelements) {
-                history_id
-                role
-                text
-                name
-                file_ids
-                tree_id
-                parent_id
-                apikey_id
-                time
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query, variable_values={"new_historyelements": historyelements})
-        data_list = result["createHistoryElements"]
-        
-        return [
-            HistoryElement(
-                history_id=uuid.UUID(data["history_id"]),
-                role=data["role"],
-                text=data["text"],
-                name=data["name"],
-                time=datetime.fromisoformat(data["time"]),
-                apikey_id=uuid.UUID(data["apikey_id"]),
-                file_ids=[uuid.UUID(file_id) for file_id in data["file_ids"]],
-                tree_id=uuid.UUID(data["tree_id"]) if data["tree_id"] else None,
-                parent_id=uuid.UUID(data["parent_id"]) if data["parent_id"] else None
-            )
-            for data in data_list
-        ]
