@@ -396,11 +396,9 @@ class Maoto:
         # Disable INFO logs for gql and websockets
         logging.getLogger("gql").setLevel(logging.WARNING)
         logging.getLogger("websockets").setLevel(logging.WARNING)
-
-        self.server_domain = os.environ.get("API_DOMAIN", "api.maoto.world")
-        if os.environ.get("SERVER_LOCAL") == "True":
-            self.server_domain = "localhost"
-        self.protocol = "http"
+        
+        self.server_domain = os.environ.get("SERVER_DOMAIN", "api.maoto.world")
+        self.protocol = os.environ.get("SERVER_PROTOCOL", "http")
         server_port = os.environ.get("SERVER_PORT") if os.environ.get("SERVER_PORT") else "4000"
         self.server_url = self.protocol + "://" + self.server_domain + ":" + server_port
         self.graphql_url = self.server_url + "/graphql"
