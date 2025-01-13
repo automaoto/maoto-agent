@@ -928,7 +928,7 @@ class Maoto:
     
     @_sync_or_async
     async def create_actioncalls(self, new_actioncalls: list[NewActioncall]) -> list[Actioncall]:
-        actioncalls = [{'action_id': str(actioncall.action_id), 'post_id': str(actioncall.post_id), 'parameters': actioncall.parameters, 'cost': actioncall.cost} for actioncall in new_actioncalls]
+        actioncalls = [{'action_id': str(actioncall.action_id), 'post_id': str(actioncall.post_id), 'parameters': actioncall.parameters} for actioncall in new_actioncalls]
         query = gql_client('''
         mutation createActioncalls($new_actioncalls: [NewActioncall!]!) {
             createActioncalls(new_actioncalls: $new_actioncalls) {
