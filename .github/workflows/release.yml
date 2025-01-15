@@ -70,7 +70,7 @@ jobs:
       - name: Build conda package
         run: |
           conda install -y conda-build conda-verify
-          conda build -c conda-forge -c defaults . --output-folder dist #--quiet
+          conda build -c conda-forge -c defaults . --output-folder dist --quiet
       - name: Show conda build output
         run: |
           echo "Listing dist folder:"
@@ -107,7 +107,7 @@ jobs:
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
           conda install -y anaconda-client
-          anaconda upload dist/noarch/*.conda --force
+          anaconda upload dist/noarch/*.conda --force --quiet
 
   github-release:
     name: >-
