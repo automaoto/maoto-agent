@@ -107,12 +107,7 @@ jobs:
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
           conda install -y anaconda-client
-          anaconda upload dist/noarch/*.tar.bz2 --force
-
-          #anaconda upload dist/**.tar.bz2 --force 
-
-          #echo "Uploading files:"
-          #find . -name "*.tar.bz2" -exec anaconda upload {} --force \;
+          anaconda upload dist/noarch/*.conda --force
 
   github-release:
     name: >-
