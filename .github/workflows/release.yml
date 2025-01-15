@@ -71,7 +71,10 @@ jobs:
         run: |
           conda install -y conda-build conda-verify
           conda build -c conda-forge -c defaults . --output-folder dist #--quiet
-
+      - name: Show conda build output
+        run: |
+          echo "Listing dist folder:"
+          ls -R dist
       - name: Upload conda package artifact
         uses: actions/upload-artifact@v4
         with:
