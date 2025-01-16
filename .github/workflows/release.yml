@@ -107,7 +107,7 @@ jobs:
           source "$(conda info --base)/etc/profile.d/conda.sh"
           conda activate base
           conda install -y anaconda-client
-          anaconda upload dist/noarch/*.conda --force --quiet
+          anaconda upload -q dist/noarch/*.conda --force
 
   github-release:
     name: >-
