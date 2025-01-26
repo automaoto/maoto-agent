@@ -133,6 +133,9 @@ class NewAction:
 
     def get_cost(self):
         return self.cost
+    
+    def set_cost(self, cost: float):
+        self.cost = cost
 
     def get_followup(self):
         return self.followup
@@ -553,3 +556,38 @@ class BidResponse():
     
     def __repr__(self):
         return f"BidResponse(action_id='{self.action_id}', post_id='{self.post_id}', cost='{self.cost}')"
+
+class PaymentRequest():
+    def __init__(self, actioncall_id: uuid.UUID, post_id: uuid.UUID, payment_link: str):
+        self.actioncall_id = actioncall_id
+        self.post_id = post_id
+        self.payment_link = payment_link
+
+    def get_actioncall_id(self):
+        return self.actioncall_id
+
+    def get_post_id(self):
+        return self.post_id
+    
+    def get_payment_link(self):
+        return self.payment_link
+    
+    def from_dict(data):
+        return PaymentRequest(
+            actioncall_id=uuid.UUID(data["actioncall_id"]),
+            post_id=uuid.UUID(data["post_id"]),
+            payment_link=data["payment_link"]
+        )
+    
+    def to_dict(self):
+        return {
+            "actioncall_id": str(self.actioncall_id),
+            "post_id": str(self.post_id),
+            "payment_link": self.payment_link
+        }
+    
+    def __str__(self):
+        return f"\nActioncall ID: {self.actioncall_id}\nPost ID: {self.post_id}\nPayment Link: {self.payment_link}"
+    
+    def __repr__(self):
+        return f"PaymentRequest(actioncall_id='{self.actioncall_id}', post_id='{self.post_id}', payment_link='{self.payment_link}')"

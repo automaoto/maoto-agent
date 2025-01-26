@@ -7,6 +7,7 @@ import signal
 import atexit
 import psutil
 import logging
+import random
 import asyncio
 import aiohttp
 import aiofiles
@@ -33,6 +34,7 @@ from ariadne import make_executable_schema, QueryType, MutationType, SchemaDirec
 from ariadne.asgi import GraphQL
 from ariadne.asgi.handlers import GraphQLTransportWSHandler
 from starlette.routing import Route, WebSocketRoute
+from starlette.responses import JSONResponse
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -173,12 +175,12 @@ class Maoto:
                 elif queue_size < self.scale_threshold / 2 and current_worker_count > self.min_workers:
                     current_time = time.time()
                     if current_time - self.last_scale_down_time > self.scale_down_delay:
-                        self.logger.info(f"Scaling down: Removing workers (Current: {current_worker_count})")
+                        self.logger.debug(f"Scaling down: Removing workers (Current: {current_worker_count})")
                         self.stop_extra_workers(1)
                         self.last_scale_down_time = current_time  # Update the last scale-down time
 
                 # Log system status
-                self.logger.info(
+                self.logger.debug(
                     f"Queue size: {queue_size}, Active workers: {current_worker_count}, "
                     f"Completed tasks: {self.completed_tasks}, Errors: {self.error_count}"
                 )
@@ -187,7 +189,7 @@ class Maoto:
                 # Monitor system resources
                 cpu_usage = psutil.cpu_percent(interval=1)
                 memory_usage = psutil.virtual_memory().percent
-                self.logger.info(f"System CPU Usage: {cpu_usage}%, Memory Usage: {memory_usage}%")
+                self.logger.debug(f"System CPU Usage: {cpu_usage}%, Memory Usage: {memory_usage}%")
 
                 # Sleep before the next monitoring check
                 time.sleep(5)
@@ -332,8 +334,13 @@ class Maoto:
                 self.schema, 
                 debug=True,
             )
+
+            async def health_check(request):
+                return JSONResponse({"status": "ok"})
+
             self.routes=[
                 Route("/graphql", self.graphql_app.handle_request, methods=["GET", "POST", "OPTIONS"]),
+                Route("/healthz", health_check, methods=["GET"]),
             ]
 
             self.middleware = [
@@ -414,6 +421,8 @@ class Maoto:
         )
         self.client = Client(transport=transport, fetch_schema_from_transport=True)
 
+        self.action_cache = []
+
         self.id_action_map = {}
         self.action_handler_registry = {}
         self.default_action_handler_method = None
@@ -421,6 +430,7 @@ class Maoto:
         self.default_bid_handler_method = None
         self.auth_handler_method = None
         self.response_handler_method = None
+        self.payment_handler_method = None
         self.custom_startup_method = None
         self.custom_shutdown_method = None
 
@@ -720,40 +730,52 @@ class Maoto:
         data_list = result["getApiKeys"]
         return [ApiKey(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"]) for data in data_list]
 
+    async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]:
+        if new_actions:
+            actions = [{'name': action.get_name(), 'parameters': action.get_parameters(), 'description': action.get_description(), 'tags': action.get_tags(), 'cost': action.get_cost(), 'followup': action.get_followup()} for action in new_actions]
+            query = gql_client('''
+            mutation createActions($new_actions: [NewAction!]!) {
+                createActions(new_actions: $new_actions) {
+                    action_id
+                    apikey_id
+                    name
+                    parameters
+                    description
+                    tags
+                    cost
+                    followup
+                    time
+                }
+            }
+            ''')
+
+            result = await self.client.execute_async(query, variable_values={"new_actions": actions})
+            data_list = result["createActions"]
+            self.id_action_map.update({data["action_id"]: data["name"] for data in data_list})
+
+            actions = [Action(
+                action_id=uuid.UUID(data["action_id"]),
+                apikey_id=uuid.UUID(data["apikey_id"]),
+                name=data["name"],
+                parameters=data["parameters"],
+                description=data["description"],
+                tags=data["tags"],
+                cost=data["cost"],
+                followup=data["followup"],
+                time=datetime.fromisoformat(data["time"])
+            ) for data in data_list]
+        else:
+            actions = []
+
+        return actions
+
     @_sync_or_async
     async def create_actions(self, new_actions: list[NewAction]) -> list[Action]:
-        actions = [{'name': action.name, 'parameters': action.parameters, 'description': action.description, 'tags': action.tags, 'cost': action.cost, 'followup': action.followup} for action in new_actions]
-        query = gql_client('''
-        mutation createActions($new_actions: [NewAction!]!) {
-            createActions(new_actions: $new_actions) {
-                action_id
-                apikey_id
-                name
-                parameters
-                description
-                tags
-                cost
-                followup
-                time
-            }
-        }
-        ''')
+        self.action_cache.extend(new_actions)
 
-        result = await self.client.execute_async(query, variable_values={"new_actions": actions})
-        data_list = result["createActions"]
-        self.id_action_map.update({data["action_id"]: data["name"] for data in data_list})
+        actions = await self._create_actions_core(new_actions)
 
-        return [Action(
-            action_id=uuid.UUID(data["action_id"]),
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            name=data["name"],
-            parameters=data["parameters"],
-            description=data["description"],
-            tags=data["tags"],
-            cost=data["cost"],
-            followup=data["followup"],
-            time=datetime.fromisoformat(data["time"])
-        ) for data in data_list]
+        return actions
 
     @_sync_or_async
     async def delete_actions(self, action_ids: list[Action | str]) -> list[bool]:
@@ -765,6 +787,10 @@ class Maoto:
         ''')
 
         result = await self.client.execute_async(query, variable_values={"action_ids": action_ids})
+
+        # remove the respecitive actions from the cache
+        self.action_cache = [action for action in self.action_cache if action.get_action_id() not in action_ids]
+
         return result["deleteActions"]
     
     @_sync_or_async
@@ -833,8 +859,20 @@ class Maoto:
         ) for data in data_list]
     
     @_sync_or_async
+    async def fetch_action_info(self, new_posts: list[NewPost]) -> list[str]:
+        posts = [{'description': post.get_description(), 'context': post.get_context()} for post in new_posts]
+        query = gql_client('''
+        query fetchActionInfo($new_posts: [NewPost!]!) {
+            fetchActionInfo(new_posts: $new_posts)
+        }
+        ''')
+
+        result = await self.client.execute_async(query, variable_values={"new_posts": posts})
+        return result["fetchActionInfo"]
+
+    @_sync_or_async
     async def create_posts(self, new_posts: list[NewPost]) -> list[Post]:
-        posts = [{'description': post.description, 'context': post.context} for post in new_posts]
+        posts = [{'description': post.get_description(), 'context': post.get_context()} for post in new_posts]
         query = gql_client('''
         mutation createPosts($new_posts: [NewPost!]!) {
             createPosts(new_posts: $new_posts) {
@@ -848,7 +886,12 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"new_posts": posts})
+        try:
+            result = await self.client.execute_async(query, variable_values={"new_posts": posts})
+        except Exception as e:
+            self.logger.error(f"Error creating posts: {e}")
+            GraphQLError(f"Error creating posts: {e}")
+            
         data_list = result["createPosts"]
         return [Post(
             post_id=uuid.UUID(data["post_id"]),
@@ -1006,12 +1049,16 @@ class Maoto:
 
     # only used for open connection server
     async def maoto_worker(self, element):
-        if isinstance(element, Actioncall):
-            await self._resolve_actioncall(element)
-        elif isinstance(element, Response):
-            await self._resolve_response(element)
-        elif isinstance(element, BidRequest):
-            await self._resolve_bidrequest(element)
+        resolve_map = {
+            Actioncall: self._resolve_actioncall,
+            Response: self._resolve_response,
+            BidRequest: self._resolve_bidrequest,
+            PaymentRequest: self._resolve_paymentrequest,
+        }
+
+        resolver = resolve_map.get(type(element))
+        if resolver:
+            await resolver(element)
         else:
             self.logger.error(f"Unknown event type: {element}")
 
@@ -1048,78 +1095,148 @@ class Maoto:
                         resolved
                     }
                 }
+                ... on PaymentRequest {
+                    actioncall_id
+                    post_id
+                    payment_link
+                }
             }
         }
         ''')
 
-        transport = WebsocketsTransport(
-            url=self.subscription_url,
-            headers={"Authorization": self.apikey_value},
-        )
-
+        # A helper to stop the subscription task when stop_event is triggered
         async def monitor_stop_event(subscription_task):
             while not stop_event.is_set():
                 await asyncio.sleep(1)
             subscription_task.cancel()
 
-        try:
-            subscription_task = asyncio.create_task(self._run_subscription(task_queue, subscription, transport))
-            stop_monitoring_task = asyncio.create_task(monitor_stop_event(subscription_task))
-            await subscription_task
-            stop_monitoring_task.cancel()
+        # Create a task to monitor for stop_event in parallel
+        subscription_task = asyncio.create_task(
+            self._run_subscription_with_reconnect(task_queue, subscription, stop_event)
+        )
+        stop_monitoring_task = asyncio.create_task(
+            monitor_stop_event(subscription_task)
+        )
 
+        try:
+            await subscription_task
         except asyncio.CancelledError:
             self.logger.info("Subscription was cancelled")
         except Exception as e:
-            self.logger.error(f"An error occurred during subscription: {e}")
+            self.logger.error(f"An unexpected error occurred: {e}")
+        finally:
+            stop_monitoring_task.cancel()
 
-    # only used for open connection server
-    async def _run_subscription(self, task_queue, subscription, transport):
-        async with Client(
-            transport=transport,
-            fetch_schema_from_transport=True,
-        ) as session:
-            async for result in session.subscribe(subscription):
-                event_data = result['subscribeToEvents']
-                # Use __typename to identify the type of the event
-                if event_data["__typename"] == "Actioncall":
-                    event = Actioncall(
-                        actioncall_id=uuid.UUID(event_data["actioncall_id"]),
-                        action_id=uuid.UUID(event_data["action_id"]),
-                        post_id=uuid.UUID(event_data["post_id"]),
-                        apikey_id=uuid.UUID(event_data["apikey_id"]),
-                        parameters=event_data["parameters"],
-                        time=datetime.fromisoformat(event_data["time"])
-                    )
-                elif event_data["__typename"] == "Response":
-                    event = Response(
-                        response_id=uuid.UUID(event_data["response_id"]),
-                        post_id=uuid.UUID(event_data["post_id"]),
-                        description=event_data["description"],
-                        apikey_id=uuid.UUID(event_data["apikey_id"]) if event_data["apikey_id"] else None,
-                        time=datetime.fromisoformat(event_data["time"])
-                    )
-                elif event_data["__typename"] == "BidRequest":
-                    # Extract the nested Post data
-                    post_data = event_data["post"]
-                    post = Post(
-                        post_id=uuid.UUID(post_data["post_id"]),
-                        description=post_data["description"],
-                        context=post_data["context"],
-                        apikey_id=uuid.UUID(post_data["apikey_id"]),
-                        time=datetime.fromisoformat(post_data["time"]),
-                        resolved=post_data["resolved"]
-                    )
-                    
-                    # Create a BidRequest object
-                    event = BidRequest(
-                        action_id=uuid.UUID(event_data["action_id"]),
-                        post=post
-                    )
-                else:
-                    self.logger.error(f"Unknown event type: {event_data['__typename']}")
-                
-                task_queue.put(event)
+    async def _run_subscription_with_reconnect(self, task_queue, subscription, stop_event):
+        """
+        This method continuously attempts to subscribe. If the subscription breaks,
+        it retries (unless stop_event is set), using randomized exponential backoff.
+        """
+        base_delay = 6  # Initial delay in seconds
+        max_delay = 60  # Max delay before retrying
+        attempt = 0     # Track the number of consecutive failures
+        reconnect = False
+
+        while not stop_event.is_set():
+            try:
+
+                # Create transport for each attempt
+                transport = WebsocketsTransport(
+                    url=self.subscription_url,
+                    headers={"Authorization": self.apikey_value},
+                )
+
+                # Open a session and subscribe
+                async with Client(
+                    transport=transport,
+                    fetch_schema_from_transport=True
+                ) as session:
+                    self.logger.info("Successfully connected. Listening for events.")
+                    attempt = 0  # Reset attempt count on successful connection
+
+                    if reconnect:
+                        try:
+                            actions = await self._create_actions_core(self.action_cache)
+                            self.logger.info(f"Successfully recreated {len(actions)} actions.")
+                        except Exception as e:
+                            self.logger.info(f"Error recreating actions.")
+
+                    reconnect = True # Set reconnect flag to True if reconnected
+
+                    async for result in session.subscribe(subscription):
+                        # Process the subscription event
+                        await self._handle_subscription_event(task_queue, result)
+
+            except asyncio.CancelledError:
+                self.logger.warning("Subscription task cancelled. This error is only shown when the task is cancelled inproperly.")
+                break
+            except Exception as e:
+                self.logger.error(f"Error in subscription, will attempt to reconnect.")
+
+            # Calculate exponential backoff with jitter
+            if not stop_event.is_set():
+                delay = min(base_delay * (2 ** attempt), max_delay)  # Exponential growth
+                jitter = random.uniform(0.5, 1.5)  # Random jitter multiplier (±50%)
+                delay *= jitter  # Apply jitter
+
+                self.logger.info(f"Retrying in {delay:.2f} seconds...")
+                await asyncio.sleep(delay)
+                attempt += 1  # Increase attempt count for next retry
+
+        self.logger.info("Stopped subscription due to stop_event or cancellation.")
+
+    async def _handle_subscription_event(self, task_queue, result):
+        """
+        Handle the result of the subscription. Identify the
+        event type via __typename, instantiate the corresponding
+        event object, and put it on the queue.
+        """
+        event_data = result['subscribeToEvents']
+        event_type = event_data["__typename"]
+
+        if event_type == "Actioncall":
+            event = Actioncall( #  TODO: make these class inits use class methods (from dict?)
+                actioncall_id=uuid.UUID(event_data["actioncall_id"]),
+                action_id=uuid.UUID(event_data["action_id"]),
+                post_id=uuid.UUID(event_data["post_id"]),
+                apikey_id=uuid.UUID(event_data["apikey_id"]),
+                parameters=event_data["parameters"],
+                time=datetime.fromisoformat(event_data["time"])
+            )
+        elif event_type == "Response":
+            event = Response(
+                response_id=uuid.UUID(event_data["response_id"]),
+                post_id=uuid.UUID(event_data["post_id"]),
+                description=event_data["description"],
+                apikey_id=uuid.UUID(event_data["apikey_id"]) if event_data["apikey_id"] else None,
+                time=datetime.fromisoformat(event_data["time"])
+            )
+        elif event_type == "BidRequest":
+            post_data = event_data["post"]
+            post = Post(
+                post_id=uuid.UUID(post_data["post_id"]),
+                description=post_data["description"],
+                context=post_data["context"],
+                apikey_id=uuid.UUID(post_data["apikey_id"]),
+                time=datetime.fromisoformat(post_data["time"]),
+                resolved=post_data["resolved"]
+            )
+            event = BidRequest(
+                action_id=uuid.UUID(event_data["action_id"]),
+                post=post
+            )
+        elif event_type == "PaymentRequest":
+            event = PaymentRequest(
+                actioncall_id=uuid.UUID(event_data["actioncall_id"]),
+                post_id=uuid.UUID(event_data["post_id"]),
+                payment_link=event_data["payment_link"]
+            )
+        else:
+            self.logger.error(f"Unknown event type: {event_type}")
+            return
+
+        # Put the event on the queue for handling in your system
+        task_queue.put(event)
 
     @_sync_or_async
     async def _download_file_async(self, file_id: str, destination_dir: Path) -> File:
@@ -1242,6 +1359,12 @@ class Maoto:
             self.response_handler_method = func
             return func
         return decorator
+    
+    def register_payment_handler(self):
+        def decorator(func):
+            self.payment_handler_method = func
+            return func
+        return decorator
 
     def register_action_handler(self, name: str):
         def decorator(func):
@@ -1293,6 +1416,14 @@ class Maoto:
             cost=bid_value
         )
         await self.create_bidresponses([new_bid])
+
+    async def _resolve_paymentrequest(self, payment_request: PaymentRequest):
+        try:
+            if self.payment_handler_method:
+                await self.payment_handler_method(payment_request)
+        except Exception as e:
+            self.logger.info(f"Payment failed: {e}")
+            GraphQLError("Payment failed")
 
     async def _resolve_actioncall(self, actioncall: Actioncall):  
         try:
