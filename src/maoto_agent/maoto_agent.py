@@ -1171,7 +1171,7 @@ class Maoto:
                 self.logger.warning("Subscription task cancelled. This error is only shown when the task is cancelled inproperly.")
                 break
             except Exception as e:
-                self.logger.error(f"Error in subscription, will attempt to reconnect.")
+                self.logger.warning(f"Subscription interrupted. Will attempt to reconnect.")
 
             # Calculate exponential backoff with jitter
             if not stop_event.is_set():
