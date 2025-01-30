@@ -730,7 +730,7 @@ class Maoto:
         data_list = result["getApiKeys"]
         return [ApiKey(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"]) for data in data_list]
 
-    async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]:
+    async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]: # TODO: confirm this the first time when agent is started as well (not only when reconnecting)
         if new_actions:
             actions = [{'name': action.get_name(), 'parameters': action.get_parameters(), 'description': action.get_description(), 'tags': action.get_tags(), 'cost': action.get_cost(), 'followup': action.get_followup()} for action in new_actions]
             query = gql_client('''
