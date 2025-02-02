@@ -30,7 +30,8 @@ requirements:
     - psutil >=6.0.0
     - starlette >=0.37.2
     - python-dateutil >=2.9.0
-    - psycopg2-binary >=2.9.9
+    - asyncpg >=0.28.0
+    - databases >=0.8.0
     - uvicorn[standard] >=0.30.1
     - ariadne >=0.23.0
     - gunicorn >=22.0.0
