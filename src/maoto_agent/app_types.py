@@ -591,3 +591,194 @@ class PaymentRequest():
     
     def __repr__(self):
         return f"PaymentRequest(actioncall_id='{self.actioncall_id}', post_id='{self.post_id}', payment_link='{self.payment_link}')"
+
+class Location():
+    def __init__(self, latitude: float, longitude: float):
+        self.latitude = latitude
+        self.longitude = longitude
+
+    def get_longitude(self):
+        return self.longitude
+    
+    def get_latitude(self):
+        return self.latitude
+    
+    def from_dict(data):
+        return Location(
+            latitude=data["latitude"],
+            longitude=data["longitude"]
+        )
+    
+    def to_dict(self):
+        return {
+            "latitude": self.latitude,
+            "longitude": self.longitude
+        }
+    
+    def __str__(self):
+        return f"\nLatitude: {self.latitude}\nLongitude: {self.longitude}"
+    
+    def __repr__(self):
+        return f"Location(latitude='{self.latitude}', longitude='{self.longitude}')"   
+
+class PAUserMessage():
+    def __init__(self, ui_id: str, text: str):
+        self.ui_id = ui_id
+        self.text = text
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def get_text(self):
+        return self.text
+    
+    def from_dict(data):
+        return PAUserMessage(
+            ui_id=data["ui_id"],
+            text=data["text"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id,
+            "text": self.text
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}\nText: {self.text}"
+    
+    def __repr__(self):
+        return f"PAUserMessage(ui_id='{self.ui_id}', text='{self.text}')"
+    
+class PAPaymentRequest():
+    def __init__(self, ui_id: str, payment_link: str):
+        self.ui_id = ui_id
+        self.payment_link = payment_link
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def get_payment_link(self):
+        return self.payment_link
+    
+    def from_dict(data):
+        return PAPaymentRequest(
+            ui_id=data["ui_id"],
+            payment_link=data["payment_link"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id,
+            "payment_link": self.payment_link
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}\nPayment Link: {self.payment_link}"
+    
+    def __repr__(self):
+        return f"PAPaymentRequest(ui_id='{self.ui_id}', payment_link='{self.payment_link}')"
+
+class PALocationRequest():
+    def __init__(self, ui_id: str):
+        self.ui_id = ui_id
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def from_dict(data):
+        return PALocationRequest(
+            ui_id=data["ui_id"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}"
+    
+    def __repr__(self):
+        return f"PALocationRequest(ui_id='{self.ui_id}')" 
+    
+class PALocationResponse():
+    def __init__(self, ui_id: str, location: Location):
+        self.ui_id = ui_id
+        self.location = location
+
+    def get_ui_id(self):
+        return self.ui_id
+
+    def get_location(self):
+        return self.location
+    
+    def from_dict(data):
+        return PALocationResponse(
+            ui_id=data["ui_id"],
+            location=Location.from_dict(data["location"])
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id,
+            "location": self.get_location().to_dict()
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}\nLocation: {self.location}"
+    
+    def __repr__(self):
+        return f"PALocationResponse(ui_id='{self.ui_id}', location='{self.location}')"
+
+class PAUserResponse():
+    def __init__(self, ui_id: str, text: str):
+        self.ui_id = ui_id
+        self.text = text
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def get_text(self):
+        return self.text
+    
+    def from_dict(data):
+        return PAUserResponse(
+            ui_id=data["ui_id"],
+            text=data["text"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id,
+            "text": self.text
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}\nText: {self.text}"
+    
+    def __repr__(self):
+        return f"PAUserResponse(ui_id='{self.ui_id}', text='{self.text}')"
+    
+class PANewConversation():
+    def __init__(self, ui_id: str):
+        self.ui_id = ui_id
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def from_dict(data):
+        return PANewConversation(
+            ui_id=data["ui_id"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}"
+    
+    def __repr__(self):
+        return f"PANewConversation(ui_id='{self.ui_id}')"

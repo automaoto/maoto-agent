@@ -21,14 +21,14 @@ from gql import Client
 from pkg_resources import get_distribution
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.websockets import WebsocketsTransport
+from contextlib import asynccontextmanager
 
 # Server Mode:
 import hashlib
 from graphql import GraphQLError, FieldDefinitionNode
 from dateutil import parser
-import psycopg2
-from psycopg2 import pool, OperationalError
-from psycopg2.extras import RealDictCursor, DictCursor
+import databases
+import asyncpg
 from ariadne import gql as gql_server
 from ariadne import make_executable_schema, QueryType, MutationType, SchemaDirectiveVisitor, ScalarType, SubscriptionType, upload_scalar, UnionType
 from ariadne.asgi import GraphQL
@@ -221,14 +221,15 @@ class Maoto:
                 def resolve_auth(root, info, **kwargs):
                     request = info.context["request"]
                     
+                    # TODO: do something meaningful here (the following does not always work)
                     # Extract the request headers from context
-                    try:
-                        address = request.headers.get("Origin", "")
-                        if address not in ["https://api.maoto.world", "http://localhost"]:
-                            raise GraphQLError(f"Unauthorized: Request not from allowed domain {address}.")
+                    # try:
+                    #     address = request.headers.get("Origin", "")
+                    #     if address not in ["https://api.maoto.world", "http://localhost"]:
+                    #         raise GraphQLError(f"Unauthorized: Request not from allowed domain {address}.")
                         
-                    except Exception as e:
-                        raise GraphQLError(f"Authorization failed: {str(e)}")
+                    # except Exception as e:
+                    #     raise GraphQLError(f"Authorization failed: {str(e)}")
 
                     # Proceed to the original resolver if authentication passes
                     return original_resolver(root, info, **kwargs)
@@ -239,43 +240,12 @@ class Maoto:
         def __init__(self, logger, outer_class=None):
             self.logger = logger
             self.outer_class = outer_class
-
-            self.type_defs = gql_server("""
-                directive @auth on FIELD_DEFINITION
-
-                scalar Datetime
-                            
-                input Response {
-                    response_id: ID! 
-                    apikey_id: ID
-                    time: Datetime!
-                    post_id: ID!
-                    description: String!
-                }
-                            
-                input Actioncall {
-                    actioncall_id: ID!
-                    apikey_id: ID
-                    time: Datetime!
-                    action_id: ID!
-                    post_id: ID!
-                    parameters: String!
-                }
-                                        
-                type Query {
-                    _dummy: String
-                }
-
-                type Mutation {
-                    forwardActioncall(actioncalls: [Actioncall!]): [Boolean!] @auth
-                    forwardResponse(responses: [Response!]): [Boolean!] @auth
-                }
-                """)
                         
             # Resolver functions
             self.query = QueryType()
             self.mutation = MutationType()
             self.subscription = SubscriptionType()
+
             self.datetime_scalar = ScalarType("Datetime")
             @self.datetime_scalar.serializer
             def serialize_datetime(value: datetime) -> str:
@@ -283,52 +253,195 @@ class Maoto:
             @self.datetime_scalar.value_parser
             def parse_datetime_value(value: str) -> datetime:
                 return parser.parse(value)
-
-            # define other functions here? -----------------------------
-            @self.mutation.field("forwardActioncall")
-            async def forward_actioncall(_, info, forwarded_actioncalls: list[Actioncall]) -> list[bool]:
-                # get actioncalls
-                success = []
-                for forwarded_actioncall in forwarded_actioncalls:
-                    try:
-                        actioncall = Actioncall(
-                            actioncall_id=uuid.UUID(forwarded_actioncall["actioncall_id"]),
-                            action_id=uuid.UUID(forwarded_actioncall["action_id"]),
-                            post_id=uuid.UUID(forwarded_actioncall["post_id"]),
-                            apikey_id=uuid.UUID(forwarded_actioncall["apikey_id"]),
-                            parameters=forwarded_actioncall["parameters"],
-                            time=datetime.fromisoformat(forwarded_actioncall["time"])
-                        )
-                        await self.outer_class._resolve_actioncall(actioncall)
-                        success.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error forwarding actioncall: {e}")
-                        success.append(False)
-                return success
             
-            @self.mutation.field("forwardResponse")
-            async def forward_response(_, info, forwarded_responses: list[Response]) -> list[bool]:
-                success = []
-                for forwarded_response in forwarded_responses:
+            self.json_scalar = ScalarType("JSON")
+            @self.json_scalar.serializer
+            def serialize_json(value: dict) -> str:
+                return json.dumps(value)
+            @self.json_scalar.value_parser
+            def parse_json_value(value: str) -> dict:
+                return json.loads(value)
+
+            @self.mutation.field("forwardActioncalls")
+            async def forward_actioncalls(_, info, actioncalls: list[dict[str, object]]) -> list[bool]:
+                actioncalls = [Actioncall(
+                    actioncall_id=uuid.UUID(actioncall["actioncall_id"]),
+                    apikey_id=uuid.UUID(actioncall["apikey_id"]),
+                    time=datetime.fromisoformat(actioncall["time"]),
+                    action_id=uuid.UUID(actioncall["action_id"]),
+                    post_id=uuid.UUID(actioncall["post_id"]),
+                    parameters=actioncall["parameters"],
+                ) for actioncall in actioncalls]
+
+                status = []
+                for actioncall in actioncalls:
                     try:
-                        response = Response(
-                            response_id=uuid.UUID(forwarded_response["response_id"]),
-                            post_id=uuid.UUID(forwarded_response["post_id"]),
-                            description=forwarded_response["description"],
-                            apikey_id=uuid.UUID(forwarded_response["apikey_id"]) if forwarded_response["apikey_id"] else None,
-                            time=datetime.fromisoformat(forwarded_response["time"])
-                        )
-                        await self.outer_class._resolve_response(response)
-                        success.append(True)
+                        #await self.outer_class._resolve_event(actioncall)
+                        asyncio.create_task(self.outer_class._resolve_event(actioncall))
+
+                        status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error forwarding response: {e}")
-                        success.append(False)
-                return success
+                        self.logger.error(f"Error resolving actioncall.")
+                        status.append(False)
+
+                return status
+
+            @self.mutation.field("forwardResponses")
+            async def forward_responses(_, info, responses: list[dict[str, object]]) -> list[bool]:
+                responses = [Response(
+                    response_id=uuid.UUID(response["response_id"]),
+                    post_id=uuid.UUID(response["post_id"]),
+                    description=response["description"],
+                    apikey_id=uuid.UUID(response["apikey_id"]),
+                    time=datetime.fromisoformat(response["time"]),
+                ) for response in responses]
+
+                status = []
+                for response in responses:
+                    try:
+                        #await self.outer_class._resolve_event(response)
+                        asyncio.create_task(self.outer_class._resolve_event(response))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving response.")
+                        status.append(False)
+
+                return status
+
+            @self.mutation.field("forwardBidRequests")
+            async def forward_bidrequests(_, info, bidrequests: list[dict[str, object]]) -> list[bool]:
+                bidrequests = [BidRequest(
+                    action_id=bidrequest["action_id"],
+                    post=Post(
+                        post_id=uuid.UUID(bidrequest["post"]["post_id"]),
+                        description=bidrequest["post"]["description"],
+                        context=bidrequest["post"]["context"],
+                        apikey_id=uuid.UUID(bidrequest["post"]["apikey_id"]),
+                        time=datetime.fromisoformat(bidrequest["post"]["time"]),
+                        resolved=bidrequest["post"]["resolved"],
+                    )
+                ) for bidrequest in bidrequests]
+
+                status = []
+                for bidrequest in bidrequests:
+                    try:
+                        #await self.outer_class._resolve_event(bidrequest)
+                        asyncio.create_task(self.outer_class._resolve_event(bidrequest))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving bid request.")
+                        status.append(False)
+
+                return status
+            
+            @self.mutation.field("forwardPAPaymentRequests")
+            async def forward_paymentrequests(_, info, pa_paymentrequests: list[dict[str, object]]) -> list[bool]:
+                paymentrequests = [PAPaymentRequest(
+                    ui_id=pa_paymentrequest["ui_id"],
+                    payment_link=pa_paymentrequest["payment_link"],
+                ) for pa_paymentrequest in pa_paymentrequests]
+
+                status = []
+                for paymentrequest in paymentrequests:
+                    try:
+                        #await self.outer_class._resolve_event(paymentrequest)
+                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving payment request.")
+                        status.append(False)
+
+                return status
+            
+            @self.mutation.field("forwardPALocationResponses")
+            async def forward_locationresponses(_, info, pa_locationresponses: list[dict[str, object]]) -> list[bool]:
+                locationresponses = [PALocationResponse(
+                    ui_id=pa_locationresponse["ui_id"],
+                    location=Location(
+                        latitude=pa_locationresponse["location"]["latitude"],
+                        longitude=pa_locationresponse["location"]["longitude"],
+                    )
+                ) for pa_locationresponse in pa_locationresponses]
+
+                status = []
+                for locationresponse in locationresponses:
+                    try:
+                        #await self.outer_class._resolve_event(locationresponse)
+                        asyncio.create_task(self.outer_class._resolve_event(locationresponse))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving location response.")
+                        status.append(False)
+
+                return status
+
+            @self.mutation.field("forwardPALocationRequests")
+            async def forward_locationrequests(_, info, pa_locationrequests: list[dict[str, object]]) -> list[bool]:
+                locationrequests = [PALocationRequest(
+                    ui_id=pa_locationrequest["ui_id"],
+                ) for pa_locationrequest in pa_locationrequests]
+
+                status = []
+                for locationrequest in locationrequests:
+                    try:
+                        #await self.outer_class._resolve_event(locationrequest)
+                        asyncio.create_task(self.outer_class._resolve_event(locationrequest))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving location request.")
+                        status.append(False)
+
+                return status
+
+            @self.mutation.field("forwardPAUserMessages")
+            async def forward_usermessages(_, info, pa_usermessages: list[dict[str, object]]) -> list[bool]:
+                usermessages = [PAUserMessage(
+                    ui_id=pa_usermessage["ui_id"],
+                    text=pa_usermessage["text"],
+                ) for pa_usermessage in pa_usermessages]
+
+                status = []
+                for usermessage in usermessages:
+                    try:
+                        #await self.outer_class._resolve_event(usermessage)
+                        asyncio.create_task(self.outer_class._resolve_event(usermessage))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving user message.")
+                        status.append(False)
+
+                return status
+            
+            @self.mutation.field("forwardPAUserResponses")
+            async def forward_userresponses(_, info, pa_userresponses: list[dict[str, object]]) -> list[bool]:
+                userresponses = [PAUserResponse(
+                    ui_id=pa_userresponse["ui_id"],
+                    text=pa_userresponse["text"],
+                ) for pa_userresponse in pa_userresponses]
+
+                status = []
+                for userresponse in userresponses:
+                    try:
+                        #await self.outer_class._resolve_event(userresponse)
+                        asyncio.create_task(self.outer_class._resolve_event(userresponse))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving user response: {e}")
+                        status.append(False)
+
+                return status
 
             self.authdirective = self.AuthDirective
             
             # Create the executable schema
-            self.schema = make_executable_schema(self.type_defs, self.query, self.mutation, self.datetime_scalar, directives={"auth": self.authdirective})
+            self.schema = make_executable_schema(self.outer_class._schema, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.authdirective})
 
             self.graphql_app = GraphQL(
                 self.schema, 
@@ -352,6 +465,11 @@ class Maoto:
                 # https://chatgpt.com/c/c50f8b80-05be-4f39-a4de-540725536ed3
                 # Middleware(HTTPSRedirectMiddleware)
             ]
+
+        def custom_format_error(error, debug=False):
+            logging.exception(error)
+
+            return {"message": "An unexpected error occurred, please contact support."}
 
         def start_server(self):
             self.app = Starlette(
@@ -379,75 +497,315 @@ class Maoto:
             if self.outer_class:
                 if self.outer_class._at_shutdown:
                     await self.outer_class._at_shutdown()
-                    
-    def __init__(self, logging_level=logging.INFO, receive_messages=True, open_connection=False, db_connection=False):
+
+    class GraphQLService:
+        def __init__(self, outer_class, apikey_value: str):
+            self._outer_class = outer_class
+            self._apikey_value = apikey_value
+
+        def _get_client(self, server_url: str) -> Client:
+            transport = AIOHTTPTransport(
+                url=server_url,
+                headers={"Authorization": self._apikey_value, "Version": get_distribution("maoto_agent").version},
+            )
+            client = Client(
+                transport=transport,
+                fetch_schema_from_transport=False,  # Schema is already provided
+                schema=self._outer_class._schema,  # Use the preloaded schema
+            )
+            return client
+        
+        async def send_to_other_server(self, objects: list[object], server_url: str):         
+            results = []
+            for obj in objects:
+                # get key from obj
+                key = self._outer_class._map_obj_to_handler_in_registry[type(obj)]
+                match key:
+                    case "Actioncall":
+                        value_name = "actioncalls"
+                        query = gql_client('''
+                            mutation forwardActioncalls($actioncalls: [Actioncall!]!) {
+                                forwardActioncalls(actioncalls: $actioncalls)
+                            }
+                        ''')
+                    case "Response":
+                        value_name = "responses"
+                        query = gql_client('''
+                            mutation forwardResponses($responses: [Response!]!) {
+                                forwardResponses(responses: $responses)
+                            }
+                        ''')
+                    case "BidRequest":
+                        value_name = "bidrequests"
+                        query = gql_client('''
+                            mutation forwardBidRequests($bidrequests: [BidRequest!]!) {
+                                forwardBidRequests(bidrequests: $bidrequests)
+                            }
+                        ''')
+                    case "PaymentRequest":
+                        value_name = "paymentrequests"
+                        query = gql_client('''
+                            mutation forwardPaymentRequests($paymentrequests: [PaymentRequest!]!) {
+                                forwardPaymentRequests(paymentrequests: $paymentrequests)
+                            }
+                        ''')
+                    case "PALocationRequest":
+                        value_name = "pa_locationrequests"
+                        query = gql_client('''
+                            mutation forwardPALocationRequests($pa_locationrequests: [PALocationRequest!]!) {
+                                forwardPALocationRequests(pa_locationrequests: $pa_locationrequests)
+                            }
+                        ''')
+                    case "PALocationResponse":
+                        value_name = "pa_locationresponses"
+                        query = gql_client('''
+                            mutation forwardPALocationResponses($pa_locationresponses: [PALocationResponse!]!) {
+                                forwardPALocationResponses(pa_locationresponses: $pa_locationresponses)
+                            }
+                        ''')
+                    case "PAUserMessage":
+                        value_name = "pa_usermessages"
+                        query = gql_client('''
+                            mutation forwardPAUserMessages($pa_usermessages: [PAUserMessage!]!) {
+                                forwardPAUserMessages(pa_usermessages: $pa_usermessages)
+                            }
+                        ''')
+                    case "PAUserResponse":
+                        value_name = "pa_userresponses"
+                        query = gql_client('''
+                            mutation forwardPAUserResponses($pa_userresponses: [PAUserResponse!]!) {
+                                forwardPAUserResponses(pa_userresponses: $pa_userresponses)
+                            }
+                        ''')
+                    case "PAPaymentRequest":
+                        value_name = "pa_paymentrequests"
+                        query = gql_client('''
+                            mutation forwardPAPaymentRequests($pa_paymentrequests: [PAPaymentRequest!]!) {
+                                forwardPAPaymentRequests(pa_paymentrequests: $pa_paymentrequests)
+                            }
+                        ''')
+                    case "PANewConversation":
+                        value_name = "pa_newconversations"
+                        query = gql_client('''
+                            mutation forwardPANewConversations($pa_newconversations: [PANewConversation!]!) {
+                                forwardPANewConversations(pa_newconversations: $pa_newconversations)
+                            }
+                        ''')
+                    case _:  # Fallback
+                        raise ValueError(f"Invalid key: {key}")
+                
+                graphql_client = self._get_client(server_url)
+                self._outer_class.logger.info(f"Sending to server: {server_url}")
+                result = await graphql_client.execute_async(query, variable_values={value_name: [obj.to_dict()]})
+                self._outer_class.logger.info(f"Return value: {result}")
+                results.append(result)
+
+            return results
+
+    def __init__(self, logging_level=None, connection_mode: str = "nat", db_connection=False):
+        # Set up logging and debug mode
+        self._debug = os.getenv("DEBUG", "False").lower() == "true"
+        # Set up logging
+        self._logging_level = logging_level if logging_level else logging.DEBUG if self._debug else logging.INFO
+        logging.basicConfig(level=self._logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
+        self.logger = logging.getLogger(__name__)
+        # Disable INFO logs for gql and websockets
+        logging.getLogger("gql").setLevel(logging.DEBUG if self._debug else logging.WARNING)
+        logging.getLogger("websockets").setLevel(logging.DEBUG if self._debug else logging.WARNING)
+
         self._db_connection = db_connection
         self._db_connection_pool = None
         if self._db_connection:
             # Environment variables for database connection
-            self._db_hostname = os.getenv('POSTGRES_HOST')
-            self._db_name = os.getenv('POSTGRES_DB')
-            self._db_username = os.getenv('POSTGRES_USER')
-            self._db_user_password = os.getenv('POSTGRES_PASSWORD')
-            self._db_port = os.getenv('POSTGRES_PORT')
+            self._db_hostname = os.getenv("POSTGRES_HOST")
+            self._db_name = os.getenv("POSTGRES_DB")
+            self._db_username = os.getenv("POSTGRES_USER")
+            self._db_user_password = os.getenv("POSTGRES_PASSWORD")
+            self._db_port = os.getenv("POSTGRES_PORT")
 
-            if not self._db_hostname or not self._db_name or not self._db_username or not self._db_user_password or not self._db_port:
-                raise EnvironmentError("POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, and POSTGRES_PASSWORD, POSTGRES_PORT must be set")
+            # Validate that all required env variables are set
+            if not all([self._db_hostname, self._db_name, self._db_username, self._db_user_password, self._db_port]):
+                raise EnvironmentError(
+                    "POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_PORT must be set"
+                )
 
-            # enable uuid dict to be returned as list of uuids
-            psycopg2.extras.register_uuid()
+            # Construct the PostgreSQL connection URL
+            self._database_url = (
+                f"postgresql+asyncpg://{self._db_username}:{self._db_user_password}"
+                f"@{self._db_hostname}:{self._db_port}/{self._db_name}"
+            )
+
+            # Create a connection pool
+            self._db_connection_pool = databases.Database(self._database_url)
+
+        self._schema = gql_server("""
+            directive @auth on FIELD_DEFINITION
+
+            scalar Datetime
+            scalar JSON
+                                    
+            input Actioncall {
+                actioncall_id: ID
+                action_id: ID
+                post_id: ID
+                apikey_id: ID
+                parameters: JSON
+                time: Datetime
+            }
+                                    
+            input Response {
+                response_id: ID
+                post_id: ID
+                description: String
+                apikey_id: ID
+                time: Datetime
+            }
+                                    
+            input Post {
+                post_id: ID!
+                description: String!
+                context: String!
+                apikey_id: ID!
+                time: Datetime!
+                resolved: Boolean!
+            }
+                                    
+            input BidRequest {
+                action_id: ID
+                post: Post
+            }
             
-        # Set up logging
-        logging.basicConfig(level=logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
-        self.logger = logging.getLogger(__name__)
-        # Disable INFO logs for gql and websockets
-        logging.getLogger("gql").setLevel(logging.WARNING)
-        logging.getLogger("websockets").setLevel(logging.WARNING)
+            input PaymentRequest {
+                actioncall_id: ID
+                post_id: ID
+                payment_link: String
+            }
+                                    
+            input Location {
+                latitude: Float
+                longitude: Float
+            }
+                                    
+            input PALocationRequest {
+                ui_id: String
+            }
+                                    
+            input PALocationResponse {
+                ui_id: String
+                location: Location
+            }
+                                    
+            input PAUserMessage {
+                ui_id: String
+                text: String
+            }
+                                  
+            input PAUserResponse {
+                ui_id: String
+                text: String
+            }
+                                    
+            input PAPaymentRequest {
+                ui_id: String
+                payment_link: String
+            }
+                                    
+            type Query {
+                _dummy: String
+            }
+
+            type Mutation {
+                forwardActioncalls(actioncalls: [Actioncall!]!): [Boolean!]! @auth
+                forwardResponses(responses: [Response!]!): [Boolean!]! @auth
+                forwardBidRequests(bidrequests: [BidRequest!]!): [Boolean!]! @auth
+                forwardPaymentRequests(paymentrequests: [PaymentRequest!]!): [Boolean!]! @auth
+                                    
+                forwardPALocationResponses(pa_locationresponses: [PALocationResponse!]!): [Boolean!]! @auth
+                forwardPALocationRequests(pa_locationrequests: [PALocationRequest!]!): [Boolean!]! @auth
+                forwardPAUserMessages(pa_usermessages: [PAUserMessage!]!): [Boolean!]! @auth
+                forwardPAUserResponses(pa_userresponses: [PAUserResponse!]!): [Boolean!]! @auth
+                forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth            
+            }
+            """)
         
-        self.server_domain = os.environ.get("SERVER_DOMAIN", "api.maoto.world")
+        self.domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
+        self.domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
+
         self.protocol = os.environ.get("SERVER_PROTOCOL", "http")
-        server_port = os.environ.get("SERVER_PORT") if os.environ.get("SERVER_PORT") else "4000"
-        self.server_url = self.protocol + "://" + self.server_domain + ":" + server_port
-        self.graphql_url = self.server_url + "/graphql"
-        self.subscription_url = self.graphql_url.replace(self.protocol, "ws")
+        self.server_port = os.environ.get("SERVER_PORT") if os.environ.get("SERVER_PORT") else "4000"
+
+        self._url_mp = self.protocol + "://" + self.domain_mp + ":" + self.server_port + "/graphql"
+        self._url_pa = self.protocol + "://" + self.domain_pa + ":" + self.server_port + "/graphql"
+
+        self._url_marketplace_subscription = self._url_mp.replace(self.protocol, "ws")
         
-        self.apikey_value = os.environ.get("MAOTO_API_KEY")
-        if self.apikey_value in [None, ""]:
+        self._apikey_value = os.environ.get("MAOTO_API_KEY")
+        if self._apikey_value in [None, ""]:
             raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
 
-        transport = AIOHTTPTransport(
-            url=self.graphql_url,
-            headers={"Authorization": self.apikey_value},
-        )
-        self.client = Client(transport=transport, fetch_schema_from_transport=True)
+        # CLient for ui and personal assistant
+        self._graphql_service = self.GraphQLService(self, self._apikey_value)
 
-        self.action_cache = []
+        self._connection_mode = connection_mode
+        if self._connection_mode not in ["marketplace", "no_nat", "nat", "closed"]:
+            raise ValueError("Invalid connection mode.")
+        
+        # Client for marketplace # TODO comment this in
+        # if self._connection_mode != "marketplace":
+        #     transport = AIOHTTPTransport(
+        #         url=self._url_mp,
+        #         headers={"Authorization": self._apikey_value},
+        #     )
+        #     self.client = Client(transport=transport, fetch_schema_from_transport=True)
 
-        self.id_action_map = {}
-        self.action_handler_registry = {}
-        self.default_action_handler_method = None
-        self.bid_handler_registry = {}
-        self.default_bid_handler_method = None
-        self.auth_handler_method = None
-        self.response_handler_method = None
-        self.payment_handler_method = None
-        self.custom_startup_method = None
-        self.custom_shutdown_method = None
+        self._action_cache = []
+        self._id_action_map = {}
 
-        self.receive_messages = receive_messages
-        if self.receive_messages:
-            self._open_connection = open_connection
-            if self._open_connection:
-                self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
-            else:
-                self.server = self.ServerMode(self.logger, self)
+        self._map_obj_to_handler_in_registry = {
+            Response: "Response",
+            Actioncall: "Actioncall",
+            BidRequest: "BidRequest",
+            PaymentRequest: "PaymentRequest",
+
+            PAPaymentRequest: "PAPaymentRequest",
+            PALocationRequest: "PALocationRequest",
+            PAUserMessage: "PAUserMessage",
+
+            PALocationResponse: "PALocationResponse",
+            PAUserResponse: "PAUserResponse",
+            PANewConversation: "PANewConversation",
+        }
+
+        self._handler_registry = {
+            "CustomStartup": None,
+            "CustomShutdown": None,
+
+            "Response": None,
+            "Actioncall": {},
+            "Actioncall_fallback": None,
+            "PaymentRequest": None,
+            "BidRequest": {},
+            "BidRequest_fallback": None,
+
+            "PAPaymentRequest": None,
+            "PALocationResponse": None,
+            "PALocationRequest": None,
+            "PAUserMessage": None,
+            "PAUserResponse": None,
+            "PANewConversation": None,
+        }
+
+        if self._connection_mode == "nat":
+            self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
+        if self._connection_mode == "no_nat":
+            self.server = self.ServerMode(self.logger, self)
 
     def start_server(self, blocking=False) -> Starlette | None:
-        if not self.receive_messages:
-            raise ValueError("Message receiving is disabled. Set receive_messages=True to enable.")
+        if self._connection_mode == "closed":
+            raise self.logger.warning("Cannot start server when mode is set offline.")
         
-        if self._open_connection:
-            self.server.run(self.subscribe_to_events, self.maoto_worker)
+        elif self._connection_mode == "nat":
+            self.server.run(self._subscribe_to_events, self._resolve_event)
             
             if blocking:
                 def handler(signum, frame):
@@ -461,69 +819,73 @@ class Maoto:
                 signal.pause()  # Blocks here until a signal (Ctrl+C) is received
     
             return None
-        else:
+        elif self._connection_mode == "no_nat":
             return self.server.start_server()
-
-    def custom_startup(self):
-        def decorator(func):
-            self.custom_startup_method = func
-            return func
-        return decorator
-    
-    def custom_shutdown(self):
-        def decorator(func):
-            self.custom_shutdown_method = func
-            return func
-        return decorator
+        else:
+            raise ValueError("Invalid connection mode.")
 
     async def _at_startup(self):
         if self._db_connection:
-            self._startup_db_conn_pool()
+            await self._startup_db_conn_pool()
 
-        if self.custom_startup_method:
-            await self.custom_startup_method()
+        if self._handler_registry["CustomStartup"]:
+            await self._handler_registry["CustomStartup"]()
 
     async def _at_shutdown(self):
         if self._db_connection:
-            self._shutdown_db_conn_pool()
+            await self._shutdown_db_conn_pool()
 
-        if self.custom_shutdown_method:
-            await self.custom_shutdown_method()
+        if self._handler_registry["CustomShutdown"]:
+            await self._handler_registry["CustomShutdown"]()
 
-    def _startup_db_conn_pool(self):
-        try:
-            self._db_connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=1,
-                maxconn=10,
-                host=self._db_hostname,
-                dbname=self._db_name,
-                user=self._db_username,
-                password=self._db_user_password,
-                port=self._db_port
-            )
-            self.logger.info("Database connection pool created successfully.")
-        except OperationalError as e:
-            self.logger.error("Error setting up database connection pool: %s", e)
-            raise GraphQLError("Error setting up database connection pool.")
+    async def _startup_db_conn_pool(self):
+        """Establish a database connection with automatic reconnection."""
+        retries = 5
+        while retries:
+            try:
+                await self._db_connection_pool.connect()
+                self.logger.info("Connected to the database!")
+                break
+            except asyncpg.exceptions.ConnectionDoesNotExistError:
+                self.logger.warning(f"Database connection failed. Retrying in 5 seconds... ({retries} attempts left)")
+                retries -= 1
+                await asyncio.sleep(5)
 
-    def _shutdown_db_conn_pool(self):
+        if not retries:
+            raise RuntimeError("Failed to establish a database connection after multiple attempts.")
+
+    async def _shutdown_db_conn_pool(self):
+        """Disconnect from the database."""
         if self._db_connection_pool:
-            self._db_connection_pool.closeall()
-            self.logger.info("Database connection pool closed.")
+            await self._db_connection_pool.disconnect()
+            self.logger.info("Disconnected from the database.")
 
-    def get_con(self):
+    async def fetch_all(self, query, values=None):
+        """Fetch multiple records from the database."""
         try:
-            return self._db_connection_pool.getconn()
-        except Exception as e:
-            self.logger.error("Error getting connection from pool: %s", e)
-            raise GraphQLError("Error getting connection from pool.")
+            return await self._db_connection_pool.fetch_all(query=query, values=values)
+        except asyncpg.exceptions.PostgresError as e:
+            self.logger.error("Database error: %s", e)
+            raise GraphQLError("Database error occurred.")
 
-    def put_con(self, conn):
+    async def execute(self, query, values=None):
+        """Execute an INSERT, UPDATE, or DELETE statement."""
         try:
-            self._db_connection_pool.putconn(conn)
-        except Exception as e:
-            self.logger.error("Error putting connection back to pool: %s", e)
-            raise GraphQLError("Error putting connection back to pool.")
+            return await self._db_connection_pool.execute(query=query, values=values)
+        except asyncpg.exceptions.PostgresError as e:
+            self.logger.error("Database execution error: %s", e)
+            raise GraphQLError("Database execution error.")
+    
+    @asynccontextmanager
+    async def transaction(self):
+        """
+        Return an async context manager so that
+        `async with agent.transaction(): ...` works.
+        """
+        async with self._db_connection_pool.transaction():
+            # You can do any setup here if needed
+            yield
+            # teardown or exception handling automatically
 
     # Decorator to allow synchronous and asynchronous usage of the same method
     @staticmethod
@@ -550,186 +912,6 @@ class Maoto:
         result = await self.client.execute_async(query)
         return result["checkStatus"]
 
-    @_sync_or_async
-    async def _check_version_compatibility(self):
-
-        query = gql_client('''
-        query CheckVersionCompatibility($client_version: String!) {
-            checkVersionCompatibility(client_version: $client_version)
-        }
-        ''')
-        package_version = get_distribution("maoto_agent").version
-        result = await self.client.execute_async(query, {'client_version': package_version})
-        compatibility = result["checkVersionCompatibility"]
-        if not compatibility:
-            raise ValueError(f"Incompatible version {package_version}. Please update the agent to the latest version.")
-
-    @_sync_or_async
-    async def get_own_user(self) -> User:
-        query = gql_client('''
-        query {
-            getOwnUser {
-                user_id
-                username
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query)
-        data = result["getOwnUser"]
-        return User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"])
-
-    @_sync_or_async
-    async def get_own_api_key(self) -> ApiKey:
-        # Query to fetch the user's own API keys, limiting the result to only one
-        query = gql_client('''
-        query {
-            getOwnApiKeys {
-                apikey_id
-                user_id
-                name
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query)
-        data_list = result["getOwnApiKeys"]
-
-        # Return the first API key (assume the list is ordered by time or relevance)
-        if data_list:
-            data = data_list[0]
-            return ApiKey(
-                apikey_id=uuid.UUID(data["apikey_id"]),
-                user_id=uuid.UUID(data["user_id"]),
-                time=datetime.fromisoformat(data["time"]),
-                name=data["name"],
-                roles=data["roles"]
-            )
-        else:
-            raise Exception("No API keys found for the user.")
-
-
-    @_sync_or_async
-    async def get_own_api_keys(self) -> list[bool]:
-        # Note: the used API key id is always the first one
-        query = gql_client('''
-        query {
-            getOwnApiKeys {
-                apikey_id
-                user_id
-                name
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query)
-        data_list = result["getOwnApiKeys"]
-        return [ApiKey(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"]) for data in data_list]
-
-    @_sync_or_async
-    async def create_users(self, new_users: list[NewUser]):
-        users = [{'username': user.username, 'password': user.password, 'roles': user.roles} for user in new_users]
-        query = gql_client('''
-        mutation createUsers($new_users: [NewUser!]!) {
-            createUsers(new_users: $new_users) {
-                username
-                user_id
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query, variable_values={"new_users": users})
-        data_list = result["createUsers"]
-        return [User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"]) for data in data_list]
-
-    @_sync_or_async
-    async def delete_users(self, user_ids: list[User | str]) -> bool:
-        user_ids = [str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids]
-        query = gql_client('''
-        mutation deleteUsers($user_ids: [ID!]!) {
-            deleteUsers(user_ids: $user_ids)
-        }
-        ''')
-
-        result = await self.client.execute_async(query, variable_values={"user_ids": user_ids})
-        return result["deleteUsers"]
-    
-    @_sync_or_async
-    async def get_users(self) -> list[User]:
-        query = gql_client('''
-        query {
-            getUsers {
-                user_id
-                username
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query)
-        data_list = result["getUsers"]
-        return [User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"]) for data in data_list]
-    
-    @_sync_or_async
-    async def create_apikeys(self, api_keys: list[NewApiKey]) -> list[ApiKey]:
-        api_keys_data = [{'name': key.get_name(), 'user_id': str(key.get_user_id()), 'roles': key.get_roles()} for key in api_keys]
-        query = gql_client('''
-        mutation createApiKeys($new_apikeys: [NewApiKey!]!) {
-            createApiKeys(new_apikeys: $new_apikeys) {
-                apikey_id
-                user_id
-                name
-                time
-                roles
-                value
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query, variable_values={"new_apikeys": api_keys_data})
-        data_list = result["createApiKeys"]
-        return [ApiKeyWithSecret(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"], data["value"]) for data in data_list]
-        
-    @_sync_or_async
-    async def delete_apikeys(self, apikey_ids: list[ApiKey | str]) -> list[bool]:
-        api_key_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
-        query = gql_client('''
-        mutation deleteApiKeys($apikey_ids: [ID!]!) {
-            deleteApiKeys(apikey_ids: $apikey_ids)
-        }
-        ''')
-
-        result = await self.client.execute_async(query, variable_values={"apikey_ids": api_key_ids})
-        return result["deleteApiKeys"]
-
-    @_sync_or_async
-    async def get_apikeys(self, user_ids: list[User | str]) -> list[ApiKey]:
-        user_ids = [str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids]
-        query = gql_client('''
-        query getApiKeys($user_ids: [ID!]!) {
-            getApiKeys(user_ids: $user_ids) {
-                apikey_id
-                user_id
-                name
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query, variable_values={"user_ids": user_ids})
-        data_list = result["getApiKeys"]
-        return [ApiKey(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"]) for data in data_list]
-
     async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]: # TODO: confirm this the first time when agent is started as well (not only when reconnecting)
         if new_actions:
             actions = [{'name': action.get_name(), 'parameters': action.get_parameters(), 'description': action.get_description(), 'tags': action.get_tags(), 'cost': action.get_cost(), 'followup': action.get_followup()} for action in new_actions]
@@ -751,7 +933,7 @@ class Maoto:
 
             result = await self.client.execute_async(query, variable_values={"new_actions": actions})
             data_list = result["createActions"]
-            self.id_action_map.update({data["action_id"]: data["name"] for data in data_list})
+            self._id_action_map.update({data["action_id"]: data["name"] for data in data_list})
 
             actions = [Action(
                 action_id=uuid.UUID(data["action_id"]),
@@ -771,14 +953,14 @@ class Maoto:
 
     @_sync_or_async
     async def create_actions(self, new_actions: list[NewAction]) -> list[Action]:
-        self.action_cache.extend(new_actions)
+        self._action_cache.extend(new_actions)
 
         actions = await self._create_actions_core(new_actions)
 
         return actions
 
     @_sync_or_async
-    async def delete_actions(self, action_ids: list[Action | str]) -> list[bool]:
+    async def delete_actions(self, action_ids: list[Action | str]) -> list[bool]: #TODO: this should not actually delete but deactivate only
         action_ids = [str(action.get_action_id()) if isinstance(action, Action) else str(action) for action in action_ids]
         query = gql_client('''
         mutation deleteActions($action_ids: [ID!]!) {
@@ -789,7 +971,7 @@ class Maoto:
         result = await self.client.execute_async(query, variable_values={"action_ids": action_ids})
 
         # remove the respecitive actions from the cache
-        self.action_cache = [action for action in self.action_cache if action.get_action_id() not in action_ids]
+        self._action_cache = [action for action in self._action_cache if action.get_action_id() not in action_ids]
 
         return result["deleteActions"]
     
@@ -903,7 +1085,7 @@ class Maoto:
         ) for data in data_list]
 
     @_sync_or_async
-    async def delete_posts(self, post_ids: list[Post | str]) -> list[bool]:
+    async def delete_posts(self, post_ids: list[Post | str]) -> list[bool]: # TODO: only make this deactivate instead of delete (mark as done)
         post_ids = [str(post.get_post_id()) if isinstance(post, Post) else str(post) for post in post_ids]
         query = gql_client('''
         mutation deletePosts($post_ids: [ID!]!) {
@@ -1048,22 +1230,7 @@ class Maoto:
         return data_list['createBidResponses']
 
     # only used for open connection server
-    async def maoto_worker(self, element):
-        resolve_map = {
-            Actioncall: self._resolve_actioncall,
-            Response: self._resolve_response,
-            BidRequest: self._resolve_bidrequest,
-            PaymentRequest: self._resolve_paymentrequest,
-        }
-
-        resolver = resolve_map.get(type(element))
-        if resolver:
-            await resolver(element)
-        else:
-            self.logger.error(f"Unknown event type: {element}")
-
-    # only used for open connection server
-    async def subscribe_to_events(self, task_queue, stop_event):
+    async def _subscribe_to_events(self, task_queue, stop_event):
         # Subscription to listen for both actioncalls and responses using __typename
         subscription = gql_client('''
         subscription subscribeToEvents {
@@ -1099,6 +1266,28 @@ class Maoto:
                     actioncall_id
                     post_id
                     payment_link
+                }
+                ... on PALocationResponse {
+                    ui_id
+                    location {
+                        latitude
+                        longitude
+                    }
+                }             
+                ... on PAPaymentRequest {
+                    ui_id
+                    payment_link
+                }
+                ... on PALocationRequest {
+                    ui_id
+                }
+                ... on PAUserMessage {
+                    ui_id
+                    text
+                }
+                ... on PAUserResponse {
+                    ui_id
+                    text
                 }
             }
         }
@@ -1142,8 +1331,8 @@ class Maoto:
 
                 # Create transport for each attempt
                 transport = WebsocketsTransport(
-                    url=self.subscription_url,
-                    headers={"Authorization": self.apikey_value},
+                    url=self._url_marketplace_subscription,
+                    headers={"Authorization": self._apikey_value},
                 )
 
                 # Open a session and subscribe
@@ -1156,7 +1345,7 @@ class Maoto:
 
                     if reconnect:
                         try:
-                            actions = await self._create_actions_core(self.action_cache)
+                            actions = await self._create_actions_core(self._action_cache)
                             self.logger.info(f"Successfully recreated {len(actions)} actions.")
                         except Exception as e:
                             self.logger.info(f"Error recreating actions.")
@@ -1238,211 +1427,56 @@ class Maoto:
         # Put the event on the queue for handling in your system
         task_queue.put(event)
 
-    @_sync_or_async
-    async def _download_file_async(self, file_id: str, destination_dir: Path) -> File:
-        query = gql_client('''
-        query downloadFile($file_id: ID!) {
-            downloadFile(file_id: $file_id) {
-                file_id
-                apikey_id
-                extension
-                time
-            }
-        }
-        ''')
+    def register_handler(self, event_type: str, name: str | None = None):
+        def decorator(func):
+            # python case (new version) statement here
+            if name is not None:
+                self._handler_registry[event_type][name] = func
+            else:
+                self._handler_registry[event_type] = func
+            return func
+        return decorator
 
-        result = await self.client.execute_async(query, variable_values={"file_id": file_id})
-        file_metadata = result["downloadFile"]
-        
-        download_url = f"{self.server_url}/download/{str(file_id)}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(download_url, headers={"Authorization": self.apikey_value}) as response:
-                if response.status == 200:
-                    filename = f"{str(file_id)}{file_metadata['extension']}"
-                    destination_path = destination_dir / filename
-                    
-                    async with aiofiles.open(destination_path, 'wb') as f:
-                        while True:
-                            chunk = await response.content.read(DATA_CHUNK_SIZE)
-                            if not chunk:
-                                break
-                            await f.write(chunk)
+    async def _resolve_event(self, obj: object):
+        # get handler registry key for the object
+        handler_registry_key = self._map_obj_to_handler_in_registry[type(obj)]
 
-                    return File(
-                        file_id=uuid.UUID(file_metadata["file_id"]),
-                        apikey_id=uuid.UUID(file_metadata["apikey_id"]),
-                        extension=file_metadata["extension"],
-                        time=datetime.fromisoformat(file_metadata["time"])
+        # get handler from registry
+        try:
+            if handler_registry_key in ["Actioncall", "BidRequest"]:
+                try:
+                    handler = self._handler_registry[handler_registry_key][self._id_action_map[str(obj.get_action_id())]]
+                except KeyError:
+                    handler = self._handler_registry[f"{handler_registry_key}_fallback"]
+                
+                if handler_registry_key == "Actioncall":
+                    response_description = await handler(obj.get_apikey_id(), obj.get_parameters())
+                    new_response = NewResponse(
+                        post_id=obj.get_post_id(),
+                        description=response_description
                     )
-                else:
-                    raise Exception(f"Failed to download file: {response.status}")
+                    await self.create_responses([new_response])
 
-    @_sync_or_async
-    async def download_files(self, file_ids: list[str], download_dir: Path) -> list[File]:
-        downloaded_files = []
-        for file_id in file_ids:
-            downloaded_file = await self._download_file_async(file_id, download_dir)
-            downloaded_files.append(downloaded_file)
-        return downloaded_files
+                elif handler_registry_key == "BidRequest":
+                    bid_value = await handler(obj.get_post())
+                    new_bid = BidResponse(
+                        action_id=obj.get_action_id(),
+                        post_id=obj.get_post().get_post_id(),
+                        cost=bid_value
+                    )
+                    await self.create_bidresponses([new_bid])
 
-    @_sync_or_async
-    async def _upload_file_async(self, file_path: Path) -> File:
-        new_file = NewFile(
-            extension=file_path.suffix,
-        )
-        query_str = '''
-        mutation uploadFile($new_file: NewFile!, $file: Upload!) {
-            uploadFile(new_file: $new_file, file: $file) {
-                file_id
-                apikey_id
-                extension
-                time
-            }
-        }'''
-        async with aiohttp.ClientSession() as session:
-            async with aiofiles.open(file_path, 'rb') as f:
-                form = aiohttp.FormData()
-                form.add_field('operations', json.dumps({
-                    'query': query_str,
-                    'variables': {"new_file": {"extension": new_file.get_extension()}, "file": None}
-                }))
-                form.add_field('map', json.dumps({
-                    '0': ['variables.file']
-                }))
-                form.add_field('0', await f.read(), filename=str(file_path))
-
-                headers = {
-                    "Authorization": self.apikey_value
-                }
-                async with session.post(self.graphql_url, data=form, headers=headers) as response:
-                    if response.status != 200:
-                        raise Exception(f"Failed to upload file: {response.status}")
-                    result = await response.json()
-
-        file_metadata = result["data"]["uploadFile"]
-        return File(
-            file_id=uuid.UUID(file_metadata["file_id"]),
-            apikey_id=uuid.UUID(file_metadata["apikey_id"]),
-            extension=file_metadata["extension"],
-            time=datetime.fromisoformat(file_metadata["time"])
-        )
-
-    @_sync_or_async
-    async def upload_files(self, file_paths: list[Path]) -> list[File]:
-        uploaded_files = []
-        for file_path in file_paths:
-            uploaded_file = await self._upload_file_async(file_path)
-            uploaded_files.append(uploaded_file)
-        return uploaded_files
-    
-    @_sync_or_async
-    async def download_missing_files(self, file_ids: list[str], download_dir: Path) -> list[File]:
-        def _if_filenames_in_dir(self, filenames: list[str], dir: Path) -> list[str]:
-            missing_files = []
-            for filename in filenames:
-                file_path = download_dir / str(filename)
-                if not file_path.exists():
-                    missing_files.append(filename)
-            return missing_files
-        files_missing = _if_filenames_in_dir(file_ids)
-        downloaded_files = await self.download_files(files_missing)
-        return downloaded_files
-
-    def register_auth_handler(self):
-        def decorator(func):
-            self.auth_handler_method = func
-            return func
-        return decorator
-    
-    def register_response_handler(self):
-        def decorator(func):
-            self.response_handler_method = func
-            return func
-        return decorator
-    
-    def register_payment_handler(self):
-        def decorator(func):
-            self.payment_handler_method = func
-            return func
-        return decorator
-
-    def register_action_handler(self, name: str):
-        def decorator(func):
-            self.action_handler_registry[name] = func
-            return func
-        return decorator
-
-    def register_action_handler_fallback(self):
-        def decorator(func):
-            self.default_action_handler_method = func
-            return func
-        return decorator
-    
-    def register_bid_handler(self, name: str):
-        def decorator(func):
-            self.bid_handler_registry[name] = func
-            return func
-        return decorator
-    
-    def register_bid_handler_fallback(self):
-        def decorator(func):
-            self.default_bid_handler_method = func
-            return func
-        return decorator
-    
-    async def _resolve_response(self, response: Response):
-        try:
-            if self.auth_handler_method:
-                    self.auth_handler_method(response)
-        except Exception as e:
-            self.logger.info(f"Authentication failed: {e}")
-            GraphQLError("Authentication failed")
-
-        if self.response_handler_method:
-            await self.response_handler_method(response)
-
-    async def _resolve_bidrequest(self, bid_request: BidRequest):
-        try:
-            bidder = self.bid_handler_registry[self.id_action_map[str(bid_request.get_action_id())]]
-            bid_value = bidder(bid_request.get_post())
+            else:
+                handler = self._handler_registry[handler_registry_key]
         except KeyError:
-            if self.default_bid_handler_method:
-                bidder = self.default_bid_handler_method
-                bid_value = bidder(bid_request)
-
-        new_bid = BidResponse(
-            action_id=bid_request.get_action_id(),
-            post_id=bid_request.get_post().get_post_id(),
-            cost=bid_value
-        )
-        await self.create_bidresponses([new_bid])
-
-    async def _resolve_paymentrequest(self, payment_request: PaymentRequest):
-        try:
-            if self.payment_handler_method:
-                await self.payment_handler_method(payment_request)
-        except Exception as e:
-            self.logger.info(f"Payment failed: {e}")
-            GraphQLError("Payment failed")
-
-    async def _resolve_actioncall(self, actioncall: Actioncall):  
-        try:
-            if self.auth_handler_method:
-                    self.auth_handler_method(actioncall)
-        except Exception as e:
-            self.logger.info(f"Authentication failed: {e}")
-            GraphQLError("Authentication failed")
-
-        try:
-            action = self.action_handler_registry[self.id_action_map[str(actioncall.get_action_id())]]
-        except KeyError:
-            if self.default_action_handler_method:
-                action = self.default_action_handler_method
-
-        response_description = action(actioncall.get_apikey_id(), actioncall.get_parameters())
+            self.logger.error(f"No handler found for {handler_registry_key}")
+            return
         
-        new_response = NewResponse(
-            post_id=actioncall.get_post_id(),
-            description=response_description
-        )
-        await self.create_responses([new_response])
+        # call handler
+        await handler(obj)
+
+    async def send_to_assistant(self, objects: list[object]):
+        await self._graphql_service.send_to_other_server(objects, self._url_pa)
+
+    async def send_to_ui(self, objects: list[object], ui_url: str):
+        await self._graphql_service.send_to_other_server(objects, ui_url)
