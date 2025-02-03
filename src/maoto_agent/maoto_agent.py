@@ -437,6 +437,25 @@ class Maoto:
                         status.append(False)
 
                 return status
+            
+            @self.mutation.field("forwardPANewConversations")
+            async def forward_newconversations(_, info, pa_newconversations: list[dict[str, object]]) -> list[bool]:
+                newconversations = [PANewConversation(
+                    ui_id=pa_newconversation["ui_id"],
+                ) for pa_newconversation in pa_newconversations]
+
+                status = []
+                for newconversation in newconversations:
+                    try:
+                        #await self.outer_class._resolve_event(newconversation)
+                        asyncio.create_task(self.outer_class._resolve_event(newconversation))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving new conversation.")
+                        status.append(False)
+
+                return status
 
             self.authdirective = self.AuthDirective
             
@@ -459,7 +478,7 @@ class Maoto:
             self.middleware = [
                 Middleware(
                     TrustedHostMiddleware,
-                    allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local']
+                    allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local', '*.amazonaws.com']
                 ),
                 # TODO: HTTPS not working yet: incompatible versions?
                 # https://chatgpt.com/c/c50f8b80-05be-4f39-a4de-540725536ed3
@@ -595,7 +614,7 @@ class Maoto:
                         raise ValueError(f"Invalid key: {key}")
                 
                 graphql_client = self._get_client(server_url)
-                self._outer_class.logger.info(f"Sending to server: {server_url}")
+                self._outer_class.logger.info(f"Sending to server: {obj}")
                 result = await graphql_client.execute_async(query, variable_values={value_name: [obj.to_dict()]})
                 self._outer_class.logger.info(f"Return value: {result}")
                 results.append(result)
@@ -709,6 +728,10 @@ class Maoto:
                 ui_id: String
                 payment_link: String
             }
+                                  
+            input PANewConversation {
+                ui_id: String
+            }
                                     
             type Query {
                 _dummy: String
@@ -724,7 +747,8 @@ class Maoto:
                 forwardPALocationRequests(pa_locationrequests: [PALocationRequest!]!): [Boolean!]! @auth
                 forwardPAUserMessages(pa_usermessages: [PAUserMessage!]!): [Boolean!]! @auth
                 forwardPAUserResponses(pa_userresponses: [PAUserResponse!]!): [Boolean!]! @auth
-                forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth            
+                forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth
+                forwardPANewConversations(pa_newconversations: [PANewConversation!]!): [Boolean!]! @auth           
             }
             """)
         
@@ -743,20 +767,8 @@ class Maoto:
         if self._apikey_value in [None, ""]:
             raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
 
-        # CLient for ui and personal assistant
+        # CLient for ui and personal assistant to send messages to personal assistant and ui
         self._graphql_service = self.GraphQLService(self, self._apikey_value)
-
-        self._connection_mode = connection_mode
-        if self._connection_mode not in ["marketplace", "no_nat", "nat", "closed"]:
-            raise ValueError("Invalid connection mode.")
-        
-        # Client for marketplace # TODO comment this in
-        # if self._connection_mode != "marketplace":
-        #     transport = AIOHTTPTransport(
-        #         url=self._url_mp,
-        #         headers={"Authorization": self._apikey_value},
-        #     )
-        #     self.client = Client(transport=transport, fetch_schema_from_transport=True)
 
         self._action_cache = []
         self._id_action_map = {}
@@ -794,6 +806,19 @@ class Maoto:
             "PAUserResponse": None,
             "PANewConversation": None,
         }
+
+        self._connection_mode = connection_mode
+        if self._connection_mode not in ["marketplace", "no_nat", "nat", "closed"]:
+            raise ValueError("Invalid connection mode.")
+        
+        # to send messages to personal assistant and ui
+        if self._connection_mode == "marketplace":
+            if self._connection_mode != "marketplace":
+                transport = AIOHTTPTransport(
+                    url=self._url_mp,
+                    headers={"Authorization": self._apikey_value},
+                )
+                self.client = Client(transport=transport, fetch_schema_from_transport=True)
 
         if self._connection_mode == "nat":
             self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
@@ -1288,6 +1313,9 @@ class Maoto:
                 ... on PAUserResponse {
                     ui_id
                     text
+                }
+                ... on PANewConversation {
+                    ui_id
                 }
             }
         }
