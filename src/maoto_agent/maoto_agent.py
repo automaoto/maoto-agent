@@ -478,7 +478,7 @@ class Maoto:
             self.middleware = [
                 Middleware(
                     TrustedHostMiddleware,
-                    allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local', '*.amazonaws.com']
+                    allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local', '*.amazonaws.com', '*.ngrok.app', '*.ngrok-free.app']
                 ),
                 # TODO: HTTPS not working yet: incompatible versions?
                 # https://chatgpt.com/c/c50f8b80-05be-4f39-a4de-540725536ed3
