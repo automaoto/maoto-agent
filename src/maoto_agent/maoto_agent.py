@@ -614,9 +614,7 @@ class Maoto:
                         raise ValueError(f"Invalid key: {key}")
                 
                 graphql_client = self._get_client(server_url)
-                self._outer_class.logger.info(f"Sending to server: {obj}")
                 result = await graphql_client.execute_async(query, variable_values={value_name: [obj.to_dict()]})
-                self._outer_class.logger.info(f"Return value: {result}")
                 results.append(result)
 
             return results
@@ -767,8 +765,6 @@ class Maoto:
         if self._apikey_value in [None, ""]:
             raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
 
-        # CLient for ui and personal assistant to send messages to personal assistant and ui
-        self._graphql_service = self.GraphQLService(self, self._apikey_value)
 
         self._action_cache = []
         self._id_action_map = {}
@@ -811,18 +807,20 @@ class Maoto:
         if self._connection_mode not in ["marketplace", "no_nat", "nat", "closed"]:
             raise ValueError("Invalid connection mode.")
         
-        # to send messages to personal assistant and ui
-        if self._connection_mode == "marketplace":
-            if self._connection_mode != "marketplace":
-                transport = AIOHTTPTransport(
-                    url=self._url_mp,
-                    headers={"Authorization": self._apikey_value},
-                )
-                self.client = Client(transport=transport, fetch_schema_from_transport=True)
+        # CLient to send messages to ui and personal assistant
+        self._graphql_service = self.GraphQLService(self, self._apikey_value)
+
+        # to send messages to marketplace
+        if self._connection_mode is not "marketplace":
+            transport = AIOHTTPTransport(
+                url=self._url_mp,
+                headers={"Authorization": self._apikey_value},
+            )
+            self.client = Client(transport=transport, fetch_schema_from_transport=True)
 
         if self._connection_mode == "nat":
             self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
-        if self._connection_mode == "no_nat":
+        if self._connection_mode in ["no_nat", "marketplace"]:
             self.server = self.ServerMode(self.logger, self)
 
     def start_server(self, blocking=False) -> Starlette | None:
@@ -844,7 +842,7 @@ class Maoto:
                 signal.pause()  # Blocks here until a signal (Ctrl+C) is received
     
             return None
-        elif self._connection_mode == "no_nat":
+        elif self._connection_mode in ["no_nat", "marketplace"]:
             return self.server.start_server()
         else:
             raise ValueError("Invalid connection mode.")
