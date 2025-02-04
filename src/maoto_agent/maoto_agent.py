@@ -1471,7 +1471,7 @@ class Maoto:
                     handler = self._handler_registry[f"{handler_registry_key}_fallback"]
                 
                 if handler_registry_key == "Actioncall":
-                    response_description = await handler(obj.get_apikey_id(), obj.get_parameters())
+                    response_description = await handler(obj)
                     new_response = NewResponse(
                         post_id=obj.get_post_id(),
                         description=response_description
@@ -1489,12 +1489,10 @@ class Maoto:
 
             else:
                 handler = self._handler_registry[handler_registry_key]
+                await handler(obj)
         except KeyError:
             self.logger.error(f"No handler found for {handler_registry_key}")
             return
-        
-        # call handler
-        await handler(obj)
 
     async def send_to_assistant(self, objects: list[object]):
         await self._graphql_service.send_to_other_server(objects, self._url_pa)
