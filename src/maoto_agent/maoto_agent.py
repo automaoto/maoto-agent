@@ -292,8 +292,8 @@ class Maoto:
                     response_id=uuid.UUID(response["response_id"]),
                     post_id=uuid.UUID(response["post_id"]),
                     description=response["description"],
-                    apikey_id=uuid.UUID(response["apikey_id"]),
-                    time=datetime.fromisoformat(response["time"]),
+                    apikey_id=uuid.UUID(response["apikey_id"]) if "apikey_id" in response else None, #TODO why is this not send as None?
+                    time=response["time"],
                 ) for response in responses]
 
                 status = []
@@ -332,6 +332,27 @@ class Maoto:
                         status.append(True)
                     except Exception as e:
                         self.logger.error(f"Error resolving bid request.")
+                        status.append(False)
+
+                return status
+
+            @self.mutation.field("forwardPaymentRequests")
+            async def forward_paymentrequests(_, info, paymentrequests: list[dict[str, object]]) -> list[bool]:
+                paymentrequests = [PaymentRequest(
+                    actioncall_id=uuid.UUID(paymentrequest["actioncall_id"]),
+                    post_id=paymentrequest["post_id"],
+                    payment_link=paymentrequest["payment_link"],
+                ) for paymentrequest in paymentrequests]
+
+                status = []
+                for paymentrequest in paymentrequests:
+                    try:
+                        #await self.outer_class._resolve_event(paymentrequest)
+                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving payment request.")
                         status.append(False)
 
                 return status
@@ -464,7 +485,7 @@ class Maoto:
 
             self.graphql_app = GraphQL(
                 self.schema, 
-                debug=True,
+                debug=True, #TODO static for now
             )
 
             async def health_check(request):
@@ -480,9 +501,6 @@ class Maoto:
                     TrustedHostMiddleware,
                     allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local', '*.amazonaws.com', '*.ngrok.app', '*.ngrok-free.app']
                 ),
-                # TODO: HTTPS not working yet: incompatible versions?
-                # https://chatgpt.com/c/c50f8b80-05be-4f39-a4de-540725536ed3
-                # Middleware(HTTPSRedirectMiddleware)
             ]
 
         def custom_format_error(error, debug=False):
@@ -534,7 +552,7 @@ class Maoto:
             )
             return client
         
-        async def send_to_other_server(self, objects: list[object], server_url: str):         
+        async def send_to_other_server(self, objects: list[object], server_url: str): 
             results = []
             for obj in objects:
                 # get key from obj
@@ -662,20 +680,20 @@ class Maoto:
             scalar JSON
                                     
             input Actioncall {
-                actioncall_id: ID
-                action_id: ID
-                post_id: ID
-                apikey_id: ID
+                actioncall_id: ID!
+                action_id: ID!
+                post_id: ID!
+                apikey_id: ID!
                 parameters: JSON
-                time: Datetime
+                time: Datetime!
             }
                                     
             input Response {
-                response_id: ID
-                post_id: ID
-                description: String
+                response_id: ID!
+                post_id: ID!
+                description: String!
                 apikey_id: ID
-                time: Datetime
+                time: Datetime!
             }
                                     
             input Post {
@@ -753,13 +771,14 @@ class Maoto:
         self.domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
         self.domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
 
-        self.protocol = os.environ.get("SERVER_PROTOCOL", "http")
-        self.server_port = os.environ.get("SERVER_PORT") if os.environ.get("SERVER_PORT") else "4000"
+        self._protocol = os.environ.get("SERVER_PROTOCOL", "http")
+        self._port_mp = os.environ.get("PORT_MP") if os.environ.get("PORT_MP") else "4000"
+        self._port_pa = os.environ.get("PORT_PA") if os.environ.get("PORT_PA") else "4000"
 
-        self._url_mp = self.protocol + "://" + self.domain_mp + ":" + self.server_port + "/graphql"
-        self._url_pa = self.protocol + "://" + self.domain_pa + ":" + self.server_port + "/graphql"
+        self._url_mp = self._protocol + "://" + self.domain_mp + ":" + self._port_mp + "/graphql"
+        self._url_pa = self._protocol + "://" + self.domain_pa + ":" + self._port_pa + "/graphql"
 
-        self._url_marketplace_subscription = self._url_mp.replace(self.protocol, "ws")
+        self._url_marketplace_subscription = self._url_mp.replace(self._protocol, "ws")
         
         self._apikey_value = os.environ.get("MAOTO_API_KEY")
         if self._apikey_value in [None, ""]:
@@ -811,7 +830,7 @@ class Maoto:
         self._graphql_service = self.GraphQLService(self, self._apikey_value)
 
         # to send messages to marketplace
-        if self._connection_mode is not "marketplace":
+        if self._connection_mode != "closed":
             transport = AIOHTTPTransport(
                 url=self._url_mp,
                 headers={"Authorization": self._apikey_value},
@@ -820,12 +839,12 @@ class Maoto:
 
         if self._connection_mode == "nat":
             self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
-        if self._connection_mode in ["no_nat", "marketplace"]:
+        if self._connection_mode == "no_nat":
             self.server = self.ServerMode(self.logger, self)
 
     def start_server(self, blocking=False) -> Starlette | None:
         if self._connection_mode == "closed":
-            raise self.logger.warning("Cannot start server when mode is set offline.")
+            raise self.logger.warning("Cannot start server when mode is set closed.")
         
         elif self._connection_mode == "nat":
             self.server.run(self._subscribe_to_events, self._resolve_event)
@@ -842,7 +861,7 @@ class Maoto:
                 signal.pause()  # Blocks here until a signal (Ctrl+C) is received
     
             return None
-        elif self._connection_mode in ["no_nat", "marketplace"]:
+        elif self._connection_mode == "no_nat":
             return self.server.start_server()
         else:
             raise ValueError("Invalid connection mode.")
@@ -969,6 +988,7 @@ class Maoto:
                 followup=data["followup"],
                 time=datetime.fromisoformat(data["time"])
             ) for data in data_list]
+            print(actions)
         else:
             actions = []
 
@@ -1289,31 +1309,6 @@ class Maoto:
                     actioncall_id
                     post_id
                     payment_link
-                }
-                ... on PALocationResponse {
-                    ui_id
-                    location {
-                        latitude
-                        longitude
-                    }
-                }             
-                ... on PAPaymentRequest {
-                    ui_id
-                    payment_link
-                }
-                ... on PALocationRequest {
-                    ui_id
-                }
-                ... on PAUserMessage {
-                    ui_id
-                    text
-                }
-                ... on PAUserResponse {
-                    ui_id
-                    text
-                }
-                ... on PANewConversation {
-                    ui_id
                 }
             }
         }
