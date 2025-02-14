@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import queue
+import fcntl
 import signal
 import atexit
 import psutil
@@ -215,24 +216,67 @@ class Maoto:
 
     class ServerMode:
         class AuthDirective(SchemaDirectiveVisitor):
+            logger = None
+            fetch_all = None
+
+            @classmethod
+            def configure(cls, logger, fetch_all):
+                cls.logger = logger
+                cls.fetch_all = fetch_all
+                
             def visit_field_definition(self, field: FieldDefinitionNode, _) -> FieldDefinitionNode:
                 original_resolver = field.resolve
 
-                def resolve_auth(root, info, **kwargs):
-                    request = info.context["request"]
+                async def resolve_auth(root, info, **kwargs):
+                    """Authenticate and authorize API key."""
                     
-                    # TODO: do something meaningful here (the following does not always work)
-                    # Extract the request headers from context
-                    # try:
-                    #     address = request.headers.get("Origin", "")
-                    #     if address not in ["https://api.maoto.world", "http://localhost"]:
-                    #         raise GraphQLError(f"Unauthorized: Request not from allowed domain {address}.")
-                        
-                    # except Exception as e:
-                    #     raise GraphQLError(f"Authorization failed: {str(e)}")
+                    request = info.context["request"]
+                    value = request.headers.get("Authorization")
 
-                    # Proceed to the original resolver if authentication passes
-                    return original_resolver(root, info, **kwargs)
+                    if not value:
+                        raise GraphQLError("Authentication failed. No API key provided.")
+
+                    if value in ["marketplace_apikey_value", "assistant_apikey_value"]:
+                        info.context['apikey'] = ApiKey(
+                            apikey_id=None,
+                            time=None,
+                            user_id=None,
+                            name=None,
+                            roles=[],
+                            url=None,
+                        )
+
+                        # address = request.headers.get("Origin", "")
+                        # if address not in ["https://api.maoto.world", "http://localhost"]:
+                        #     raise GraphQLError(f"Unauthorized: Request not from allowed domain {address}.")
+
+                    else:
+                        hash_value = hashlib.sha256(value.encode()).hexdigest()
+
+                        try:
+                            # Fetch API key and user ID
+                            query = "SELECT apikey_id, name, user_id, url, time FROM apikeys WHERE hash = :hash"
+                            values = {"hash": hash_value}
+                            result = await self.fetch_all(query, values)
+
+                            if result is None:
+                                raise GraphQLError("Authentication failed. Invalid API key.")
+
+                            info.context['apikey'] = ApiKey(
+                                apikey_id=result[0]["apikey_id"],
+                                time=result[0]["time"],
+                                user_id=result[0]["user_id"],
+                                name=result[0]["name"],
+                                roles=[], # TODO: later when accessing the shared apikey / user db: fetch roles and check for validity with @auth
+                                url=result[0]["url"],
+
+                            )
+
+                        except Exception as e:
+                            self.logger.error("Error in authorization: %s", e)
+                            raise GraphQLError("Authorization error.")
+
+                    return await original_resolver(root, info, **kwargs)
 
                 field.resolve = resolve_auth
                 return field
@@ -276,12 +320,11 @@ class Maoto:
                 status = []
                 for actioncall in actioncalls:
                     try:
-                        #await self.outer_class._resolve_event(actioncall)
-                        asyncio.create_task(self.outer_class._resolve_event(actioncall))
+                        asyncio.create_task(self.outer_class._resolve_event(actioncall, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving actioncall.")
+                        self.logger.error(f"Error resolving actioncall: {e}")
                         status.append(False)
 
                 return status
@@ -299,12 +342,11 @@ class Maoto:
                 status = []
                 for response in responses:
                     try:
-                        #await self.outer_class._resolve_event(response)
-                        asyncio.create_task(self.outer_class._resolve_event(response))
+                        asyncio.create_task(self.outer_class._resolve_event(response, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving response.")
+                        self.logger.error(f"Error resolving response: {e}")
                         status.append(False)
 
                 return status
@@ -326,12 +368,11 @@ class Maoto:
                 status = []
                 for bidrequest in bidrequests:
                     try:
-                        #await self.outer_class._resolve_event(bidrequest)
-                        asyncio.create_task(self.outer_class._resolve_event(bidrequest))
+                        asyncio.create_task(self.outer_class._resolve_event(bidrequest, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving bid request.")
+                        self.logger.error(f"Error resolving bid request: {e}")
                         status.append(False)
 
                 return status
@@ -340,19 +381,18 @@ class Maoto:
             async def forward_paymentrequests(_, info, paymentrequests: list[dict[str, object]]) -> list[bool]:
                 paymentrequests = [PaymentRequest(
                     actioncall_id=uuid.UUID(paymentrequest["actioncall_id"]),
-                    post_id=paymentrequest["post_id"],
+                    post_id=uuid.UUID(paymentrequest["post_id"]),
                     payment_link=paymentrequest["payment_link"],
                 ) for paymentrequest in paymentrequests]
 
                 status = []
                 for paymentrequest in paymentrequests:
                     try:
-                        #await self.outer_class._resolve_event(paymentrequest)
-                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest))
+                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving payment request.")
+                        self.logger.error(f"Error resolving payment request: {e}")
                         status.append(False)
 
                 return status
@@ -367,12 +407,11 @@ class Maoto:
                 status = []
                 for paymentrequest in paymentrequests:
                     try:
-                        #await self.outer_class._resolve_event(paymentrequest)
-                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest))
+                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving payment request.")
+                        self.logger.error(f"Error resolving payment request: {e}")
                         status.append(False)
 
                 return status
@@ -390,12 +429,11 @@ class Maoto:
                 status = []
                 for locationresponse in locationresponses:
                     try:
-                        #await self.outer_class._resolve_event(locationresponse)
-                        asyncio.create_task(self.outer_class._resolve_event(locationresponse))
+                        asyncio.create_task(self.outer_class._resolve_event(locationresponse, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving location response.")
+                        self.logger.error(f"Error resolving location response: {e}")
                         status.append(False)
 
                 return status
@@ -409,12 +447,11 @@ class Maoto:
                 status = []
                 for locationrequest in locationrequests:
                     try:
-                        #await self.outer_class._resolve_event(locationrequest)
-                        asyncio.create_task(self.outer_class._resolve_event(locationrequest))
+                        asyncio.create_task(self.outer_class._resolve_event(locationrequest, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving location request.")
+                        self.logger.error(f"Error resolving location request: {e}")
                         status.append(False)
 
                 return status
@@ -429,12 +466,11 @@ class Maoto:
                 status = []
                 for usermessage in usermessages:
                     try:
-                        #await self.outer_class._resolve_event(usermessage)
-                        asyncio.create_task(self.outer_class._resolve_event(usermessage))
+                        asyncio.create_task(self.outer_class._resolve_event(usermessage, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving user message.")
+                        self.logger.error(f"Error resolving user message: {e}")
                         status.append(False)
 
                 return status
@@ -449,8 +485,7 @@ class Maoto:
                 status = []
                 for userresponse in userresponses:
                     try:
-                        #await self.outer_class._resolve_event(userresponse)
-                        asyncio.create_task(self.outer_class._resolve_event(userresponse))
+                        asyncio.create_task(self.outer_class._resolve_event(userresponse, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
@@ -468,24 +503,41 @@ class Maoto:
                 status = []
                 for newconversation in newconversations:
                     try:
-                        #await self.outer_class._resolve_event(newconversation)
-                        asyncio.create_task(self.outer_class._resolve_event(newconversation))
+                        asyncio.create_task(self.outer_class._resolve_event(newconversation, info.context['apikey']))
 
                         status.append(True)
                     except Exception as e:
-                        self.logger.error(f"Error resolving new conversation.")
+                        self.logger.error(f"Error resolving new conversation: {e}")
+                        status.append(False)
+
+                return status
+            
+            @self.mutation.field("forwardPAUrls")
+            async def forward_paurl(_, info, pa_urls: list[dict[str, object]]) -> list[bool]:
+                urls = [PAUrl(
+                    url=pa_url["url"],
+                ) for pa_url in pa_urls]
+
+                status = []
+                for url in urls:
+                    try:
+                        asyncio.create_task(self.outer_class._resolve_event(url, info.context['apikey']))
+
+                        status.append(True)
+                    except Exception as e:
+                        self.logger.error(f"Error resolving url: {e}")
                         status.append(False)
 
                 return status
 
-            self.authdirective = self.AuthDirective
-            
+            self.AuthDirective.configure(logger=self.logger, fetch_all=self.outer_class.fetch_all)
+
             # Create the executable schema
-            self.schema = make_executable_schema(self.outer_class._schema, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.authdirective})
+            self.schema = make_executable_schema(self.outer_class._schema, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.AuthDirective})
 
             self.graphql_app = GraphQL(
                 self.schema, 
-                debug=True, #TODO static for now
+                debug=self.outer_class._debug,
             )
 
             async def health_check(request):
@@ -552,7 +604,7 @@ class Maoto:
             )
             return client
         
-        async def send_to_other_server(self, objects: list[object], server_url: str): 
+        async def send_without_connection(self, objects: list[object], server_url: str): 
             results = []
             for obj in objects:
                 # get key from obj
@@ -628,6 +680,13 @@ class Maoto:
                                 forwardPANewConversations(pa_newconversations: $pa_newconversations)
                             }
                         ''')
+                    case "PAUrl":
+                        value_name = "pa_urls"
+                        query = gql_client('''
+                            mutation forwardPAUrls($pa_urls: [PAUrl!]!) {
+                                forwardPAUrls(pa_urls: $pa_urls)
+                            }
+                        ''')
                     case _:  # Fallback
                         raise ValueError(f"Invalid key: {key}")
                 
@@ -639,7 +698,7 @@ class Maoto:
 
     def __init__(self, logging_level=None, connection_mode: str = "nat", db_connection=False):
         # Set up logging and debug mode
-        self._debug = os.getenv("DEBUG", "False").lower() == "true"
+        self._debug = os.getenv("DEBUG", "False").lower() == "true" or os.getenv("MAOTO_DEBUG", "False").lower() == "true"
         # Set up logging
         self._logging_level = logging_level if logging_level else logging.DEBUG if self._debug else logging.INFO
         logging.basicConfig(level=self._logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -748,6 +807,10 @@ class Maoto:
             input PANewConversation {
                 ui_id: String
             }
+                                  
+            input PAUrl {
+                url: String                
+            }
                                     
             type Query {
                 _dummy: String
@@ -764,7 +827,8 @@ class Maoto:
                 forwardPAUserMessages(pa_usermessages: [PAUserMessage!]!): [Boolean!]! @auth
                 forwardPAUserResponses(pa_userresponses: [PAUserResponse!]!): [Boolean!]! @auth
                 forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth
-                forwardPANewConversations(pa_newconversations: [PANewConversation!]!): [Boolean!]! @auth           
+                forwardPANewConversations(pa_newconversations: [PANewConversation!]!): [Boolean!]! @auth 
+                forwardPAUrls(pa_urls: [PAUrl!]!): [Boolean!]! @auth          
             }
             """)
         
@@ -801,6 +865,7 @@ class Maoto:
             PALocationResponse: "PALocationResponse",
             PAUserResponse: "PAUserResponse",
             PANewConversation: "PANewConversation",
+            PAUrl: "PAUrl",
         }
 
         self._handler_registry = {
@@ -820,6 +885,7 @@ class Maoto:
             "PAUserMessage": None,
             "PAUserResponse": None,
             "PANewConversation": None,
+            "PAUrl": None,
         }
 
         self._connection_mode = connection_mode
@@ -988,7 +1054,9 @@ class Maoto:
                 followup=data["followup"],
                 time=datetime.fromisoformat(data["time"])
             ) for data in data_list]
-            print(actions)
+
+            self.logger.info(f"Successfully created {len(actions)} actions.")
+            
         else:
             actions = []
 
@@ -1264,13 +1332,27 @@ class Maoto:
         ''')
 
         # Execute asynchronously
-        data_list = await self.client.execute_async(
-            query,
-            variable_values={"bidresponses": bidresponses}
+        data_list = await self.client.execute_async(query, variable_values={"bidresponses": bidresponses}
         )
 
         # 'createBidResponses' is already a list of booleans, so just return it.
         return data_list['createBidResponses']
+    
+    @_sync_or_async
+    async def add_url_to_apikey(self, urls: list[Url]) -> list[bool]:
+        urls = [{'url': url.get_url()} for url in urls]
+        query = gql_client('''
+        mutation addUrlToApikey($urls: [Url!]!) {
+            addUrlToApikey(urls: $urls)
+        }
+        ''')
+
+        result = await self.client.execute_async(query, variable_values={"urls": urls})
+        return result["addUrlToApikey"]
+
+    @_sync_or_async
+    async def set_webhook(self):
+        await self.add_url_to_apikey([PAUrl(os.getenv("MAOTO_AGENT_URL"))]) # TODO: change this to be normal webhook once the normal webhook goes to marketplace only (shared database) and assistant shares the same database
 
     # only used for open connection server
     async def _subscribe_to_events(self, task_queue, stop_event):
@@ -1367,7 +1449,6 @@ class Maoto:
                     if reconnect:
                         try:
                             actions = await self._create_actions_core(self._action_cache)
-                            self.logger.info(f"Successfully recreated {len(actions)} actions.")
                         except Exception as e:
                             self.logger.info(f"Error recreating actions.")
 
@@ -1458,7 +1539,7 @@ class Maoto:
             return func
         return decorator
 
-    async def _resolve_event(self, obj: object):
+    async def _resolve_event(self, obj: object, apikey: ApiKey | None = None):
         # get handler registry key for the object
         handler_registry_key = self._map_obj_to_handler_in_registry[type(obj)]
 
@@ -1489,13 +1570,33 @@ class Maoto:
 
             else:
                 handler = self._handler_registry[handler_registry_key]
-                await handler(obj)
+                if handler_registry_key in ["PAUserMessage", "PAPaymentRequest", "PALocationRequest"]:
+                    await handler(obj)
+                else:
+                    await handler(obj, apikey)
         except KeyError:
             self.logger.error(f"No handler found for {handler_registry_key}")
             return
-
+        
     async def send_to_assistant(self, objects: list[object]):
-        await self._graphql_service.send_to_other_server(objects, self._url_pa)
+        await self._graphql_service.send_without_connection(objects, self._url_pa)
 
-    async def send_to_ui(self, objects: list[object], ui_url: str):
-        await self._graphql_service.send_to_other_server(objects, ui_url)
+    @_sync_or_async
+    async def _set_webhook_pa(self, url: str | None = None):
+        try:
+            LOCK_FILE = "/tmp/maoto_webhook.lock"
+            with open(LOCK_FILE, "w") as lockfile: # Check if the process is the first process (otherwise if every worker runs this, telegram complains for too many requests)
+                try:
+                    # Try to get an exclusive lock (fails if another process holds it)
+                    fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                    # If we acquired the lock, register the webhook
+                    new_url = url if url else os.getenv("MAOTO_AGENT_URL")
+                    await self.send_to_assistant([PAUrl(new_url)])
+                    self.logger.info(f"Process {os.getpid()} registered maoto webhook url: {os.getenv('MAOTO_AGENT_URL')}")
+
+                except BlockingIOError:
+                    # Another process is holding the lock, so we skip registration
+                    self.logger.info(f"Process {os.getpid()} skipped registration (another process is handling it).")
+        except Exception as e:
+            self.logger.error(f"Error registering webhook (following). Did you start multiple containers at once? (in that case you should only do the webhook registration once by locking it using redis database. {e}")

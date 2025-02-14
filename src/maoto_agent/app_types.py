@@ -68,12 +68,13 @@ class NewApiKey:
         return f"NewApiKey(user_id='{self.user_id}', name='{self.name}', roles='{self.roles}')"
 
 class ApiKey:
-    def __init__(self, apikey_id: uuid.UUID, time: datetime, user_id: uuid.UUID, name: str, roles: list):
+    def __init__(self, apikey_id: uuid.UUID, time: datetime, user_id: uuid.UUID, name: str, roles: list, url: str | None = None):
         self.apikey_id = apikey_id
         self.time = time
         self.user_id = user_id
         self.name = name
         self.roles = roles
+        self.url = url
 
     def get_apikey_id(self):
         return self.apikey_id
@@ -90,11 +91,17 @@ class ApiKey:
     def get_roles(self):
         return self.roles
     
+    def set_roles(self, roles: list):
+        self.roles = roles
+    
+    def get_url(self):
+        return self.url
+    
     def __str__(self):
-        return f"\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}"
+        return f"\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}\nURL: {self.url}"
     
     def __repr__(self):
-        return f"ApiKey(apikey_id='{self.apikey_id}', time='{self.time}', user_id='{self.user_id}', name='{self.name}', roles='{self.roles}')"
+        return f"ApiKey(apikey_id='{self.apikey_id}', time='{self.time}', user_id='{self.user_id}', name='{self.name}', roles='{self.roles}', url='{self.url}')"
     
 class ApiKeyWithSecret(ApiKey):
     def __init__(self, apikey_id: uuid.UUID, time: datetime, user_id: uuid.UUID, name: str, roles: list, value: str):
@@ -397,11 +404,14 @@ class File(NewFile):
         return f"File(file_id='{self.file_id}', time='{self.time}', apikey_id='{self.apikey_id}', extension='{self.extension}')"
 
 class NewHistoryElement:
-    def __init__(self, text: str, file_ids: list[uuid.UUID] = None, tree_id: uuid.UUID = None, parent_id: uuid.UUID = None):
+    def __init__(self, text: str, tree_id: uuid.UUID, parent_id: uuid.UUID = None, apikey_id: uuid.UUID = None, role: str | None = None, file_ids: list[uuid.UUID] = None, name: str | None = None):
         self.text = text
         self.file_ids = file_ids if file_ids else []
         self.tree_id = tree_id
         self.parent_id = parent_id
+        self.apikey_id = apikey_id
+        self.role = role
+        self.name = name
 
     def get_text(self):
         return self.text
@@ -415,45 +425,42 @@ class NewHistoryElement:
     def get_parent_id(self):
         return self.parent_id
 
-    def __str__(self):
-        return f"\nText: {self.text}\nFile IDs: {[str(file_id) for file_id in self.file_ids]}\nTree ID: {self.tree_id}\nParent ID: {self.parent_id}"
+    def get_apikey_id(self):
+        return self.apikey_id
     
-    def __repr__(self):
-        return f"NewHistoryElement(text='{self.text}', file_ids='{self.file_ids}', tree_id='{self.tree_id}', parent_id='{self.parent_id}')"
-
-class HistoryElement(NewHistoryElement):
-    def __init__(self, history_id: uuid.UUID, role: uuid.UUID, name: str, text: str, time: datetime, apikey_id: uuid.UUID | None, file_ids: list[uuid.UUID] = None, tree_id: uuid.UUID = None, parent_id: uuid.UUID = None):
-        super().__init__(text, file_ids, tree_id, parent_id)
-        self.role = role
-        self.name = name
-        self.history_id = history_id
-        self.time = time
-        self.apikey_id = apikey_id
-
     def get_role(self):
         return self.role
     
     def get_name(self):
         return self.name
 
+    def __str__(self):
+        return f"\nText: {self.text}\nFile IDs: {[str(file_id) for file_id in self.file_ids]}\nTree ID: {self.tree_id}\nParent ID: {self.parent_id}\nAPI Key ID: {self.apikey_id}\nRole: {self.role}\nName: {self.name}"
+    
+    def __repr__(self):
+        return f"NewHistoryElement(text='{self.text}', file_ids='{self.file_ids}', tree_id='{self.tree_id}', parent_id='{self.parent_id}', apikey_id='{self.apikey_id}', role='{self.role}', name='{self.name}')"
+
+class HistoryElement(NewHistoryElement):
+    def __init__(self, history_id: uuid.UUID, role: uuid.UUID, name: str, text: str, time: datetime, apikey_id: uuid.UUID | None, file_ids: list[uuid.UUID] = None, tree_id: uuid.UUID = None, parent_id: uuid.UUID = None):
+        super().__init__(text, tree_id, parent_id, apikey_id, role, file_ids, name)
+        self.history_id = history_id
+        self.time = time
+
     def get_history_id(self):
         return self.history_id
 
     def get_time(self):
         return self.time
-
-    def get_apikey_id(self):
-        return self.apikey_id
     
     # Serialization method (to_dict)
     def to_dict(self):
         # Initial dictionary with all fields
         data = {
             "history_id": str(self.history_id),
+            "time": self.time.isoformat(), 
             "role": self.role,
             "name": self.name,
             "text": self.text,
-            "time": self.time.isoformat(),  # Convert datetime to ISO 8601 string
             "apikey_id": str(self.apikey_id) if self.apikey_id else None,
             # Convert file_ids to JSON string if it's not empty, otherwise use an empty string
             "file_ids": json.dumps([str(file_id) for file_id in self.file_ids]) if self.file_ids else '[]',
@@ -782,3 +789,50 @@ class PANewConversation():
     
     def __repr__(self):
         return f"PANewConversation(ui_id='{self.ui_id}')"
+    
+class PAUrl():
+    def __init__(self, url: str):
+        self.url = url
+
+    def get_url(self):
+        return self.url
+    
+    def from_dict(data):
+        return PAUrl(
+            url=data["url"]
+        )
+    
+    def to_dict(self):
+        return {
+            "url": self.url
+        }
+    
+    def __str__(self):
+        return f"\nUrl: {self.url}"
+    
+    def __repr__(self):
+        return f"PAUrl(url='{self.url}')"
+    
+class Url():
+    def __init__(self, url: str):
+        self.url = url
+
+    def get_url(self):
+        return self.url
+    
+    def from_dict(data):
+        return Url(
+            url=data["url"]
+        )
+    
+    def to_dict(self):
+        return {
+            "url": self.url
+        }
+    
+    def __str__(self):
+        return f"\nUrl: {self.url}"
+    
+    def __repr__(self):
+        return f"Url(url='{self.url}')"
+    
