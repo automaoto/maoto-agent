@@ -1087,6 +1087,17 @@ class Maoto:
         return result["deleteActions"]
     
     @_sync_or_async
+    async def refund_payment(self, actioncall_id: uuid.UUID) -> bool:
+        query = gql_client('''
+        mutation refundPayment($actioncall_id: ID!) {
+            refundPayment(actioncall_id: $actioncall_id)
+        }
+        ''')
+
+        result = await self.client.execute_async(query, variable_values={"actioncall_id": str(actioncall_id)})
+        return result["refundPayment"]
+    
+    @_sync_or_async
     async def get_actions(self, apikey_ids: list[ApiKey | str]) -> list[Action]:
         apikey_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
         query = gql_client('''
