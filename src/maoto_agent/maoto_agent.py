@@ -837,8 +837,8 @@ class Maoto:
 
         self._use_ssl = os.environ.get("USE_SSL", "true").lower() == "true"
         self._protocol = "https" if self._use_ssl else "http"
-        self._port_mp = os.environ.get("PORT_MP") if os.environ.get("PORT_MP") else "4000"
-        self._port_pa = os.environ.get("PORT_PA") if os.environ.get("PORT_PA") else "4000"
+        self._port_mp = os.environ.get("PORT_MP", "443" if self._use_ssl else "80")
+        self._port_pa = os.environ.get("PORT_PA", "443" if self._use_ssl else "80")
 
         self._url_mp = self._protocol + "://" + self.domain_mp + ":" + self._port_mp + "/graphql"
         self._url_pa = self._protocol + "://" + self.domain_pa + ":" + self._port_pa + "/graphql"
