@@ -835,14 +835,16 @@ class Maoto:
         self.domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
         self.domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
 
-        self._protocol = os.environ.get("SERVER_PROTOCOL", "http")
+        self._use_ssl = os.environ.get("USE_SSL", "true").lower() == "true"
+        self._protocol = "https" if self._use_ssl else "http"
         self._port_mp = os.environ.get("PORT_MP") if os.environ.get("PORT_MP") else "4000"
         self._port_pa = os.environ.get("PORT_PA") if os.environ.get("PORT_PA") else "4000"
 
         self._url_mp = self._protocol + "://" + self.domain_mp + ":" + self._port_mp + "/graphql"
         self._url_pa = self._protocol + "://" + self.domain_pa + ":" + self._port_pa + "/graphql"
 
-        self._url_marketplace_subscription = self._url_mp.replace(self._protocol, "ws")
+        self._protocol_websocket = "wss" if self._use_ssl else "ws"
+        self._url_marketplace_subscription = self._url_mp.replace(self._protocol, self._protocol_websocket)
         
         self._apikey_value = os.environ.get("MAOTO_API_KEY")
         if self._apikey_value in [None, ""]:
