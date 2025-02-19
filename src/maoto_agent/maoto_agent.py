@@ -538,8 +538,6 @@ class Maoto:
             self.graphql_app = GraphQL(
                 self.schema, 
                 debug=self.outer_class._debug,
-                graphiql=False,
-                playground=False
             )
 
             async def health_check(request):
