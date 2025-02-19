@@ -311,7 +311,7 @@ class Maoto:
                 actioncalls = [Actioncall(
                     actioncall_id=uuid.UUID(actioncall["actioncall_id"]),
                     apikey_id=uuid.UUID(actioncall["apikey_id"]),
-                    time=datetime.fromisoformat(actioncall["time"]),
+                    time=actioncall["time"],
                     action_id=uuid.UUID(actioncall["action_id"]),
                     post_id=uuid.UUID(actioncall["post_id"]),
                     parameters=actioncall["parameters"],
@@ -360,7 +360,7 @@ class Maoto:
                         description=bidrequest["post"]["description"],
                         context=bidrequest["post"]["context"],
                         apikey_id=uuid.UUID(bidrequest["post"]["apikey_id"]),
-                        time=datetime.fromisoformat(bidrequest["post"]["time"]),
+                        time=bidrequest["post"]["time"],
                         resolved=bidrequest["post"]["resolved"],
                     )
                 ) for bidrequest in bidrequests]
@@ -835,14 +835,16 @@ class Maoto:
         self.domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
         self.domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
 
-        self._protocol = os.environ.get("SERVER_PROTOCOL", "http")
-        self._port_mp = os.environ.get("PORT_MP") if os.environ.get("PORT_MP") else "4000"
-        self._port_pa = os.environ.get("PORT_PA") if os.environ.get("PORT_PA") else "4000"
+        self._use_ssl = os.environ.get("USE_SSL", "true").lower() == "true"
+        self._protocol = "https" if self._use_ssl else "http"
+        self._port_mp = os.environ.get("PORT_MP", "443" if self._use_ssl else "80")
+        self._port_pa = os.environ.get("PORT_PA", "443" if self._use_ssl else "80")
 
         self._url_mp = self._protocol + "://" + self.domain_mp + ":" + self._port_mp + "/graphql"
         self._url_pa = self._protocol + "://" + self.domain_pa + ":" + self._port_pa + "/graphql"
 
-        self._url_marketplace_subscription = self._url_mp.replace(self._protocol, "ws")
+        self._protocol_websocket = "wss" if self._use_ssl else "ws"
+        self._url_marketplace_subscription = self._url_mp.replace(self._protocol, self._protocol_websocket)
         
         self._apikey_value = os.environ.get("MAOTO_API_KEY")
         if self._apikey_value in [None, ""]:
