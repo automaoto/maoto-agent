@@ -311,7 +311,7 @@ class Maoto:
                 actioncalls = [Actioncall(
                     actioncall_id=uuid.UUID(actioncall["actioncall_id"]),
                     apikey_id=uuid.UUID(actioncall["apikey_id"]),
-                    time=datetime.fromisoformat(actioncall["time"]),
+                    time=actioncall["time"],
                     action_id=uuid.UUID(actioncall["action_id"]),
                     post_id=uuid.UUID(actioncall["post_id"]),
                     parameters=actioncall["parameters"],
@@ -360,7 +360,7 @@ class Maoto:
                         description=bidrequest["post"]["description"],
                         context=bidrequest["post"]["context"],
                         apikey_id=uuid.UUID(bidrequest["post"]["apikey_id"]),
-                        time=datetime.fromisoformat(bidrequest["post"]["time"]),
+                        time=bidrequest["post"]["time"],
                         resolved=bidrequest["post"]["resolved"],
                     )
                 ) for bidrequest in bidrequests]
