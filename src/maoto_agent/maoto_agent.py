@@ -3,18 +3,15 @@ import sys
 import json
 import time
 import queue
-import fcntl
 import signal
 import atexit
+from typing import Callable
 import psutil
 import logging
 import random
 import asyncio
-import aiohttp
-import aiofiles
 import functools
 import threading
-from pathlib import Path
 from .app_types import *
 from datetime import datetime
 from gql import gql as gql_client
@@ -22,31 +19,19 @@ from gql import Client
 from pkg_resources import get_distribution
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.websockets import WebsocketsTransport
-from contextlib import asynccontextmanager
 
 # Server Mode:
-import hashlib
 from graphql import GraphQLError, FieldDefinitionNode
 from dateutil import parser
-import databases
-import asyncpg
 from ariadne import gql as gql_server
 from ariadne import make_executable_schema, QueryType, MutationType, SchemaDirectiveVisitor, ScalarType, SubscriptionType, upload_scalar, UnionType
 from ariadne.asgi import GraphQL
-from ariadne.asgi.handlers import GraphQLTransportWSHandler
-from starlette.routing import Route, WebSocketRoute
-from starlette.responses import JSONResponse
-from starlette.applications import Starlette
-from starlette.middleware import Middleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 DATA_CHUNK_SIZE = 1024 * 1024  # 1 MB in bytes
 
 class Maoto:
     class EventDrivenQueueProcessor:
-        def __init__(self, logger, worker_count=10, min_workers=1, max_workers=20, scale_threshold=5, scale_down_delay=30, outer_class=None):
-            self.outer_class = outer_class
+        def __init__(self, logger: logging.Logger, worker_count=10, min_workers=1, max_workers=20, scale_threshold=5, scale_down_delay=30):
             self.task_queue = queue.Queue()
             self.initial_worker_count = worker_count
             self.max_workers = max_workers
@@ -102,10 +87,6 @@ class Maoto:
             # Wait for the monitor thread to finish
             if self.monitor_thread:
                 self.monitor_thread.join()
-
-            if self.outer_class:
-                if self.outer_class._at_shutdown:
-                    asyncio.run(self.outer_class._at_shutdown())
 
             self.logger.info("All processes have been terminated gracefully.")
 
@@ -200,12 +181,7 @@ class Maoto:
             self.stop_event.clear()
 
             signal.signal(signal.SIGINT, self.signal_handler)
-            signal.signal(signal.SIGTERM, self.signal_handler)
-
-            if self.outer_class:
-                if self.outer_class._at_startup:
-                    asyncio.run(self.outer_class._at_startup())
-                    
+            signal.signal(signal.SIGTERM, self.signal_handler)                    
 
             self.start_workers(worker_func, self.initial_worker_count)
             self.start_producer(lambda task_queue, stop_event: producer_func(task_queue, stop_event))
@@ -216,14 +192,6 @@ class Maoto:
 
     class ServerMode:
         class AuthDirective(SchemaDirectiveVisitor):
-            logger = None
-            fetch_all = None
-
-            @classmethod
-            def configure(cls, logger, fetch_all):
-                cls.logger = logger
-                cls.fetch_all = fetch_all
-                
             def visit_field_definition(self, field: FieldDefinitionNode, _) -> FieldDefinitionNode:
                 original_resolver = field.resolve
 
@@ -245,47 +213,19 @@ class Maoto:
                             roles=[],
                             url=None,
                         )
-
-                        # address = request.headers.get("Origin", "")
-                        # if address not in ["https://api.maoto.world", "http://localhost"]:
-                        #     raise GraphQLError(f"Unauthorized: Request not from allowed domain {address}.")
-
                     else:
-                        hash_value = hashlib.sha256(value.encode()).hexdigest()
-
-                        try:
-                            # Fetch API key and user ID
-                            query = "SELECT apikey_id, name, user_id, url, time FROM apikeys WHERE hash = :hash"
-                            values = {"hash": hash_value}
-                            result = await self.fetch_all(query, values)
-
-                            if result is None:
-                                raise GraphQLError("Authentication failed. Invalid API key.")
-
-                            info.context['apikey'] = ApiKey(
-                                apikey_id=result[0]["apikey_id"],
-                                time=result[0]["time"],
-                                user_id=result[0]["user_id"],
-                                name=result[0]["name"],
-                                roles=[], # TODO: later when accessing the shared apikey / user db: fetch roles and check for validity with @auth
-                                url=result[0]["url"],
-
-                            )
-
-                        except Exception as e:
-                            self.logger.error("Error in authorization: %s", e)
-                            raise GraphQLError("Authorization error.")
+                        raise GraphQLError("Wrong apikey value.")
 
                     return await original_resolver(root, info, **kwargs)
 
                 field.resolve = resolve_auth
                 return field
             
-        def __init__(self, logger, outer_class=None):
+        def __init__(self, logger: logging.Logger, resolver: Callable[[object], None], debug: bool):
             self.logger = logger
-            self.outer_class = outer_class
-                        
-            # Resolver functions
+            self.resolver = resolver
+            self.debug = debug
+            
             self.query = QueryType()
             self.mutation = MutationType()
             self.subscription = SubscriptionType()
@@ -320,7 +260,7 @@ class Maoto:
                 status = []
                 for actioncall in actioncalls:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(actioncall, info.context['apikey']))
+                        asyncio.create_task(self.resolver(actioncall))
 
                         status.append(True)
                     except Exception as e:
@@ -342,7 +282,7 @@ class Maoto:
                 status = []
                 for response in responses:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(response, info.context['apikey']))
+                        asyncio.create_task(self.resolver(response))
 
                         status.append(True)
                     except Exception as e:
@@ -368,7 +308,7 @@ class Maoto:
                 status = []
                 for bidrequest in bidrequests:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(bidrequest, info.context['apikey']))
+                        asyncio.create_task(self.resolver(bidrequest))
 
                         status.append(True)
                     except Exception as e:
@@ -388,7 +328,7 @@ class Maoto:
                 status = []
                 for paymentrequest in paymentrequests:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest, info.context['apikey']))
+                        asyncio.create_task(self.resolver(paymentrequest))
 
                         status.append(True)
                     except Exception as e:
@@ -407,33 +347,11 @@ class Maoto:
                 status = []
                 for paymentrequest in paymentrequests:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(paymentrequest, info.context['apikey']))
+                        asyncio.create_task(self.resolver(paymentrequest))
 
                         status.append(True)
                     except Exception as e:
                         self.logger.error(f"Error resolving payment request: {e}")
-                        status.append(False)
-
-                return status
-            
-            @self.mutation.field("forwardPALocationResponses")
-            async def forward_locationresponses(_, info, pa_locationresponses: list[dict[str, object]]) -> list[bool]:
-                locationresponses = [PALocationResponse(
-                    ui_id=pa_locationresponse["ui_id"],
-                    location=Location(
-                        latitude=pa_locationresponse["location"]["latitude"],
-                        longitude=pa_locationresponse["location"]["longitude"],
-                    )
-                ) for pa_locationresponse in pa_locationresponses]
-
-                status = []
-                for locationresponse in locationresponses:
-                    try:
-                        asyncio.create_task(self.outer_class._resolve_event(locationresponse, info.context['apikey']))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving location response: {e}")
                         status.append(False)
 
                 return status
@@ -447,7 +365,7 @@ class Maoto:
                 status = []
                 for locationrequest in locationrequests:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(locationrequest, info.context['apikey']))
+                        asyncio.create_task(self.resolver(locationrequest))
 
                         status.append(True)
                     except Exception as e:
@@ -466,7 +384,7 @@ class Maoto:
                 status = []
                 for usermessage in usermessages:
                     try:
-                        asyncio.create_task(self.outer_class._resolve_event(usermessage, info.context['apikey']))
+                        asyncio.create_task(self.resolver(usermessage))
 
                         status.append(True)
                     except Exception as e:
@@ -474,229 +392,112 @@ class Maoto:
                         status.append(False)
 
                 return status
-            
-            @self.mutation.field("forwardPAUserResponses")
-            async def forward_userresponses(_, info, pa_userresponses: list[dict[str, object]]) -> list[bool]:
-                userresponses = [PAUserResponse(
-                    ui_id=pa_userresponse["ui_id"],
-                    text=pa_userresponse["text"],
-                ) for pa_userresponse in pa_userresponses]
 
-                status = []
-                for userresponse in userresponses:
-                    try:
-                        asyncio.create_task(self.outer_class._resolve_event(userresponse, info.context['apikey']))
+            self.schema = gql_server("""
+                directive @auth on FIELD_DEFINITION
 
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving user response: {e}")
-                        status.append(False)
+                scalar Datetime
+                scalar JSON
+                                        
+                input Actioncall {
+                    actioncall_id: ID!
+                    action_id: ID!
+                    post_id: ID!
+                    apikey_id: ID!
+                    parameters: JSON
+                    time: Datetime!
+                }
+                                        
+                input Response {
+                    response_id: ID!
+                    post_id: ID!
+                    description: String!
+                    apikey_id: ID
+                    time: Datetime!
+                }
+                                        
+                input Post {
+                    post_id: ID!
+                    description: String!
+                    context: String!
+                    apikey_id: ID!
+                    time: Datetime!
+                    resolved: Boolean!
+                }
+                                        
+                input BidRequest {
+                    action_id: ID
+                    post: Post
+                }
+                
+                input PaymentRequest {
+                    actioncall_id: ID
+                    post_id: ID
+                    payment_link: String
+                }
+                                        
+                input Location {
+                    latitude: Float
+                    longitude: Float
+                }
+                                        
+                input PALocationRequest {
+                    ui_id: String
+                }
+                                        
+                input PAUserMessage {
+                    ui_id: String
+                    text: String
+                }
+                                        
+                input PAPaymentRequest {
+                    ui_id: String
+                    payment_link: String
+                }
+                                        
+                type Query {
+                    _dummy: String
+                }
 
-                return status
-            
-            @self.mutation.field("forwardPANewConversations")
-            async def forward_newconversations(_, info, pa_newconversations: list[dict[str, object]]) -> list[bool]:
-                newconversations = [PANewConversation(
-                    ui_id=pa_newconversation["ui_id"],
-                ) for pa_newconversation in pa_newconversations]
-
-                status = []
-                for newconversation in newconversations:
-                    try:
-                        asyncio.create_task(self.outer_class._resolve_event(newconversation, info.context['apikey']))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving new conversation: {e}")
-                        status.append(False)
-
-                return status
-            
-            @self.mutation.field("forwardPAUrls")
-            async def forward_paurl(_, info, pa_urls: list[dict[str, object]]) -> list[bool]:
-                urls = [PAUrl(
-                    url=pa_url["url"],
-                ) for pa_url in pa_urls]
-
-                status = []
-                for url in urls:
-                    try:
-                        asyncio.create_task(self.outer_class._resolve_event(url, info.context['apikey']))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving url: {e}")
-                        status.append(False)
-
-                return status
-
-            self.AuthDirective.configure(logger=self.logger, fetch_all=self.outer_class.fetch_all)
+                type Mutation {
+                    forwardActioncalls(actioncalls: [Actioncall!]!): [Boolean!]! @auth
+                    forwardResponses(responses: [Response!]!): [Boolean!]! @auth
+                    forwardBidRequests(bidrequests: [BidRequest!]!): [Boolean!]! @auth
+                    forwardPaymentRequests(paymentrequests: [PaymentRequest!]!): [Boolean!]! @auth
+                                        
+                    forwardPALocationRequests(pa_locationrequests: [PALocationRequest!]!): [Boolean!]! @auth
+                    forwardPAUserMessages(pa_usermessages: [PAUserMessage!]!): [Boolean!]! @auth
+                    forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth
+                }
+            """)
 
             # Create the executable schema
-            self.schema = make_executable_schema(self.outer_class._schema, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.AuthDirective})
+            self.executable_schema = make_executable_schema(self.schema, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.AuthDirective})
 
             self.graphql_app = GraphQL(
-                self.schema, 
-                debug=self.outer_class._debug,
+                self.executable_schema, 
+                debug=self.debug,
             )
-
-            async def health_check(request):
-                return JSONResponse({"status": "ok"})
-
-            self.routes=[
-                Route("/graphql", self.graphql_app.handle_request, methods=["GET", "POST", "OPTIONS"]),
-                Route("/healthz", health_check, methods=["GET"]),
-            ]
-
-            self.middleware = [
-                Middleware(
-                    TrustedHostMiddleware,
-                    allowed_hosts=['maoto.world', '*.maoto.world', 'localhost', '*.svc.cluster.local', '*.amazonaws.com', '*.ngrok.app', '*.ngrok-free.app']
-                ),
-            ]
-
-        def custom_format_error(error, debug=False):
-            logging.exception(error)
-
-            return {"message": "An unexpected error occurred, please contact support."}
-
-        def start_server(self):
-            self.app = Starlette(
-                routes=self.routes,
-                middleware=self.middleware,
-                on_startup=[self.startup],
-                on_shutdown=[self.shutdown]
-            )
-            return self.app
-
-        async def startup(self):
-            """
-            Actions to perform on application startup.
-            """
-
-            if self.outer_class:
-                if self.outer_class._at_startup:
-                    await self.outer_class._at_startup()
-
-        async def shutdown(self):
-            """
-            Actions to perform on application shutdown.
-            """
-
-            if self.outer_class:
-                if self.outer_class._at_shutdown:
-                    await self.outer_class._at_shutdown()
 
     class GraphQLService:
-        def __init__(self, outer_class, apikey_value: str):
-            self._outer_class = outer_class
+        def __init__(self, apikey_value: str, schema = None, version: str = "undefined"):
             self._apikey_value = apikey_value
+            self._schema = schema
+            self._version = version
 
         def _get_client(self, server_url: str) -> Client:
             transport = AIOHTTPTransport(
                 url=server_url,
-                headers={"Authorization": self._apikey_value, "Version": get_distribution("maoto_agent").version},
+                headers={"Authorization": self._apikey_value, "Version": self._version},
             )
             client = Client(
                 transport=transport,
-                fetch_schema_from_transport=False,  # Schema is already provided
-                schema=self._outer_class._schema,  # Use the preloaded schema
+                fetch_schema_from_transport=False,
+                schema=self._schema,
             )
             return client
-        
-        async def send_without_connection(self, objects: list[object], server_url: str): 
-            results = []
-            for obj in objects:
-                # get key from obj
-                key = self._outer_class._map_obj_to_handler_in_registry[type(obj)]
-                match key:
-                    case "Actioncall":
-                        value_name = "actioncalls"
-                        query = gql_client('''
-                            mutation forwardActioncalls($actioncalls: [Actioncall!]!) {
-                                forwardActioncalls(actioncalls: $actioncalls)
-                            }
-                        ''')
-                    case "Response":
-                        value_name = "responses"
-                        query = gql_client('''
-                            mutation forwardResponses($responses: [Response!]!) {
-                                forwardResponses(responses: $responses)
-                            }
-                        ''')
-                    case "BidRequest":
-                        value_name = "bidrequests"
-                        query = gql_client('''
-                            mutation forwardBidRequests($bidrequests: [BidRequest!]!) {
-                                forwardBidRequests(bidrequests: $bidrequests)
-                            }
-                        ''')
-                    case "PaymentRequest":
-                        value_name = "paymentrequests"
-                        query = gql_client('''
-                            mutation forwardPaymentRequests($paymentrequests: [PaymentRequest!]!) {
-                                forwardPaymentRequests(paymentrequests: $paymentrequests)
-                            }
-                        ''')
-                    case "PALocationRequest":
-                        value_name = "pa_locationrequests"
-                        query = gql_client('''
-                            mutation forwardPALocationRequests($pa_locationrequests: [PALocationRequest!]!) {
-                                forwardPALocationRequests(pa_locationrequests: $pa_locationrequests)
-                            }
-                        ''')
-                    case "PALocationResponse":
-                        value_name = "pa_locationresponses"
-                        query = gql_client('''
-                            mutation forwardPALocationResponses($pa_locationresponses: [PALocationResponse!]!) {
-                                forwardPALocationResponses(pa_locationresponses: $pa_locationresponses)
-                            }
-                        ''')
-                    case "PAUserMessage":
-                        value_name = "pa_usermessages"
-                        query = gql_client('''
-                            mutation forwardPAUserMessages($pa_usermessages: [PAUserMessage!]!) {
-                                forwardPAUserMessages(pa_usermessages: $pa_usermessages)
-                            }
-                        ''')
-                    case "PAUserResponse":
-                        value_name = "pa_userresponses"
-                        query = gql_client('''
-                            mutation forwardPAUserResponses($pa_userresponses: [PAUserResponse!]!) {
-                                forwardPAUserResponses(pa_userresponses: $pa_userresponses)
-                            }
-                        ''')
-                    case "PAPaymentRequest":
-                        value_name = "pa_paymentrequests"
-                        query = gql_client('''
-                            mutation forwardPAPaymentRequests($pa_paymentrequests: [PAPaymentRequest!]!) {
-                                forwardPAPaymentRequests(pa_paymentrequests: $pa_paymentrequests)
-                            }
-                        ''')
-                    case "PANewConversation":
-                        value_name = "pa_newconversations"
-                        query = gql_client('''
-                            mutation forwardPANewConversations($pa_newconversations: [PANewConversation!]!) {
-                                forwardPANewConversations(pa_newconversations: $pa_newconversations)
-                            }
-                        ''')
-                    case "PAUrl":
-                        value_name = "pa_urls"
-                        query = gql_client('''
-                            mutation forwardPAUrls($pa_urls: [PAUrl!]!) {
-                                forwardPAUrls(pa_urls: $pa_urls)
-                            }
-                        ''')
-                    case _:  # Fallback
-                        raise ValueError(f"Invalid key: {key}")
-                
-                graphql_client = self._get_client(server_url)
-                result = await graphql_client.execute_async(query, variable_values={value_name: [obj.to_dict()]})
-                results.append(result)
 
-            return results
-
-    def __init__(self, logging_level=None, connection_mode: str = "nat", db_connection=False):
+    def __init__(self, logging_level=None, assistant=True, marketplace=True):
         # Set up logging and debug mode
         self._debug = os.getenv("DEBUG", "False").lower() == "true" or os.getenv("MAOTO_DEBUG", "False").lower() == "true"
         # Set up logging
@@ -706,142 +507,17 @@ class Maoto:
         # Disable INFO logs for gql and websockets
         logging.getLogger("gql").setLevel(logging.DEBUG if self._debug else logging.WARNING)
         logging.getLogger("websockets").setLevel(logging.DEBUG if self._debug else logging.WARNING)
-
-        self._db_connection = db_connection
-        self._db_connection_pool = None
-        if self._db_connection:
-            # Environment variables for database connection
-            self._db_hostname = os.getenv("POSTGRES_HOST")
-            self._db_name = os.getenv("POSTGRES_DB")
-            self._db_username = os.getenv("POSTGRES_USER")
-            self._db_user_password = os.getenv("POSTGRES_PASSWORD")
-            self._db_port = os.getenv("POSTGRES_PORT")
-
-            # Validate that all required env variables are set
-            if not all([self._db_hostname, self._db_name, self._db_username, self._db_user_password, self._db_port]):
-                raise EnvironmentError(
-                    "POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_PORT must be set"
-                )
-
-            # Construct the PostgreSQL connection URL
-            self._database_url = (
-                f"postgresql+asyncpg://{self._db_username}:{self._db_user_password}"
-                f"@{self._db_hostname}:{self._db_port}/{self._db_name}"
-            )
-
-            # Create a connection pool
-            self._db_connection_pool = databases.Database(self._database_url)
-
-        self._schema = gql_server("""
-            directive @auth on FIELD_DEFINITION
-
-            scalar Datetime
-            scalar JSON
-                                    
-            input Actioncall {
-                actioncall_id: ID!
-                action_id: ID!
-                post_id: ID!
-                apikey_id: ID!
-                parameters: JSON
-                time: Datetime!
-            }
-                                    
-            input Response {
-                response_id: ID!
-                post_id: ID!
-                description: String!
-                apikey_id: ID
-                time: Datetime!
-            }
-                                    
-            input Post {
-                post_id: ID!
-                description: String!
-                context: String!
-                apikey_id: ID!
-                time: Datetime!
-                resolved: Boolean!
-            }
-                                    
-            input BidRequest {
-                action_id: ID
-                post: Post
-            }
-            
-            input PaymentRequest {
-                actioncall_id: ID
-                post_id: ID
-                payment_link: String
-            }
-                                    
-            input Location {
-                latitude: Float
-                longitude: Float
-            }
-                                    
-            input PALocationRequest {
-                ui_id: String
-            }
-                                    
-            input PALocationResponse {
-                ui_id: String
-                location: Location
-            }
-                                    
-            input PAUserMessage {
-                ui_id: String
-                text: String
-            }
-                                  
-            input PAUserResponse {
-                ui_id: String
-                text: String
-            }
-                                    
-            input PAPaymentRequest {
-                ui_id: String
-                payment_link: String
-            }
-                                  
-            input PANewConversation {
-                ui_id: String
-            }
-                                  
-            input PAUrl {
-                url: String                
-            }
-                                    
-            type Query {
-                _dummy: String
-            }
-
-            type Mutation {
-                forwardActioncalls(actioncalls: [Actioncall!]!): [Boolean!]! @auth
-                forwardResponses(responses: [Response!]!): [Boolean!]! @auth
-                forwardBidRequests(bidrequests: [BidRequest!]!): [Boolean!]! @auth
-                forwardPaymentRequests(paymentrequests: [PaymentRequest!]!): [Boolean!]! @auth
-                                    
-                forwardPALocationResponses(pa_locationresponses: [PALocationResponse!]!): [Boolean!]! @auth
-                forwardPALocationRequests(pa_locationrequests: [PALocationRequest!]!): [Boolean!]! @auth
-                forwardPAUserMessages(pa_usermessages: [PAUserMessage!]!): [Boolean!]! @auth
-                forwardPAUserResponses(pa_userresponses: [PAUserResponse!]!): [Boolean!]! @auth
-                forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth
-                forwardPANewConversations(pa_newconversations: [PANewConversation!]!): [Boolean!]! @auth 
-                forwardPAUrls(pa_urls: [PAUrl!]!): [Boolean!]! @auth          
-            }
-            """)
         
-        self.domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
-        self.domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
+        self._domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
+        self._domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
 
         self._use_ssl = os.environ.get("USE_SSL", "true").lower() == "true"
         self._protocol = "https" if self._use_ssl else "http"
         self._port_mp = os.environ.get("PORT_MP", "443" if self._use_ssl else "80")
         self._port_pa = os.environ.get("PORT_PA", "443" if self._use_ssl else "80")
 
-        self._url_mp = self._protocol + "://" + self.domain_mp + ":" + self._port_mp + "/graphql"
-        self._url_pa = self._protocol + "://" + self.domain_pa + ":" + self._port_pa + "/graphql"
+        self._url_mp = self._protocol + "://" + self._domain_mp + ":" + self._port_mp + "/graphql"
+        self._url_pa = self._protocol + "://" + self._domain_pa + ":" + self._port_pa + "/graphql"
 
         self._protocol_websocket = "wss" if self._use_ssl else "ws"
         self._url_marketplace_subscription = self._url_mp.replace(self._protocol, self._protocol_websocket)
@@ -850,31 +526,12 @@ class Maoto:
         if self._apikey_value in [None, ""]:
             raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
 
-
         self._action_cache = []
         self._id_action_map = {}
 
-        self._map_obj_to_handler_in_registry = {
-            Response: "Response",
-            Actioncall: "Actioncall",
-            BidRequest: "BidRequest",
-            PaymentRequest: "PaymentRequest",
-
-            PAPaymentRequest: "PAPaymentRequest",
-            PALocationRequest: "PALocationRequest",
-            PAUserMessage: "PAUserMessage",
-
-            PALocationResponse: "PALocationResponse",
-            PAUserResponse: "PAUserResponse",
-            PANewConversation: "PANewConversation",
-            PAUrl: "PAUrl",
-        }
-
         self._handler_registry = {
-            "CustomStartup": None,
-            "CustomShutdown": None,
-
             "Response": None,
+            "PaymentStatusUpdate": None,
             "Actioncall": {},
             "Actioncall_fallback": None,
             "PaymentRequest": None,
@@ -882,120 +539,35 @@ class Maoto:
             "BidRequest_fallback": None,
 
             "PAPaymentRequest": None,
-            "PALocationResponse": None,
             "PALocationRequest": None,
             "PAUserMessage": None,
-            "PAUserResponse": None,
-            "PANewConversation": None,
-            "PAUrl": None,
         }
 
-        self._connection_mode = connection_mode
-        if self._connection_mode not in ["marketplace", "no_nat", "nat", "closed"]:
-            raise ValueError("Invalid connection mode.")
-        
-        # CLient to send messages to ui and personal assistant
-        self._graphql_service = self.GraphQLService(self, self._apikey_value)
+        if assistant:
+            self._graphql_service_pa = self.GraphQLService(apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
+            self._gql_client_pa = self._graphql_service_pa._get_client(self._url_pa)
 
-        # to send messages to marketplace
-        if self._connection_mode != "closed":
-            transport = AIOHTTPTransport(
-                url=self._url_mp,
-                headers={"Authorization": self._apikey_value},
-            )
-            self.client = Client(transport=transport, fetch_schema_from_transport=True)
+        if marketplace:
+            self._graphql_service_mp = self.GraphQLService(apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
+            self._gql_client_mp = self._graphql_service_mp._get_client(self._url_mp)
 
-        if self._connection_mode == "nat":
-            self.server = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10, outer_class=self)
-        if self._connection_mode == "no_nat":
-            self.server = self.ServerMode(self.logger, self)
+        self._server = self.ServerMode(self.logger, self._resolve_event, self._debug)
+        self.handle_request = self._server.graphql_app.handle_request
 
-    def start_server(self, blocking=False) -> Starlette | None:
-        if self._connection_mode == "closed":
-            raise self.logger.warning("Cannot start server when mode is set closed.")
-        
-        elif self._connection_mode == "nat":
-            self.server.run(self._subscribe_to_events, self._resolve_event)
+    def start_polling(self, blocking=True):
+        self.polling = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10)
+        self.polling.run(self._subscribe_to_events, self._resolve_event)
             
-            if blocking:
-                def handler(signum, frame):
-                    self.logger.info("Stopped by Ctrl+C")
-                    sys.exit(0)
+        if blocking:
+            def handler(signum, frame):
+                self.logger.info("Stopped by Ctrl+C")
+                sys.exit(0)
 
-                # Assign the SIGINT (Ctrl+C) signal to the handler
-                signal.signal(signal.SIGINT, handler)
+            # Assign the SIGINT (Ctrl+C) signal to the handler
+            signal.signal(signal.SIGINT, handler)
 
-                self.logger.info("Running... Press Ctrl+C to stop.")
-                signal.pause()  # Blocks here until a signal (Ctrl+C) is received
-    
-            return None
-        elif self._connection_mode == "no_nat":
-            return self.server.start_server()
-        else:
-            raise ValueError("Invalid connection mode.")
-
-    async def _at_startup(self):
-        if self._db_connection:
-            await self._startup_db_conn_pool()
-
-        if self._handler_registry["CustomStartup"]:
-            await self._handler_registry["CustomStartup"]()
-
-    async def _at_shutdown(self):
-        if self._db_connection:
-            await self._shutdown_db_conn_pool()
-
-        if self._handler_registry["CustomShutdown"]:
-            await self._handler_registry["CustomShutdown"]()
-
-    async def _startup_db_conn_pool(self):
-        """Establish a database connection with automatic reconnection."""
-        retries = 5
-        while retries:
-            try:
-                await self._db_connection_pool.connect()
-                self.logger.info("Connected to the database!")
-                break
-            except asyncpg.exceptions.ConnectionDoesNotExistError:
-                self.logger.warning(f"Database connection failed. Retrying in 5 seconds... ({retries} attempts left)")
-                retries -= 1
-                await asyncio.sleep(5)
-
-        if not retries:
-            raise RuntimeError("Failed to establish a database connection after multiple attempts.")
-
-    async def _shutdown_db_conn_pool(self):
-        """Disconnect from the database."""
-        if self._db_connection_pool:
-            await self._db_connection_pool.disconnect()
-            self.logger.info("Disconnected from the database.")
-
-    async def fetch_all(self, query, values=None):
-        """Fetch multiple records from the database."""
-        try:
-            return await self._db_connection_pool.fetch_all(query=query, values=values)
-        except asyncpg.exceptions.PostgresError as e:
-            self.logger.error("Database error: %s", e)
-            raise GraphQLError("Database error occurred.")
-
-    async def execute(self, query, values=None):
-        """Execute an INSERT, UPDATE, or DELETE statement."""
-        try:
-            return await self._db_connection_pool.execute(query=query, values=values)
-        except asyncpg.exceptions.PostgresError as e:
-            self.logger.error("Database execution error: %s", e)
-            raise GraphQLError("Database execution error.")
-    
-    @asynccontextmanager
-    async def transaction(self):
-        """
-        Return an async context manager so that
-        `async with agent.transaction(): ...` works.
-        """
-        async with self._db_connection_pool.transaction():
-            # You can do any setup here if needed
-            yield
-            # teardown or exception handling automatically
+            self.logger.info("Running... Press Ctrl+C to stop.")
+            signal.pause()  # Blocks here until a signal (Ctrl+C) is received
 
     # Decorator to allow synchronous and asynchronous usage of the same method
     @staticmethod
@@ -1013,13 +585,23 @@ class Maoto:
         return wrapper
     
     @_sync_or_async
-    async def check_status(self) -> bool:
+    async def check_status_mp(self) -> bool:
         query = gql_client('''
         query {
             checkStatus
         }
         ''')
-        result = await self.client.execute_async(query)
+        result = await self._gql_client_mp.execute_async(query)
+        return result["checkStatus"]
+    
+    @_sync_or_async
+    async def check_status_pa(self) -> bool:
+        query = gql_client('''
+        query {
+            checkStatus
+        }
+        ''')
+        result = await self._gql_client_pa.execute_async(query)
         return result["checkStatus"]
 
     async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]: # TODO: confirm this the first time when agent is started as well (not only when reconnecting)
@@ -1041,7 +623,7 @@ class Maoto:
             }
             ''')
 
-            result = await self.client.execute_async(query, variable_values={"new_actions": actions})
+            result = await self._gql_client_mp.execute_async(query, variable_values={"new_actions": actions})
             data_list = result["createActions"]
             self._id_action_map.update({data["action_id"]: data["name"] for data in data_list})
 
@@ -1081,7 +663,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"action_ids": action_ids})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"action_ids": action_ids})
 
         # remove the respecitive actions from the cache
         self._action_cache = [action for action in self._action_cache if action.get_action_id() not in action_ids]
@@ -1096,7 +678,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"actioncall_id": str(actioncall_id)})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"actioncall_id": str(actioncall_id)})
         return result["refundPayment"]
     
     @_sync_or_async
@@ -1118,7 +700,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"apikey_ids": apikey_ids})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
         data_list = result["getActions"]
         return [Action(
             action_id=uuid.UUID(data["action_id"]),
@@ -1150,7 +732,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query)
+        result = await self._gql_client_mp.execute_async(query)
         data_list = result["getOwnActions"]
         return [Action(
             action_id=uuid.UUID(data["action_id"]),
@@ -1173,7 +755,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"new_posts": posts})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"new_posts": posts})
         return result["fetchActionInfo"]
 
     @_sync_or_async
@@ -1193,7 +775,7 @@ class Maoto:
         ''')
 
         try:
-            result = await self.client.execute_async(query, variable_values={"new_posts": posts})
+            result = await self._gql_client_mp.execute_async(query, variable_values={"new_posts": posts})
         except Exception as e:
             self.logger.error(f"Error creating posts: {e}")
             GraphQLError(f"Error creating posts: {e}")
@@ -1217,7 +799,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"post_ids": post_ids})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"post_ids": post_ids})
         return result["deletePosts"]
 
     @_sync_or_async
@@ -1236,7 +818,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"apikey_ids": apikey_ids})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
         data_list = result["getPosts"]
         return [Post(
             post_id=uuid.UUID(data["post_id"]),
@@ -1262,7 +844,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query)
+        result = await self._gql_client_mp.execute_async(query)
         data_list = result["getOwnPosts"]
         return [Post(
             post_id=uuid.UUID(data["post_id"]),
@@ -1289,7 +871,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"new_actioncalls": actioncalls})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"new_actioncalls": actioncalls})
         data_list = result["createActioncalls"]
         return [Actioncall(
             actioncall_id=uuid.UUID(data["actioncall_id"]),
@@ -1315,7 +897,7 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"new_responses": responses})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"new_responses": responses})
         data_list = result["createResponses"]
         return [Response(
             response_id=uuid.UUID(data["response_id"]),
@@ -1345,14 +927,14 @@ class Maoto:
         ''')
 
         # Execute asynchronously
-        data_list = await self.client.execute_async(query, variable_values={"bidresponses": bidresponses}
+        data_list = await self._gql_client_mp.execute_async(query, variable_values={"bidresponses": bidresponses}
         )
 
         # 'createBidResponses' is already a list of booleans, so just return it.
         return data_list['createBidResponses']
     
     @_sync_or_async
-    async def add_url_to_apikey(self, urls: list[Url]) -> list[bool]:
+    async def _add_url_to_apikey(self, urls: list[Url]) -> list[bool]:
         urls = [{'url': url.get_url()} for url in urls]
         query = gql_client('''
         mutation addUrlToApikey($urls: [Url!]!) {
@@ -1360,12 +942,20 @@ class Maoto:
         }
         ''')
 
-        result = await self.client.execute_async(query, variable_values={"urls": urls})
+        result = await self._gql_client_mp.execute_async(query, variable_values={"urls": urls})
         return result["addUrlToApikey"]
 
     @_sync_or_async
-    async def set_webhook(self):
-        await self.add_url_to_apikey([PAUrl(os.getenv("MAOTO_AGENT_URL"))]) # TODO: change this to be normal webhook once the normal webhook goes to marketplace only (shared database) and assistant shares the same database
+    async def set_webhook(self, url: str = None):
+        if url:
+            url = Url(url=url)
+        else:
+            env_url = os.getenv("MAOTO_AGENT_URL")
+            if not env_url:
+                raise ValueError("No URL provided in environment variable MAOTO_AGENT_URL.")
+            url = Url(env_url)
+
+        await self._add_url_to_apikey([url])
 
     # only used for open connection server
     async def _subscribe_to_events(self, task_queue, stop_event):
@@ -1454,7 +1044,7 @@ class Maoto:
                 # Open a session and subscribe
                 async with Client(
                     transport=transport,
-                    fetch_schema_from_transport=True
+                    fetch_schema_from_transport=False
                 ) as session:
                     self.logger.info("Successfully connected. Listening for events.")
                     attempt = 0  # Reset attempt count on successful connection
@@ -1553,63 +1143,50 @@ class Maoto:
         return decorator
 
     async def _resolve_event(self, obj: object, apikey: ApiKey | None = None):
-        # get handler registry key for the object
-        handler_registry_key = self._map_obj_to_handler_in_registry[type(obj)]
-
         # get handler from registry
         try:
-            if handler_registry_key in ["Actioncall", "BidRequest"]:
+            if isinstance(obj, Actioncall) or isinstance(obj, BidRequest):
                 try:
-                    handler = self._handler_registry[handler_registry_key][self._id_action_map[str(obj.get_action_id())]]
+                    handler = self._handler_registry[type(obj).__name__][self._id_action_map[str(obj.get_action_id())]]
                 except KeyError:
-                    handler = self._handler_registry[f"{handler_registry_key}_fallback"]
-                
-                if handler_registry_key == "Actioncall":
-                    response_description = await handler(obj)
-                    new_response = NewResponse(
-                        post_id=obj.get_post_id(),
-                        description=response_description
-                    )
-                    await self.create_responses([new_response])
-
-                elif handler_registry_key == "BidRequest":
-                    bid_value = await handler(obj.get_post())
-                    new_bid = BidResponse(
-                        action_id=obj.get_action_id(),
-                        post_id=obj.get_post().get_post_id(),
-                        cost=bid_value
-                    )
-                    await self.create_bidresponses([new_bid])
-
+                    handler = self._handler_registry[f"{type(obj).__name__}_fallback"]
             else:
-                handler = self._handler_registry[handler_registry_key]
-                if handler_registry_key in ["PAUserMessage", "PAPaymentRequest", "PALocationRequest"]:
-                    await handler(obj)
-                else:
-                    await handler(obj, apikey)
+                handler = self._handler_registry[type(obj).__name__]
         except KeyError:
-            self.logger.error(f"No handler found for {handler_registry_key}")
+            self.logger.error(f"No handler found for {type(obj).__name__}")
             return
-        
-    async def send_to_assistant(self, objects: list[object]):
-        await self._graphql_service.send_without_connection(objects, self._url_pa)
 
-    @_sync_or_async
-    async def _set_webhook_pa(self, url: str | None = None):
         try:
-            LOCK_FILE = "/tmp/maoto_webhook.lock"
-            with open(LOCK_FILE, "w") as lockfile: # Check if the process is the first process (otherwise if every worker runs this, telegram complains for too many requests)
-                try:
-                    # Try to get an exclusive lock (fails if another process holds it)
-                    fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-                    # If we acquired the lock, register the webhook
-                    new_url = url if url else os.getenv("MAOTO_AGENT_URL")
-                    await self.send_to_assistant([PAUrl(new_url)])
-                    self.logger.info(f"Process {os.getpid()} registered maoto webhook url: {os.getenv('MAOTO_AGENT_URL')}")
-
-                except BlockingIOError:
-                    # Another process is holding the lock, so we skip registration
-                    self.logger.info(f"Process {os.getpid()} skipped registration (another process is handling it).")
+            await handler(obj)
         except Exception as e:
-            self.logger.error(f"Error registering webhook (following). Did you start multiple containers at once? (in that case you should only do the webhook registration once by locking it using redis database. {e}")
+            self.logger.error(f"Error resolving event: {e}")
+        
+    @_sync_or_async
+    async def send_to_assistant(self, objects: list[object]):
+        for obj in objects:
+            if isinstance(obj, PALocationResponse):
+                value_name = "pa_locationresponses"
+                query = gql_client('''
+                    mutation forwardPALocationResponses($pa_locationresponses: [PALocationResponse!]!) {
+                        forwardPALocationResponses(pa_locationresponses: $pa_locationresponses)
+                    }
+                ''')
+
+            elif isinstance(obj, PAUserResponse):
+                value_name = "pa_userresponses"
+                query = gql_client('''
+                    mutation forwardPAUserResponses($pa_userresponses: [PAUserResponse!]!) {
+                        forwardPAUserResponses(pa_userresponses: $pa_userresponses)
+                    }
+                ''')
+            elif isinstance(obj, PANewConversation):
+                value_name = "pa_newconversations"
+                query = gql_client('''
+                    mutation forwardPANewConversations($pa_newconversations: [PANewConversation!]!) {
+                        forwardPANewConversations(pa_newconversations: $pa_newconversations)
+                    }
+                ''')
+            else:
+                raise GraphQLError(f"Object type {type(obj).__name__} not supported.")
+
+            await self._gql_client_pa.execute_async(query, variable_values={value_name: [obj.to_dict()]})

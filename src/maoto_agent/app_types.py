@@ -256,7 +256,7 @@ class NewResponse:
         return f"NewResponse(post_id='{self.post_id}', description='{self.description}')"
     
 class Response(NewResponse):
-    def __init__(self, response_id: uuid.UUID, time: datetime, post_id: uuid.UUID, apikey_id: Optional[uuid.UUID], description: str):
+    def __init__(self, response_id: uuid.UUID, time: datetime, post_id: uuid.UUID,  description: str, apikey_id: uuid.UUID | None = None):
         super().__init__(post_id, description)
         self.response_id = response_id
         self.apikey_id = apikey_id
@@ -530,7 +530,7 @@ class BidRequest():
         return f"BidRequest(action_id='{self.action_id}', post='{self.post}')"
     
 class BidResponse():
-    def __init__(self, action_id: uuid.UUID, post_id: uuid.UUID, cost: float):
+    def __init__(self, action_id: uuid.UUID, post_id: uuid.UUID, cost: float | None):
         self.action_id = action_id
         self.post_id = post_id
         self.cost = cost
@@ -548,14 +548,14 @@ class BidResponse():
         return BidResponse(
             action_id=uuid.UUID(data["action_id"]),
             post_id=uuid.UUID(data["post_id"]),
-            cost=float.fromhex(data["cost"])
+            cost=float.fromhex(data["cost"]) if "cost" in data else None
         )
     
     def to_dict(self):
         return {
             "action_id": str(self.action_id),
             "post_id": str(self.post_id),
-            "cost": self.cost.hex()
+            "cost": self.cost.hex() if self.cost else None
         }
     
     def __str__(self):
