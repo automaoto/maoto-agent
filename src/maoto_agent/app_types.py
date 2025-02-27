@@ -212,8 +212,9 @@ class Post(NewPost):
     def get_resolved(self):
         return self.resolved
     
-    def from_dict(data):
-        return Post(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             post_id=uuid.UUID(data["post_id"]),
             time=datetime.fromisoformat(data["time"]),
             description=data["description"],
@@ -287,7 +288,7 @@ class Response(NewResponse):
 
     # Deserialization method (from_dict)
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict):
         return cls(
             response_id=uuid.UUID(data["response_id"]),
             time=datetime.fromisoformat(data["time"]),  # Convert ISO 8601 string back to datetime
@@ -352,7 +353,7 @@ class Actioncall(NewActioncall):
 
     # Deserialization method (from_dict)
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict):
         return cls(
             actioncall_id=uuid.UUID(data["actioncall_id"]),
             apikey_id=uuid.UUID(data["apikey_id"]),
@@ -474,7 +475,7 @@ class HistoryElement(NewHistoryElement):
 
     # Deserialization method (from_dict)
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict):
         return cls(
             history_id=uuid.UUID(data["history_id"]),
             role=data["role"],
@@ -511,8 +512,9 @@ class BidRequest():
     def get_post(self):
         return self.post
     
-    def from_dict(data):
-        return BidRequest(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             action_id=uuid.UUID(data["action_id"]),
             post=Post.from_dict(data["post"])
         )
@@ -544,11 +546,12 @@ class BidResponse():
     def get_cost(self):
         return self.cost
     
-    def from_dict(data):
-        return BidResponse(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             action_id=uuid.UUID(data["action_id"]),
             post_id=uuid.UUID(data["post_id"]),
-            cost=float.fromhex(data["cost"]) if "cost" in data else None
+            cost=float.fromhex(data["cost"]) if data.get("cost") else None
         )
     
     def to_dict(self):
@@ -579,8 +582,9 @@ class PaymentRequest():
     def get_payment_link(self):
         return self.payment_link
     
-    def from_dict(data):
-        return PaymentRequest(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             actioncall_id=uuid.UUID(data["actioncall_id"]),
             post_id=uuid.UUID(data["post_id"]),
             payment_link=data["payment_link"]
@@ -610,8 +614,9 @@ class Location():
     def get_latitude(self):
         return self.latitude
     
-    def from_dict(data):
-        return Location(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             latitude=data["latitude"],
             longitude=data["longitude"]
         )
@@ -639,8 +644,9 @@ class PAUserMessage():
     def get_text(self):
         return self.text
     
-    def from_dict(data):
-        return PAUserMessage(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             ui_id=data["ui_id"],
             text=data["text"]
         )
@@ -668,8 +674,9 @@ class PAPaymentRequest():
     def get_payment_link(self):
         return self.payment_link
     
-    def from_dict(data):
-        return PAPaymentRequest(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             ui_id=data["ui_id"],
             payment_link=data["payment_link"]
         )
@@ -693,8 +700,9 @@ class PALocationRequest():
     def get_ui_id(self):
         return self.ui_id
     
-    def from_dict(data):
-        return PALocationRequest(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             ui_id=data["ui_id"]
         )
     
@@ -720,8 +728,9 @@ class PALocationResponse():
     def get_location(self):
         return self.location
     
-    def from_dict(data):
-        return PALocationResponse(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             ui_id=data["ui_id"],
             location=Location.from_dict(data["location"])
         )
@@ -749,8 +758,9 @@ class PAUserResponse():
     def get_text(self):
         return self.text
     
-    def from_dict(data):
-        return PAUserResponse(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             ui_id=data["ui_id"],
             text=data["text"]
         )
@@ -774,8 +784,9 @@ class PANewConversation():
     def get_ui_id(self):
         return self.ui_id
     
-    def from_dict(data):
-        return PANewConversation(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             ui_id=data["ui_id"]
         )
     
@@ -797,8 +808,9 @@ class PAUrl():
     def get_url(self):
         return self.url
     
-    def from_dict(data):
-        return PAUrl(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             url=data["url"]
         )
     
@@ -820,8 +832,9 @@ class Url():
     def get_url(self):
         return self.url
     
-    def from_dict(data):
-        return Url(
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             url=data["url"]
         )
     
