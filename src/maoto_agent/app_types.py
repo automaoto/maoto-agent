@@ -801,6 +801,36 @@ class PANewConversation():
     def __repr__(self):
         return f"PANewConversation(ui_id='{self.ui_id}')"
     
+class PASupportRequest():
+    def __init__(self, ui_id: str, text: str):
+        self.ui_id = ui_id
+        self.text = text
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def get_text(self):
+        return self.text
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            ui_id=data["ui_id"],
+            text=data["text"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id,
+            "text": self.text
+        }
+    
+    def __str__(self):
+        return f"\nUI ID: {self.ui_id}\nText: {self.text}"
+    
+    def __repr__(self):
+        return f"PASupportRequest(ui_id='{self.ui_id}', text='{self.text}')"
+    
 class PAUrl():
     def __init__(self, url: str):
         self.url = url

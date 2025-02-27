@@ -1174,7 +1174,7 @@ class Maoto:
                         forwardPALocationResponses(pa_locationresponses: $pa_locationresponses)
                     }
                 ''')
-
+                value = [obj.to_dict()]
             elif isinstance(obj, PAUserResponse):
                 value_name = "pa_userresponses"
                 query = gql_client('''
@@ -1182,6 +1182,7 @@ class Maoto:
                         forwardPAUserResponses(pa_userresponses: $pa_userresponses)
                     }
                 ''')
+                value = [obj.to_dict()]
             elif isinstance(obj, PANewConversation):
                 value_name = "pa_newconversations"
                 query = gql_client('''
@@ -1189,7 +1190,16 @@ class Maoto:
                         forwardPANewConversations(pa_newconversations: $pa_newconversations)
                     }
                 ''')
+                value = [obj.to_dict()]
+            elif isinstance(obj, PASupportRequest):
+                value_name = "pa_supportrequest"
+                query = gql_client('''
+                    mutation forwardPASupportRequest($pa_supportrequest: PASupportRequest!) {
+                        forwardPASupportRequest(pa_supportrequest: $pa_supportrequest)
+                    }
+                ''')
+                value = obj.to_dict()
             else:
                 raise GraphQLError(f"Object type {type(obj).__name__} not supported.")
 
-            await self._graphql_service_pa.execute_async(query, variable_values={value_name: [obj.to_dict()]})
+            await self._graphql_service_pa.execute_async(query, variable_values={value_name: value})
