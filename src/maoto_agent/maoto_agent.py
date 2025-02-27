@@ -480,7 +480,8 @@ class Maoto:
             )
 
     class GraphQLService:
-        def __init__(self, apikey_value: str, schema = None, version: str = "undefined"):
+        def __init__(self, url: str, apikey_value: str, schema = None, version: str = "undefined"):
+            self._url = url
             self._apikey_value = apikey_value
             self._schema = schema
             self._version = version
@@ -496,6 +497,10 @@ class Maoto:
                 schema=self._schema,
             )
             return client
+        
+        def execute_async(self, query, variable_values=None):
+            gql_client = self._get_client(self._url)
+            gql_client.execute_async(query, variable_values=variable_values)
 
     def __init__(self, logging_level=None, assistant=True, marketplace=True):
         # Set up logging and debug mode
@@ -544,12 +549,10 @@ class Maoto:
         }
 
         if assistant:
-            self._graphql_service_pa = self.GraphQLService(apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
-            self._gql_client_pa = self._graphql_service_pa._get_client(self._url_pa)
+            self._graphql_service_pa = self.GraphQLService(url=self._url_pa, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
 
         if marketplace:
-            self._graphql_service_mp = self.GraphQLService(apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
-            self._gql_client_mp = self._graphql_service_mp._get_client(self._url_mp)
+            self._graphql_service_mp = self.GraphQLService(url=self._url_mp, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
 
         self._server = self.ServerMode(self.logger, self._resolve_event, self._debug)
         self.handle_request = self._server.graphql_app.handle_request
@@ -591,7 +594,7 @@ class Maoto:
             checkStatus
         }
         ''')
-        result = await self._gql_client_mp.execute_async(query)
+        result = await self._graphql_service_mp.execute_async(query)
         return result["checkStatus"]
     
     @_sync_or_async
@@ -601,7 +604,7 @@ class Maoto:
             checkStatus
         }
         ''')
-        result = await self._gql_client_pa.execute_async(query)
+        result = await self._graphql_service_pa.execute_async(query)
         return result["checkStatus"]
 
     async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]: # TODO: confirm this the first time when agent is started as well (not only when reconnecting)
@@ -623,7 +626,7 @@ class Maoto:
             }
             ''')
 
-            result = await self._gql_client_mp.execute_async(query, variable_values={"new_actions": actions})
+            result = await self._graphql_service_mp.execute_async(query, variable_values={"new_actions": actions})
             data_list = result["createActions"]
             self._id_action_map.update({data["action_id"]: data["name"] for data in data_list})
 
@@ -663,7 +666,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"action_ids": action_ids})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"action_ids": action_ids})
 
         # remove the respecitive actions from the cache
         self._action_cache = [action for action in self._action_cache if action.get_action_id() not in action_ids]
@@ -678,7 +681,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"actioncall_id": str(actioncall_id)})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"actioncall_id": str(actioncall_id)})
         return result["refundPayment"]
     
     @_sync_or_async
@@ -700,7 +703,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
         data_list = result["getActions"]
         return [Action(
             action_id=uuid.UUID(data["action_id"]),
@@ -732,7 +735,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query)
+        result = await self._graphql_service_mp.execute_async(query)
         data_list = result["getOwnActions"]
         return [Action(
             action_id=uuid.UUID(data["action_id"]),
@@ -755,7 +758,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"new_posts": posts})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"new_posts": posts})
         return result["fetchActionInfo"]
 
     @_sync_or_async
@@ -775,7 +778,7 @@ class Maoto:
         ''')
 
         try:
-            result = await self._gql_client_mp.execute_async(query, variable_values={"new_posts": posts})
+            result = await self._graphql_service_mp.execute_async(query, variable_values={"new_posts": posts})
         except Exception as e:
             self.logger.error(f"Error creating posts: {e}")
             GraphQLError(f"Error creating posts: {e}")
@@ -799,7 +802,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"post_ids": post_ids})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"post_ids": post_ids})
         return result["deletePosts"]
 
     @_sync_or_async
@@ -818,7 +821,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
         data_list = result["getPosts"]
         return [Post(
             post_id=uuid.UUID(data["post_id"]),
@@ -844,7 +847,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query)
+        result = await self._graphql_service_mp.execute_async(query)
         data_list = result["getOwnPosts"]
         return [Post(
             post_id=uuid.UUID(data["post_id"]),
@@ -871,7 +874,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"new_actioncalls": actioncalls})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"new_actioncalls": actioncalls})
         data_list = result["createActioncalls"]
         return [Actioncall(
             actioncall_id=uuid.UUID(data["actioncall_id"]),
@@ -897,7 +900,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"new_responses": responses})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"new_responses": responses})
         data_list = result["createResponses"]
         return [Response(
             response_id=uuid.UUID(data["response_id"]),
@@ -927,7 +930,7 @@ class Maoto:
         ''')
 
         # Execute asynchronously
-        data_list = await self._gql_client_mp.execute_async(query, variable_values={"bidresponses": bidresponses}
+        data_list = await self._graphql_service_mp.execute_async(query, variable_values={"bidresponses": bidresponses}
         )
 
         # 'createBidResponses' is already a list of booleans, so just return it.
@@ -942,7 +945,7 @@ class Maoto:
         }
         ''')
 
-        result = await self._gql_client_mp.execute_async(query, variable_values={"urls": urls})
+        result = await self._graphql_service_mp.execute_async(query, variable_values={"urls": urls})
         return result["addUrlToApikey"]
 
     @_sync_or_async
@@ -1189,4 +1192,4 @@ class Maoto:
             else:
                 raise GraphQLError(f"Object type {type(obj).__name__} not supported.")
 
-            await self._gql_client_pa.execute_async(query, variable_values={value_name: [obj.to_dict()]})
+            await self._graphql_service_pa.execute_async(query, variable_values={value_name: [obj.to_dict()]})
