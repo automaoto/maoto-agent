@@ -558,7 +558,7 @@ class BidResponse():
         return {
             "action_id": str(self.action_id),
             "post_id": str(self.post_id),
-            "cost": self.cost.hex() if self.cost else None
+            "cost": self.cost.hex() if self.cost is not None else None
         }
     
     def __str__(self):
