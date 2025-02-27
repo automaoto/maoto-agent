@@ -498,9 +498,9 @@ class Maoto:
             )
             return client
         
-        def execute_async(self, query, variable_values=None):
+        async def execute_async(self, query, variable_values=None):
             gql_client = self._get_client(self._url)
-            gql_client.execute_async(query, variable_values=variable_values)
+            await gql_client.execute_async(query, variable_values=variable_values)
 
     def __init__(self, logging_level=None, assistant=True, marketplace=True):
         # Set up logging and debug mode
