@@ -551,7 +551,7 @@ class BidResponse():
         return cls(
             action_id=uuid.UUID(data["action_id"]),
             post_id=uuid.UUID(data["post_id"]),
-            cost=float.fromhex(data["cost"]) if data.get("cost") else None
+            cost=float.fromhex(data["cost"]) if data.get("cost") is not None else None
         )
     
     def to_dict(self):
