@@ -612,9 +612,8 @@ class Maoto:
         return actions
 
     @_sync_or_async
-    async def create_actions(self, new_actions: list[NewAction], cache: bool = False) -> list[Action]:
-        if cache:
-            self._action_cache.extend(new_actions)
+    async def create_actions(self, new_actions: list[NewAction]) -> list[Action]:
+        self._action_cache.extend(new_actions)
 
         actions = await self._create_actions_core(new_actions)
 
