@@ -3,49 +3,153 @@ import json
 from typing import Optional
 import uuid
 
+class ErrorResponse:
+    def __init__(self, message: str):
+        self.message = message
+
+    def get_message(self):
+        return self.message
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            message=data["message"]
+        )
+    
+    def to_dict(self):
+        return {
+            "message": self.message
+        }
+    
+    def __str__(self):
+        return f"Message: {self.message}"
+    
+    def __repr__(self):
+        return f"ErrorResponse(message='{self.message!r}')"
+
+class SuccessResponse:
+    def __init__(self, message: str):
+        self.message = message
+
+    def get_message(self):
+        return self.message
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            message=data["message"]
+        )
+    
+    def to_dict(self):
+        return {
+            "message": self.message
+        }
+    
+    def __str__(self):
+        return f"Message: {self.message}"
+    
+    def __repr__(self):
+        return f"SuccessResponse(message='{self.message!r}')"
+
 class NewUser:
-    def __init__(self, username: str, password: str, roles: list):
-        self.username = username
+    def __init__(self, name: str, email: str, password: str, roles: list):
+        self.name = name
+        self.email = email
         self.password = password
         self.roles = roles
 
-    def get_username(self):
-        return self.username
+    def get_name(self):
+        return self.name
     
+    def get_email(self):
+        return self.email
+    
+    def get_password(self):
+        return self.password
+
     def get_roles(self):
         return self.roles
     
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            name=data["name"],
+            email=data["email"],
+            password=data["password"],
+            roles=data["roles"]
+        )
+    
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "email": self.email,
+            "password": self.password,
+            "roles": self.roles
+        }
+    
     def __str__(self):
-        return f"\nUsername: {self.username}\nRoles: {self.roles}"
+        return f"Name: {self.name}\nEmail: {self.email}\nPassword: {self.password}\nRoles: {self.roles}"
     
     def __repr__(self):
-        return f"NewUser(username='{self.username}', roles='{self.roles}')"
+        return f"NewUser(name='{self.name!r}', email='{self.email!r}', password='{self.password!r}', roles='{self.roles!r}')"
 
 class User:
-    def __init__(self, user_id: uuid.UUID, time: datetime, username: str, roles: list):
+    def __init__(self, user_id: uuid.UUID, time: datetime, name: str, roles: list, email: str, verified: bool):
         self.user_id = user_id
         self.time = time
-        self.username = username
+        self.name = name
         self.roles = roles
+        self.email = email
+        self.verified = verified
 
     def get_user_id(self):
         return self.user_id
     
     def get_time(self):
         return self.time
-
-    def get_username(self):
-        return self.username
+    
+    def get_name(self):
+        return self.name
     
     def get_roles(self):
         return self.roles
     
+    def get_email(self):
+        return self.email
+    
+    def get_verified(self):
+        return self.verified
+    
+    def set_roles(self, roles: list[str]):
+        self.roles = roles
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            user_id=uuid.UUID(data["user_id"]),
+            time=datetime.fromisoformat(data["time"]),
+            name=data["name"],
+            roles=data["roles"],
+            email=data["email"],
+            verified=data["verified"]
+        )
+    
+    def to_dict(self):
+        return {
+            "user_id": str(self.user_id),
+            "time": self.time.isoformat(),
+            "name": self.name,
+            "roles": self.roles,
+            "email": self.email,
+            "verified": self.verified
+        }
+    
     def __str__(self):
-        return f"\nUser ID: {self.user_id}\nTime: {self.time}\nUsername: {self.username}\nRoles: {self.roles}"
+        return f"User ID: {self.user_id}\nTime: {self.time}\nName: {self.name}\nRoles: {self.roles}\nEmail: {self.email}\nVerified: {self.verified}"
     
     def __repr__(self):
-        return f"User(user_id='{self.user_id}', time='{self.time}', username='{self.username}', roles='{self.roles}')"
-    
+        return f"User(user_id='{self.user_id!r}', time='{self.time!r}', name='{self.name!r}', roles='{self.roles!r}', email='{self.email!r}', verified='{self.verified!r}')"
+
 class NewApiKey:
     def __init__(self, user_id: uuid.UUID, name: str, roles: list):
         self.user_id = user_id
@@ -62,10 +166,10 @@ class NewApiKey:
         return self.roles
     
     def __str__(self):
-        return f"\nUser ID: {self.user_id}\nAPI Key Name: {self.name}\nRoles: {self.roles}"
+        return f"User ID: {self.user_id}\nAPI Key Name: {self.name}\nRoles: {self.roles}"
     
     def __repr__(self):
-        return f"NewApiKey(user_id='{self.user_id}', name='{self.name}', roles='{self.roles}')"
+        return f"NewApiKey(user_id='{self.user_id!r}', name='{self.name!r}', roles='{self.roles!r}')"
 
 class ApiKey:
     def __init__(self, apikey_id: uuid.UUID, time: datetime, user_id: uuid.UUID, name: str, roles: list, url: str | None = None):
@@ -98,10 +202,10 @@ class ApiKey:
         return self.url
     
     def __str__(self):
-        return f"\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}\nURL: {self.url}"
+        return f"API Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}\nURL: {self.url}"
     
     def __repr__(self):
-        return f"ApiKey(apikey_id='{self.apikey_id}', time='{self.time}', user_id='{self.user_id}', name='{self.name}', roles='{self.roles}', url='{self.url}')"
+        return f"ApiKey(apikey_id='{self.apikey_id!r}', time='{self.time!r}', user_id='{self.user_id!r}', name='{self.name!r}', roles='{self.roles!r}', url='{self.url!r}')"
     
 class ApiKeyWithSecret(ApiKey):
     def __init__(self, apikey_id: uuid.UUID, time: datetime, user_id: uuid.UUID, name: str, roles: list, value: str):
@@ -112,10 +216,10 @@ class ApiKeyWithSecret(ApiKey):
         return self.value
     
     def __str__(self):
-        return f"\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}\nValue: {self.value}"
+        return f"API Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}\nValue: {self.value}"
     
     def __repr__(self):
-        return f"ApiKeyWithSecret(apikey_id='{self.apikey_id}', time='{self.time}', user_id='{self.user_id}', name='{self.name}', roles='{self.roles}', value='{self.value}')"
+        return f"ApiKeyWithSecret(apikey_id='{self.apikey_id!r}', time='{self.time!r}', user_id='{self.user_id!r}', name='{self.name!r}', roles='{self.roles!r}', value='{self.value!r}')"
 
 class NewAction:
     def __init__(self, name: str, parameters: str, description: str, tags: list[str], cost: float, followup: bool):
@@ -148,10 +252,10 @@ class NewAction:
         return self.followup
 
     def __str__(self):
-        return f"\nName: {self.name}\nParameters: {self.parameters}\nDescription: {self.description}\nTags: {self.tags}\nCost: {self.cost}\nFollowup: {self.followup}"
+        return f"Name: {self.name}\nParameters: {self.parameters}\nDescription: {self.description}\nTags: {self.tags}\nCost: {self.cost}\nFollowup: {self.followup}"
     
     def __repr__(self):
-        return f"NewAction(name='{self.name}', parameters='{self.parameters}', description='{self.description}', tags='{self.tags}', cost='{self.cost}', followup='{self.followup}')"
+        return f"NewAction(name='{self.name!r}', parameters='{self.parameters!r}', description='{self.description!r}', tags='{self.tags!r}', cost='{self.cost!r}', followup='{self.followup!r}')"
     
 class Action(NewAction):
     def __init__(self, action_id: uuid.UUID, time: datetime, apikey_id: uuid.UUID, name: str, parameters: str, description: str, tags: list[str], cost: float, followup: bool):
@@ -170,10 +274,10 @@ class Action(NewAction):
         return self.time
 
     def __str__(self):
-        return f"\nAction ID: {self.action_id}\nTime: {self.time}\nAPI Key ID: {self.apikey_id}\nName: {self.name}\nParameters: {self.parameters}\nDescription: {self.description}\nTags: {self.tags}\nCost: {self.cost}\nFollowup: {self.followup}"
+        return f"Action ID: {self.action_id}\nTime: {self.time}\nAPI Key ID: {self.apikey_id}\nName: {self.name}\nParameters: {self.parameters}\nDescription: {self.description}\nTags: {self.tags}\nCost: {self.cost}\nFollowup: {self.followup}"
     
     def __repr__(self):
-        return f"Action(action_id='{self.action_id}', time='{self.time}', apikey_id='{self.apikey_id}', name='{self.name}', parameters='{self.parameters}', description='{self.description}', tags='{self.tags}', cost='{self.cost}', followup='{self.followup}')"
+        return f"Action(action_id='{self.action_id!r}', time='{self.time!r}', apikey_id='{self.apikey_id!r}', name='{self.name!r}', parameters='{self.parameters!r}', description='{self.description!r}', tags='{self.tags!r}', cost='{self.cost!r}', followup='{self.followup!r}')"
 
 class NewPost:
     def __init__(self, description: str, context: str):
@@ -187,10 +291,10 @@ class NewPost:
         return self.context
 
     def __str__(self):
-        return f"\nDescription: {self.description}\nContext: {self.context}"
+        return f"Description: {self.description}\nContext: {self.context}"
 
     def __repr__(self):
-        return f"NewPost(description='{self.description}', context='{self.context}')"
+        return f"NewPost(description='{self.description!r}', context='{self.context!r}')"
 
 class Post(NewPost):
     def __init__(self, post_id: uuid.UUID, time: datetime, description: str, context: str, apikey_id: uuid.UUID, resolved: bool):
@@ -234,10 +338,10 @@ class Post(NewPost):
         }
 
     def __str__(self):
-        return f"\nPost ID: {self.post_id}\nTime: {self.time}\nDescription: {self.description}\nContext: {self.context}\nAPI Key ID: {self.apikey_id}\nResolved: {self.resolved}"
+        return f"Post ID: {self.post_id}\nTime: {self.time}\nDescription: {self.description}\nContext: {self.context}\nAPI Key ID: {self.apikey_id}\nResolved: {self.resolved}"
 
     def __repr__(self):
-        return f"Post(post_id='{self.post_id}', time='{self.time}', description='{self.description}', context='{self.context}', apikey_id='{self.apikey_id}', resolved='{self.resolved}')"
+        return f"Post(post_id='{self.post_id!r}', time='{self.time!r}', description='{self.description!r}', context='{self.context!r}', apikey_id='{self.apikey_id!r}', resolved='{self.resolved!r}')"
 
 class NewResponse:
     def __init__(self, post_id: uuid.UUID, description: str):
@@ -251,10 +355,10 @@ class NewResponse:
         return self.description
     
     def __str__(self):
-        return f"\nPost ID: {self.post_id}\nDescription: {self.description}"
+        return f"Post ID: {self.post_id}\nDescription: {self.description}"
 
     def __repr__(self):
-        return f"NewResponse(post_id='{self.post_id}', description='{self.description}')"
+        return f"NewResponse(post_id='{self.post_id!r}', description='{self.description!r}')"
     
 class Response(NewResponse):
     def __init__(self, response_id: uuid.UUID, time: datetime, post_id: uuid.UUID,  description: str, apikey_id: uuid.UUID | None = None):
@@ -298,10 +402,10 @@ class Response(NewResponse):
         )
 
     def __str__(self):
-        return f"\nResponse ID: {self.response_id}\nTime: {self.time}\nPost ID: {self.post_id}\nAPI Key ID: {self.apikey_id}\nDescription: {self.description}"
+        return f"Response ID: {self.response_id}\nTime: {self.time}\nPost ID: {self.post_id}\nAPI Key ID: {self.apikey_id}\nDescription: {self.description}"
     
     def __repr__(self):
-        return f"Response(response_id='{self.response_id}', time='{self.time}', post_id='{self.post_id}', apikey_id='{self.apikey_id}', description='{self.description}')"
+        return f"Response(response_id='{self.response_id!r}', time='{self.time!r}', post_id='{self.post_id!r}', apikey_id='{self.apikey_id!r}', description='{self.description!r}')"
 
 class NewActioncall:
     def __init__(self, action_id: uuid.UUID, post_id: uuid.UUID, parameters: str):
@@ -322,7 +426,7 @@ class NewActioncall:
         return f"Action ID: {self.action_id}\nPost ID: {self.post_id}\nParameters: {self.parameters}"
     
     def __repr__(self):
-        return f"NewActioncall(action_id='{self.action_id}', post_id='{self.post_id}', parameters='{self.parameters}')"
+        return f"NewActioncall(action_id='{self.action_id!r}', post_id='{self.post_id!r}', parameters='{self.parameters!r}')"
     
 class Actioncall(NewActioncall):
     def __init__(self, actioncall_id: uuid.UUID, apikey_id: uuid.UUID, time: datetime, action_id: uuid.UUID, post_id: uuid.UUID, parameters: str):
@@ -364,10 +468,10 @@ class Actioncall(NewActioncall):
         )
     
     def __str__(self):
-        return f"\nActioncall ID: {self.actioncall_id}\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nAction ID: {self.action_id}\nPost ID: {self.post_id}\nParameters: {self.parameters}"
+        return f"Actioncall ID: {self.actioncall_id}\nAPI Key ID: {self.apikey_id}\nTime: {self.time}\nAction ID: {self.action_id}\nPost ID: {self.post_id}\nParameters: {self.parameters}"
     
     def __repr__(self):
-        return f"Actioncall(actioncall_id='{self.actioncall_id}', apikey_id='{self.apikey_id}', time='{self.time}', action_id='{self.action_id}', post_id='{self.post_id}', parameters='{self.parameters}')"
+        return f"Actioncall(actioncall_id='{self.actioncall_id!r}', apikey_id='{self.apikey_id!r}', time='{self.time!r}', action_id='{self.action_id!r}', post_id='{self.post_id!r}', parameters='{self.parameters!r}')"
 
 class NewFile:
     def __init__(self, extension: str):
@@ -377,10 +481,10 @@ class NewFile:
         return self.extension
     
     def __str__(self):
-        return f"\nExtension: {self.extension}"
+        return f"Extension: {self.extension}"
     
     def __repr__(self):
-        return f"NewFile(extension='{self.extension}')"
+        return f"NewFile(extension='{self.extension!r}')"
     
 class File(NewFile):
     def __init__(self, file_id: uuid.UUID, time: datetime, apikey_id: uuid.UUID, extension: str):
@@ -399,10 +503,10 @@ class File(NewFile):
         return self.time
     
     def __str__(self):
-        return f"\nFile ID: {self.file_id}\nTime: {self.time}\nAPI Key ID: {self.apikey_id}\nExtension: {self.extension}"
+        return f"File ID: {self.file_id}\nTime: {self.time}\nAPI Key ID: {self.apikey_id}\nExtension: {self.extension}"
     
     def __repr__(self):
-        return f"File(file_id='{self.file_id}', time='{self.time}', apikey_id='{self.apikey_id}', extension='{self.extension}')"
+        return f"File(file_id='{self.file_id!r}', time='{self.time!r}', apikey_id='{self.apikey_id!r}', extension='{self.extension!r}')"
 
 class NewHistoryElement:
     def __init__(self, text: str, tree_id: uuid.UUID, parent_id: uuid.UUID = None, apikey_id: uuid.UUID = None, role: str | None = None, file_ids: list[uuid.UUID] = None, name: str | None = None):
@@ -436,10 +540,10 @@ class NewHistoryElement:
         return self.name
 
     def __str__(self):
-        return f"\nText: {self.text}\nFile IDs: {[str(file_id) for file_id in self.file_ids]}\nTree ID: {self.tree_id}\nParent ID: {self.parent_id}\nAPI Key ID: {self.apikey_id}\nRole: {self.role}\nName: {self.name}"
+        return f"Text: {self.text}\nFile IDs: {[str(file_id) for file_id in self.file_ids]}\nTree ID: {self.tree_id}\nParent ID: {self.parent_id}\nAPI Key ID: {self.apikey_id}\nRole: {self.role}\nName: {self.name}"
     
     def __repr__(self):
-        return f"NewHistoryElement(text='{self.text}', file_ids='{self.file_ids}', tree_id='{self.tree_id}', parent_id='{self.parent_id}', apikey_id='{self.apikey_id}', role='{self.role}', name='{self.name}')"
+        return f"NewHistoryElement(text='{self.text!r}', file_ids='{self.file_ids!r}', tree_id='{self.tree_id!r}', parent_id='{self.parent_id!r}', apikey_id='{self.apikey_id!r}', role='{self.role!r}', name='{self.name!r}')"
 
 class HistoryElement(NewHistoryElement):
     def __init__(self, history_id: uuid.UUID, role: uuid.UUID, name: str, text: str, time: datetime, apikey_id: uuid.UUID | None, file_ids: list[uuid.UUID] = None, tree_id: uuid.UUID = None, parent_id: uuid.UUID = None):
@@ -496,10 +600,10 @@ class HistoryElement(NewHistoryElement):
 
 
     def __str__(self):
-        return f"\nHistory ID: {self.history_id}\nRole: {self.role}\nName: {self.name}\nTime: {self.time}\nAPI Key ID: {self.apikey_id}\nText: {self.text}\nFile IDs: {[str(file_id) for file_id in self.file_ids]}\nTree ID: {self.tree_id}\nParent ID: {self.parent_id}"
+        return f"History ID: {self.history_id}\nRole: {self.role}\nName: {self.name}\nTime: {self.time}\nAPI Key ID: {self.apikey_id}\nText: {self.text}\nFile IDs: {[str(file_id) for file_id in self.file_ids]}\nTree ID: {self.tree_id}\nParent ID: {self.parent_id}"
     
     def __repr__(self):
-        return f"HistoryElement(history_id='{self.history_id}', role='{self.role}', name='{self.name}', time='{self.time}', apikey_id='{self.apikey_id}', text='{self.text}', file_ids='{self.file_ids}', tree_id='{self.tree_id}', parent_id='{self.parent_id}')"
+        return f"HistoryElement(history_id='{self.history_id!r}', role='{self.role!r}', name='{self.name!r}', time='{self.time!r}', apikey_id='{self.apikey_id!r}', text='{self.text!r}', file_ids='{self.file_ids!r}', tree_id='{self.tree_id!r}', parent_id='{self.parent_id!r}')"
     
 class BidRequest():
     def __init__(self, action_id: uuid.UUID, post: Post):
@@ -526,10 +630,10 @@ class BidRequest():
         }
     
     def __str__(self):
-        return f"\nAction ID: {self.action_id}\nPost: {self.post}"
+        return f"Action ID: {self.action_id}\nPost: {self.post}"
     
     def __repr__(self):
-        return f"BidRequest(action_id='{self.action_id}', post='{self.post}')"
+        return f"BidRequest(action_id='{self.action_id!r}', post='{self.post!r}')"
     
 class BidResponse():
     def __init__(self, action_id: uuid.UUID, post_id: uuid.UUID, cost: float | None):
@@ -562,10 +666,10 @@ class BidResponse():
         }
     
     def __str__(self):
-        return f"\nAction ID: {self.action_id}\nPost ID: {self.post_id}\nCost: {self.cost}"
+        return f"Action ID: {self.action_id}\nPost ID: {self.post_id}\nCost: {self.cost}"
     
     def __repr__(self):
-        return f"BidResponse(action_id='{self.action_id}', post_id='{self.post_id}', cost='{self.cost}')"
+        return f"BidResponse(action_id='{self.action_id!r}', post_id='{self.post_id!r}', cost='{self.cost!r}')"
 
 class PaymentRequest():
     def __init__(self, actioncall_id: uuid.UUID, post_id: uuid.UUID, payment_link: str):
@@ -598,10 +702,10 @@ class PaymentRequest():
         }
     
     def __str__(self):
-        return f"\nActioncall ID: {self.actioncall_id}\nPost ID: {self.post_id}\nPayment Link: {self.payment_link}"
+        return f"Actioncall ID: {self.actioncall_id}\nPost ID: {self.post_id}\nPayment Link: {self.payment_link}"
     
     def __repr__(self):
-        return f"PaymentRequest(actioncall_id='{self.actioncall_id}', post_id='{self.post_id}', payment_link='{self.payment_link}')"
+        return f"PaymentRequest(actioncall_id='{self.actioncall_id!r}', post_id='{self.post_id!r}', payment_link='{self.payment_link!r}')"
 
 class Location():
     def __init__(self, latitude: float, longitude: float):
@@ -628,10 +732,10 @@ class Location():
         }
     
     def __str__(self):
-        return f"\nLatitude: {self.latitude}\nLongitude: {self.longitude}"
+        return f"Latitude: {self.latitude}\nLongitude: {self.longitude}"
     
     def __repr__(self):
-        return f"Location(latitude='{self.latitude}', longitude='{self.longitude}')"   
+        return f"Location(latitude='{self.latitude!r}', longitude='{self.longitude!r}')"   
 
 class PAUserMessage():
     def __init__(self, ui_id: str, text: str):
@@ -658,10 +762,10 @@ class PAUserMessage():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}\nText: {self.text}"
+        return f"UI ID: {self.ui_id}\nText: {self.text}"
     
     def __repr__(self):
-        return f"PAUserMessage(ui_id='{self.ui_id}', text='{self.text}')"
+        return f"PAUserMessage(ui_id='{self.ui_id!r}', text='{self.text!r}')"
     
 class PAPaymentRequest():
     def __init__(self, ui_id: str, payment_link: str):
@@ -688,10 +792,10 @@ class PAPaymentRequest():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}\nPayment Link: {self.payment_link}"
+        return f"UI ID: {self.ui_id}\nPayment Link: {self.payment_link}"
     
     def __repr__(self):
-        return f"PAPaymentRequest(ui_id='{self.ui_id}', payment_link='{self.payment_link}')"
+        return f"PAPaymentRequest(ui_id='{self.ui_id!r}', payment_link='{self.payment_link!r}')"
 
 class PALocationRequest():
     def __init__(self, ui_id: str):
@@ -712,10 +816,10 @@ class PALocationRequest():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}"
+        return f"UI ID: {self.ui_id}"
     
     def __repr__(self):
-        return f"PALocationRequest(ui_id='{self.ui_id}')" 
+        return f"PALocationRequest(ui_id='{self.ui_id!r}')" 
     
 class PALocationResponse():
     def __init__(self, ui_id: str, location: Location):
@@ -742,10 +846,10 @@ class PALocationResponse():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}\nLocation: {self.location}"
+        return f"UI ID: {self.ui_id}\nLocation: {self.location}"
     
     def __repr__(self):
-        return f"PALocationResponse(ui_id='{self.ui_id}', location='{self.location}')"
+        return f"PALocationResponse(ui_id='{self.ui_id!r}', location='{self.location!r}')"
 
 class PAUserResponse():
     def __init__(self, ui_id: str, text: str):
@@ -772,10 +876,10 @@ class PAUserResponse():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}\nText: {self.text}"
+        return f"UI ID: {self.ui_id}\nText: {self.text}"
     
     def __repr__(self):
-        return f"PAUserResponse(ui_id='{self.ui_id}', text='{self.text}')"
+        return f"PAUserResponse(ui_id='{self.ui_id!r}', text='{self.text!r}')"
     
 class PANewConversation():
     def __init__(self, ui_id: str):
@@ -796,11 +900,268 @@ class PANewConversation():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}"
+        return f"UI ID: {self.ui_id}"
     
     def __repr__(self):
-        return f"PANewConversation(ui_id='{self.ui_id}')"
+        return f"PANewConversation(ui_id='{self.ui_id!r}')"
     
+class PALinkUrl():
+    def __init__(self, ui_id: uuid.UUID, text: str, url: str):
+        self.ui_id = ui_id
+        self.text = text
+        self.url = url
+
+    def get_ui_id(self):
+        return self.ui_id
+    
+    def get_text(self):
+        return self.text
+    
+    def get_url(self):
+        return self.url
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            ui_id=data["ui_id"],
+            text=data["text"],
+            url=data["url"]
+        )
+    
+    def to_dict(self):
+        return {
+            "ui_id": self.ui_id,
+            "text": self.text,
+            "url": self.url
+        }
+    
+    def __str__(self):
+        return f"UI ID: {self.ui_id}\nText: {self.text}\nUrl: {self.url}"
+    
+    def __repr__(self):
+        return f"PALinkUrl(ui_id='{self.ui_id!r}', text='{self.text!r}', url='{self.url!r}')"
+
+class ErrorResponse():
+    def __init__(self, message: str):
+        self.message = message
+
+    def get_message(self):
+        return self.message
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            message=data["message"]
+        )
+    
+    def to_dict(self):
+        return {
+            "message": self.message
+        }
+    
+    def __str__(self):
+        return f"Message: {self.message}"
+    
+    def __repr__(self):
+        return f"ErrorResponse(message='{self.message!r}')"
+
+class LinkAgentConfirmation(): # user / ui to marketplace
+    def __init__(self, pa_user_id: uuid.UUID, apikey_id: uuid.UUID):
+        self.pa_user_id = pa_user_id
+        self.apikey_id = apikey_id
+
+    def get_pa_user_id(self):
+        return self.pa_user_id
+
+    def get_apikey_id(self):
+        return self.apikey_id
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            pa_user_id=uuid.UUID(data["pa_user_id"]), # TODO: make all of these custom UUID type in ariadne
+            apikey_id=uuid.UUID(data["apikey_id"])
+        )
+
+    def to_dict(self):
+        return {
+            "pa_user_id": str(self.pa_user_id),
+            "apikey_id": str(self.apikey_id)
+        }
+
+    def __str__(self):
+        return f"PA User ID: {self.pa_user_id}\nAPI Key ID: {self.apikey_id}"
+
+    def __repr__(self):
+        return f"LinkAgentConfirmation(pa_user_id='{self.pa_user_id!r}', apikey_id='{self.apikey_id!r}')"  
+
+class LinkConfirmation(): # marketplace to assistant
+    def __init__(self, pa_user_id: uuid.UUID, apikey_id: uuid.UUID):
+        self.pa_user_id = pa_user_id
+        self.apikey_id = apikey_id
+
+    def get_pa_user_id(self):
+        return self.pa_user_id
+    
+    def get_apikey_id(self):
+        return self.apikey_id
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            pa_user_id=uuid.UUID(data["pa_user_id"]),
+            apikey_id=uuid.UUID(data["apikey_id"])
+        )
+    
+    def to_dict(self):
+        return {
+            "pa_user_id": str(self.pa_user_id),
+            "apikey_id": str(self.apikey_id)
+        }
+    
+    def __str__(self):
+        return f"PA User ID: {self.pa_user_id}\nAPI Key ID: {self.apikey_id}"
+    
+    def __repr__(self):
+        return f"LinkConfirmation(pa_user_id='{self.pa_user_id!r}', apikey_id='{self.apikey_id!r}')"
+
+class LoginUserRequest():
+    def __init__(self, email: str, password: str, params: dict):
+        self.email = email
+        self.password = password
+        self.params = params
+
+    def get_email(self):
+        return self.email
+    
+    def get_password(self):
+        return self.password
+    
+    def get_params(self):
+        return self.params
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        # Convert the list of key-value pair dictionaries into a single dict
+        params_list = data.get("params", [])
+        params_dict = {item["key"]: item["value"] for item in params_list}
+        return cls(
+            email=data["email"],
+            password=data["password"],
+            params=params_dict
+        )
+
+    def to_dict(self):
+        # Convert the internal dict back to a list of key-value pair dictionaries
+        params_list = [{"key": key, "value": value} for key, value in self.params.items()]
+        return {
+            "email": self.email,
+            "password": self.password,
+            "params": params_list
+        }
+    
+    def __str__(self):
+        return f"Email: {self.email}\nPassword: {self.password}\nParams: {self.params}"
+    
+    def __repr__(self):
+        return f"LoginUserRequest(email='{self.email!r}', password='{self.password!r}', params='{self.params!r}')"
+    
+class LoginUserResponse():
+    def __init__(self, token: str):
+        self.token = token
+
+    def get_token(self):
+        return self.token
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            token=data["token"]
+        )
+    
+    def to_dict(self):
+        return
+        {
+            "token": self.token
+        }
+
+    def __str__(self):
+        return f"Token: {self.token}"
+    
+    def __repr__(self):
+        return f"LoginUserResponse(token='{self.token!r}')"
+    
+class RegisterUserRequest():
+    def __init__(self, email: str, password: str, params: dict):
+        self.email = email
+        self.password = password
+        self.params = params
+
+    def get_email(self):
+        return self.email
+    
+    def get_password(self):
+        return self.password
+    
+    def get_params(self):
+        return self.params
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        # Convert the list of key-value pair dictionaries into a single dict
+        params_list = data.get("params", [])
+        params_dict = {item["key"]: item["value"] for item in params_list}
+        return cls(
+            email=data["email"],
+            password=data["password"],
+            params=params_dict
+        )
+
+    def to_dict(self):
+        # Convert the internal dictionary back to a list of key-value pair dictionaries
+        params_list = [{"key": key, "value": value} for key, value in self.params.items()]
+        return {
+            "email": self.email,
+            "password": self.password,
+            "params": params_list
+        }
+    
+    def __str__(self):
+        return f"Email: {self.email}\nPassword: {self.password}\nParams: {self.params}"
+    
+    def __repr__(self):
+        return f"RegisterUserRequest(email='{self.email!r}', password='{self.password!r}', params='{self.params!r}')"
+
+class RegisterUserResponse():
+    def __init__(self, success: bool, message: str):
+        self.success = success
+        self.message = message
+
+    def get_success(self):
+        return self.success
+    
+    def get_message(self):
+        return self.message
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            success=data["success"],
+            message=data["message"]
+        )
+    
+    def to_dict(self):
+        return {
+            "success": self.success,
+            "message": self.message
+        }
+    
+    def __str__(self):
+        return f"Success: {self.success}\nMessage: {self.message}"
+    
+    def __repr__(self):
+        return f"RegisterUserResponse(success='{self.success!r}', message='{self.message!r}')"
+
 class PASupportRequest():
     def __init__(self, ui_id: str, text: str):
         self.ui_id = ui_id
@@ -826,10 +1187,10 @@ class PASupportRequest():
         }
     
     def __str__(self):
-        return f"\nUI ID: {self.ui_id}\nText: {self.text}"
+        return f"UI ID: {self.ui_id}\nText: {self.text}"
     
     def __repr__(self):
-        return f"PASupportRequest(ui_id='{self.ui_id}', text='{self.text}')"
+        return f"PASupportRequest(ui_id='{self.ui_id!r}', text='{self.text!r}')"
     
 class PAUrl():
     def __init__(self, url: str):
@@ -850,10 +1211,10 @@ class PAUrl():
         }
     
     def __str__(self):
-        return f"\nUrl: {self.url}"
+        return f"Url: {self.url}"
     
     def __repr__(self):
-        return f"PAUrl(url='{self.url}')"
+        return f"PAUrl(url='{self.url!r}')"
     
 class Url():
     def __init__(self, url: str):
@@ -874,8 +1235,8 @@ class Url():
         }
     
     def __str__(self):
-        return f"\nUrl: {self.url}"
+        return f"Url: {self.url}"
     
     def __repr__(self):
-        return f"Url(url='{self.url}')"
+        return f"Url(url='{self.url!r}')"
     

@@ -1,4 +1,6 @@
+import inspect
 import os
+from pathlib import Path
 import sys
 import json
 import time
@@ -21,6 +23,7 @@ from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.websockets import WebsocketsTransport
 
 # Server Mode:
+import importlib.resources
 from graphql import GraphQLError, FieldDefinitionNode
 from dateutil import parser
 from ariadne import gql as gql_server
@@ -337,142 +340,59 @@ class Maoto:
 
                 return status
             
-            @self.mutation.field("forwardPAPaymentRequests")
-            async def forward_paymentrequests(_, info, pa_paymentrequests: list[dict[str, object]]) -> list[bool]:
-                paymentrequests = [PAPaymentRequest(
+            @self.mutation.field("forwardPAPaymentRequest")
+            async def forward_paymentrequest(_, info, pa_paymentrequest: dict[str, object]) -> bool:
+                paymentrequest = PAPaymentRequest(
                     ui_id=pa_paymentrequest["ui_id"],
                     payment_link=pa_paymentrequest["payment_link"],
-                ) for pa_paymentrequest in pa_paymentrequests]
+                )
 
-                status = []
-                for paymentrequest in paymentrequests:
-                    try:
-                        asyncio.create_task(self.resolver(paymentrequest))
+                asyncio.create_task(self.resolver(paymentrequest))
+                return True
 
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving payment request: {e}")
-                        status.append(False)
-
-                return status
-
-            @self.mutation.field("forwardPALocationRequests")
-            async def forward_locationrequests(_, info, pa_locationrequests: list[dict[str, object]]) -> list[bool]:
-                locationrequests = [PALocationRequest(
+            @self.mutation.field("forwardPALocationRequest")
+            async def forward_locationrequest(_, info, pa_locationrequest: dict[str, object]) -> bool:
+                locationrequest = PALocationRequest(
                     ui_id=pa_locationrequest["ui_id"],
-                ) for pa_locationrequest in pa_locationrequests]
+                )
 
-                status = []
-                for locationrequest in locationrequests:
-                    try:
-                        asyncio.create_task(self.resolver(locationrequest))
+                asyncio.create_task(self.resolver(locationrequest))
+                return True
 
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving location request: {e}")
-                        status.append(False)
-
-                return status
-
-            @self.mutation.field("forwardPAUserMessages")
-            async def forward_usermessages(_, info, pa_usermessages: list[dict[str, object]]) -> list[bool]:
-                usermessages = [PAUserMessage(
+            @self.mutation.field("forwardPAUserMessage")
+            async def forward_usermessage(_, info, pa_usermessage: dict[str, object]) -> bool:
+                usermessage = PAUserMessage(
                     ui_id=pa_usermessage["ui_id"],
                     text=pa_usermessage["text"],
-                ) for pa_usermessage in pa_usermessages]
+                )
 
-                status = []
-                for usermessage in usermessages:
-                    try:
-                        asyncio.create_task(self.resolver(usermessage))
+                asyncio.create_task(self.resolver(usermessage))
+                return True
+            
+            @self.mutation.field("forwardPALinkUrl")
+            async def forward_linkurl(_, info, pa_linkurl: dict[str, object]) -> bool:
+                linkurl = PALinkUrl.from_dict(pa_linkurl)
 
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving user message: {e}")
-                        status.append(False)
-
-                return status
-
-            self.schema = gql_server("""
-                directive @auth on FIELD_DEFINITION
-
-                scalar Datetime
-                scalar JSON
-                                        
-                input Actioncall {
-                    actioncall_id: ID!
-                    action_id: ID!
-                    post_id: ID!
-                    apikey_id: ID!
-                    parameters: JSON
-                    time: Datetime!
-                }
-                                        
-                input Response {
-                    response_id: ID!
-                    post_id: ID!
-                    description: String!
-                    apikey_id: ID
-                    time: Datetime!
-                }
-                                        
-                input Post {
-                    post_id: ID!
-                    description: String!
-                    context: String!
-                    apikey_id: ID!
-                    time: Datetime!
-                    resolved: Boolean!
-                }
-                                        
-                input BidRequest {
-                    action_id: ID
-                    post: Post
-                }
+                asyncio.create_task(self.resolver(linkurl))
+                return True
                 
-                input PaymentRequest {
-                    actioncall_id: ID
-                    post_id: ID
-                    payment_link: String
-                }
-                                        
-                input Location {
-                    latitude: Float
-                    longitude: Float
-                }
-                                        
-                input PALocationRequest {
-                    ui_id: String
-                }
-                                        
-                input PAUserMessage {
-                    ui_id: String
-                    text: String
-                }
-                                        
-                input PAPaymentRequest {
-                    ui_id: String
-                    payment_link: String
-                }
-                                        
-                type Query {
-                    _dummy: String
-                }
+            @self.mutation.field("forwardLinkConfirmation")
+            async def forward_linkconfirmation(_, info, linkconfirmation: dict[str, object]) -> bool:
+                linkconfirmation = LinkConfirmation(
+                    pa_user_id=uuid.UUID(linkconfirmation["pa_user_id"]),
+                    apikey_id=uuid.UUID(linkconfirmation["apikey_id"]),
+                )
 
-                type Mutation {
-                    forwardActioncalls(actioncalls: [Actioncall!]!): [Boolean!]! @auth
-                    forwardResponses(responses: [Response!]!): [Boolean!]! @auth
-                    forwardBidRequests(bidrequests: [BidRequest!]!): [Boolean!]! @auth
-                    forwardPaymentRequests(paymentrequests: [PaymentRequest!]!): [Boolean!]! @auth
-                                        
-                    forwardPALocationRequests(pa_locationrequests: [PALocationRequest!]!): [Boolean!]! @auth
-                    forwardPAUserMessages(pa_usermessages: [PAUserMessage!]!): [Boolean!]! @auth
-                    forwardPAPaymentRequests(pa_paymentrequests: [PAPaymentRequest!]!): [Boolean!]! @auth
-                }
-            """)
+                try:
+                    asyncio.create_task(self.resolver(linkconfirmation))
 
-            # Create the executable schema
-            self.executable_schema = make_executable_schema(self.schema, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.AuthDirective})
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Error resolving login response: {e}")
+                    return False
+                
+            schema_str = (importlib.resources.files(__package__) / "agent.graphql").read_text()
+            self.executable_schema = make_executable_schema(schema_str, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.AuthDirective})
 
             self.graphql_app = GraphQL(
                 self.executable_schema, 
@@ -503,6 +423,8 @@ class Maoto:
             return await gql_client.execute_async(query, variable_values=variable_values)
 
     def __init__(self, logging_level=None, assistant=True, marketplace=True):
+        self._apikey = None
+        
         # Set up logging and debug mode
         self._debug = os.getenv("DEBUG", "False").lower() == "true" or os.getenv("MAOTO_DEBUG", "False").lower() == "true"
         # Set up logging
@@ -542,10 +464,12 @@ class Maoto:
             "PaymentRequest": None,
             "BidRequest": {},
             "BidRequest_fallback": None,
+            "LinkConfirmation": None,
 
             "PAPaymentRequest": None,
             "PALocationRequest": None,
             "PAUserMessage": None,
+            "PALinkUrl": None,
         }
 
         if assistant:
@@ -585,8 +509,45 @@ class Maoto:
             except RuntimeError:
                 # If no loop is running, create a new one
                 return asyncio.run(func(*args, **kwargs))
+        wrapper.__signature__ = inspect.signature(func) # TODO: did this line fix the docs problem?
         return wrapper
     
+    async def _get_own_api_key(self) -> ApiKey:
+        # Query to fetch the user's own API keys, limiting the result to only one
+        query = gql_client('''
+        query {
+            getOwnApiKeys {
+                apikey_id
+                user_id
+                name
+                time
+                roles
+            }
+        }
+        ''')
+
+        result = await self._graphql_service_mp.execute_async(query)
+        data_list = result["getOwnApiKeys"]
+
+        # Return the first API key (assume the list is ordered by time or relevance)
+        if data_list:
+            data = data_list[0]
+            return ApiKey(
+                apikey_id=uuid.UUID(data["apikey_id"]),
+                user_id=uuid.UUID(data["user_id"]),
+                time=datetime.fromisoformat(data["time"]),
+                name=data["name"],
+                roles=data["roles"]
+            )
+        else:
+            raise Exception("No API keys found for the user.")
+
+    @_sync_or_async
+    async def get_own_api_key(self) -> ApiKey:
+        if not self._apikey:
+            self._apikey = await self._get_own_api_key()
+        return self._apikey
+
     @_sync_or_async
     async def check_status_mp(self) -> bool:
         query = gql_client('''
@@ -998,6 +959,11 @@ class Maoto:
                     post_id
                     payment_link
                 }
+                                  
+                ... on LinkConfirmation {
+                    pa_user_id
+                    apikey_id
+                }
             }
         }
         ''')
@@ -1127,6 +1093,11 @@ class Maoto:
                 actioncall_id=uuid.UUID(event_data["actioncall_id"]),
                 post_id=uuid.UUID(event_data["post_id"]),
                 payment_link=event_data["payment_link"]
+            )
+        elif event_type == "LinkConfirmation":
+            event = LinkConfirmation(
+                pa_user_id=uuid.UUID(event_data["pa_user_id"]),
+                apikey_id=uuid.UUID(event_data["apikey_id"])
             )
         else:
             self.logger.error(f"Unknown event type: {event_type}")

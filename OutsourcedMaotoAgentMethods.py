@@ -22,38 +22,6 @@ class OutsourcedMaotoAgentMethods(Maoto):
         return User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"])
 
     @_sync_or_async
-    async def get_own_api_key(self) -> ApiKey:
-        # Query to fetch the user's own API keys, limiting the result to only one
-        query = gql_client('''
-        query {
-            getOwnApiKeys {
-                apikey_id
-                user_id
-                name
-                time
-                roles
-            }
-        }
-        ''')
-
-        result = await self.client.execute_async(query)
-        data_list = result["getOwnApiKeys"]
-
-        # Return the first API key (assume the list is ordered by time or relevance)
-        if data_list:
-            data = data_list[0]
-            return ApiKey(
-                apikey_id=uuid.UUID(data["apikey_id"]),
-                user_id=uuid.UUID(data["user_id"]),
-                time=datetime.fromisoformat(data["time"]),
-                name=data["name"],
-                roles=data["roles"]
-            )
-        else:
-            raise Exception("No API keys found for the user.")
-
-
-    @_sync_or_async
     async def get_own_api_keys(self) -> list[bool]:
         # Note: the used API key id is always the first one
         query = gql_client('''

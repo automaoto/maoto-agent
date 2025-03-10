@@ -5,6 +5,7 @@ global-exclude *
 include README.md
 include LICENSE
 include pyproject.toml
+recursive-include src/maoto_agent *.graphql
 
 # Recursively include all files from the 'maoto_agent' package
 recursive-include maoto_agent *

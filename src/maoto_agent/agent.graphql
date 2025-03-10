@@ -1,0 +1,88 @@
+directive @auth on FIELD_DEFINITION
+
+scalar Datetime
+scalar JSON
+                        
+input Actioncall {
+    actioncall_id: ID!
+    action_id: ID!
+    post_id: ID!
+    apikey_id: ID!
+    parameters: JSON
+    time: Datetime!
+}
+                        
+input Response {
+    response_id: ID!
+    post_id: ID!
+    description: String!
+    apikey_id: ID
+    time: Datetime!
+}
+                        
+input Post {
+    post_id: ID!
+    description: String!
+    context: String!
+    apikey_id: ID!
+    time: Datetime!
+    resolved: Boolean!
+}
+                        
+input BidRequest {
+    action_id: ID
+    post: Post
+}
+
+input PaymentRequest {
+    actioncall_id: ID
+    post_id: ID
+    payment_link: String
+}
+                        
+input Location {
+    latitude: Float
+    longitude: Float
+}
+                        
+input PALocationRequest {
+    ui_id: String!
+}
+                        
+input PAUserMessage {
+    ui_id: String
+    text: String
+}
+                    
+input PALinkUrl {
+    ui_id: String!
+    text: String!
+    url: String!         
+}
+                    
+input LinkConfirmation {
+    pa_user_id: ID!
+    apikey_id: ID!
+}
+                        
+input PAPaymentRequest {
+    ui_id: String
+    payment_link: String
+}
+                        
+type Query {
+    _dummy: String
+}
+
+type Mutation {
+    forwardActioncalls(actioncalls: [Actioncall!]!): [Boolean!]! @auth
+    forwardResponses(responses: [Response!]!): [Boolean!]! @auth
+    forwardBidRequests(bidrequests: [BidRequest!]!): [Boolean!]! @auth
+    forwardPaymentRequests(paymentrequests: [PaymentRequest!]!): [Boolean!]! @auth
+    forwardLinkConfirmation(linkconfirmation: LinkConfirmation!): Boolean! @auth
+                        
+    forwardPALocationRequest(pa_locationrequest: PALocationRequest!): Boolean! @auth
+    forwardPAUserMessage(pa_usermessage: PAUserMessage!): Boolean! @auth
+    forwardPAPaymentRequest(pa_paymentrequest: PAPaymentRequest!): Boolean! @auth
+    forwardPALinkUrl(pa_linkurl: PALinkUrl!): Boolean! @auth
+}
