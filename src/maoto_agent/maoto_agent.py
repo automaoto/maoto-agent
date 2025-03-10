@@ -408,6 +408,7 @@ class Maoto:
 
         def _get_client(self, server_url: str) -> Client:
             transport = AIOHTTPTransport(
+                ssl=True,
                 url=server_url,
                 headers={"Authorization": self._apikey_value, "Version": self._version},
             )
@@ -453,7 +454,7 @@ class Maoto:
         if self._apikey_value in [None, ""]:
             raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
 
-        self._action_cache = []
+        self._action_cache: list[Action] = []
         self._id_action_map = {}
 
         self._handler_registry = {
@@ -611,8 +612,9 @@ class Maoto:
         return actions
 
     @_sync_or_async
-    async def create_actions(self, new_actions: list[NewAction]) -> list[Action]:
-        self._action_cache.extend(new_actions)
+    async def create_actions(self, new_actions: list[NewAction], cache: bool = False) -> list[Action]:
+        if cache:
+            self._action_cache.extend(new_actions)
 
         actions = await self._create_actions_core(new_actions)
 
