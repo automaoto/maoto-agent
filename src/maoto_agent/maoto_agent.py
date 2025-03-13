@@ -423,7 +423,7 @@ class Maoto:
             gql_client = self._get_client(self._url)
             return await gql_client.execute_async(query, variable_values=variable_values)
 
-    def __init__(self, logging_level=None, assistant=True, marketplace=True):
+    def __init__(self, logging_level=None, assistant=True, marketplace=True, apikey_value: str | None = None):
         self._apikey = None
         
         # Set up logging and debug mode
@@ -450,9 +450,9 @@ class Maoto:
         self._protocol_websocket = "wss" if self._use_ssl else "ws"
         self._url_marketplace_subscription = self._url_mp.replace(self._protocol, self._protocol_websocket)
         
-        self._apikey_value = os.environ.get("MAOTO_API_KEY")
-        if self._apikey_value in [None, ""]:
-            raise ValueError("API key is required. (Set MAOTO_API_KEY environment variable)")
+        self._apikey_value = apikey_value or os.environ.get("MAOTO_API_KEY")
+        if not self._apikey_value:
+            raise ValueError("API key is required.")
 
         self._action_cache: list[Action] = []
         self._id_action_map = {}

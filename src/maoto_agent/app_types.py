@@ -201,6 +201,27 @@ class ApiKey:
     def get_url(self):
         return self.url
     
+    @staticmethod
+    def from_dict(data: dict):
+        return ApiKey(
+            apikey_id=uuid.UUID(data["apikey_id"]),
+            time=datetime.fromisoformat(data["time"]),
+            user_id=uuid.UUID(data["user_id"]),
+            name=data["name"],
+            roles=data["roles"],
+            url=data.get("url")
+        )
+    
+    def to_dict(self):
+        return {
+            "apikey_id": str(self.apikey_id),
+            "time": self.time.isoformat(),
+            "user_id": str(self.user_id),
+            "name": self.name,
+            "roles": self.roles,
+            "url": self.url
+        }
+    
     def __str__(self):
         return f"API Key ID: {self.apikey_id}\nTime: {self.time}\nUser ID: {self.user_id}\nKey Name: {self.name}\nRoles: {self.roles}\nURL: {self.url}"
     
