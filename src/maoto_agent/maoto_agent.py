@@ -437,7 +437,7 @@ class Maoto:
             return result["registerOfferReference"]
     
     
-    async def get_registered(self, obj_type: type) -> list[Skill | OfferCallable | OfferReference]:
+    async def get_registered(self, type_ref: Skill | OfferCallable | OfferReference) -> list[Skill | OfferCallable | OfferReference]:
         """
         Retrieve registered objects of a specified type from the Marketplace.
 
@@ -456,7 +456,7 @@ class Maoto:
         ValueError
             If the provided type is not supported.
         """
-        if obj_type == Skill:
+        if type_ref == Skill:
             query = gql_client('''
             query {
                 getSkills {
@@ -470,7 +470,7 @@ class Maoto:
             result = await self._graphql_service_marketplace.execute_async(query)
             return [Skill(**data) for data in result["getSkills"]]
         
-        elif obj_type == OfferCallable:
+        elif type_ref == OfferCallable:
             query = gql_client('''
             query {
                 getOfferCallables {
@@ -487,7 +487,7 @@ class Maoto:
             result = await self._graphql_service_marketplace.execute_async(query)
             return [OfferCallable(**data) for data in result["getOfferCallables"]]
         
-        elif obj_type == OfferReference:
+        elif type_ref == OfferReference:
             query = gql_client('''
             query {
                 getOfferReferences {
