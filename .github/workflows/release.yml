@@ -34,7 +34,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build-pypi
-      - build-conda
     runs-on: ubuntu-latest
     environment:
       name: release_pypi
@@ -50,64 +49,59 @@ jobs:
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  build-conda:
-    name: Build conda distribution 📦
+  prepare-conda-forge:
+    name: Prepare conda-forge feedstock
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - publish-to-pypi  # We first publish to PyPI, then conda-forge can pull from there
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Set up Miniconda
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          auto-activate-base: true
-          channel-priority: flexible
-      - name: Build conda package
+      
+      - name: Create conda-forge PR
         run: |
-          conda install -y conda-build conda-verify
-          conda build -c conda-forge -c defaults . --output-folder dist --quiet
-      - name: Show conda build output
-        run: |
-          echo "Listing dist folder:"
-          ls -R dist
-      - name: Upload conda package artifact
+          # Install required tools
+          pip install grayskull
+          
+          # Generate conda-forge recipe from PyPI
+          VERSION=${GITHUB_REF#refs/tags/}
+          grayskull pypi maoto-agent -o conda-forge-recipe
+          
+          # Display generated recipe for debugging
+          cat conda-forge-recipe/maoto-agent/meta.yaml
+          
+          # Store recipe for inspection
+          mkdir -p conda-forge-output
+          cp -r conda-forge-recipe conda-forge-output/
+      
+      - name: Upload conda-forge recipe
         uses: actions/upload-artifact@v4
         with:
-          name: python-package-distributions-conda
-          path: dist
-
-  publish-to-conda:
-    name: >-
-      Publish Python 🐍 distribution 📦 to Conda
-    if: startsWith(github.ref, 'refs/tags/')
-    needs:
-      - build-conda
-      - build-pypi
-    runs-on: ubuntu-latest
-    environment:
-      name: release_conda
-      url: https://anaconda.org/conda-forge/aiohttp
-    permissions:
-      id-token: write
-    steps:
-      - name: Download conda artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: python-package-distributions-conda
-          path: dist
-      - name: Upload conda package to Anaconda
-        env:
-          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+          name: conda-forge-recipe
+          path: conda-forge-output
+      
+      - name: Instructions for conda-forge submission
         run: |
-          source "$(conda info --base)/etc/profile.d/conda.sh"
-          conda activate base
-          conda install -y anaconda-client
-          anaconda upload dist/noarch/*.conda --force
+          echo "================================================"
+          echo "CONDA-FORGE SUBMISSION INSTRUCTIONS"
+          echo "================================================"
+          echo "To submit to conda-forge:"
+          echo "1. Fork https://github.com/conda-forge/staged-recipes"
+          echo "2. Create a new branch"
+          echo "3. Copy the generated recipe to recipes/maoto-agent/"
+          echo "4. Submit a PR to conda-forge/staged-recipes"
+          echo ""
+          echo "For subsequent releases, update the feedstock repo"
+          echo "that will be created after initial submission"
+          echo "================================================"
 
   github-release:
     name: >-
@@ -116,7 +110,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - publish-to-pypi
-      - publish-to-conda
+      - prepare-conda-forge
     runs-on: ubuntu-latest
 
     permissions:
