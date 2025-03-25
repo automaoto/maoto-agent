@@ -207,12 +207,12 @@ class Maoto:
     
     async def get_own_api_key(self) -> ApiKey:
         """
-        Retrieve and cache the current API key.
+        Retrieve and cache the API key associated with this agent instance.
 
         Returns
         -------
         ApiKey
-            The API key associated with this agent instance.
+            The current API key for this agent.
         """
         if not self._apikey:
             self._apikey = await self._get_own_api_key()
@@ -221,7 +221,7 @@ class Maoto:
     
     async def check_status_marketplace(self) -> bool:
         """
-        Check if the Marketplace service is available.
+        Check if the Marketplace service is currently available.
 
         Returns
         -------
@@ -239,7 +239,7 @@ class Maoto:
     
     async def check_status_assistant(self) -> bool:
         """
-        Check if the Assistant service is available.
+        Check if the Assistant service is currently available.
 
         Returns
         -------
@@ -256,12 +256,12 @@ class Maoto:
 
     async def send_intent(self, new_intent: NewIntent) -> None:
         """
-        Send an Intent object to the Marketplace for resolution.
+        Send an intent to the Marketplace for resolution.
 
         Parameters
         ----------
         new_intent : NewIntent
-            The Intent object to create.
+            The intent object to create and send.
         """
         query = gql_client('''
         mutation createIntent($input: NewIntent!) {
@@ -272,18 +272,18 @@ class Maoto:
     
     async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type[Skill | OfferCallable | OfferReference] | None = None, id: uuid.UUID | None = None, solver_id: uuid.UUID | None = None) -> bool:
         """
-        Unregister an existing Skill, OfferCallable, or OfferReference from the Marketplace to make it unavailable for use.
+        Unregister a Skill, OfferCallable, or OfferReference to make it unavailable.
 
         Parameters
         ----------
-        obj : Skill or OfferCallable or OfferReference or None, optional
-            The object to unregister.
+        obj : Skill or OfferCallable or OfferReference, optional
+            The object instance to unregister.
         obj_type : type, optional
-            The type of object to unregister.
+            The type of object (used if `obj` is not given).
         id : uuid.UUID, optional
-            The ID of the object to unregister.
+            ID of the object to unregister.
         solver_id : uuid.UUID, optional
-            The ID of the object to unregister.
+            Solver ID of the object to unregister.
 
         Returns
         -------
@@ -345,20 +345,20 @@ class Maoto:
             The response object to send. One of:
 
             - **NewOfferResponse**  
-              Sent in response to an `OfferRequest`.  
-              Informs the marketplace of the offers made when an intent matches a registered skill.
-
+            Sent in response to an OfferRequest.  
+            Informs the Marketplace of the offers made when an intent matches a registered skill.
+            
             - **NewOfferCallResponse**  
-              Sent in response to an `OfferCall`.  
-              Informs the caller of status updates related to the offer call.
+            Sent in response to an OfferCall.  
+            Informs the caller of status updates related to the offer call.
 
             - **NewOfferCallableCostResponse**  
-              Sent in response to an `OfferCallableCostRequest` (when cost is `None`).  
-              Informs the marketplace of the actual cost for a callable offer.
+            Sent in response to an OfferCallableCostRequest.  
+            Provides the actual cost for a callable offer.
 
             - **NewOfferReferenceCostResponse**  
-              Sent in response to an `OfferReferenceCostRequest` (when cost or URL is `None`).  
-              Informs the marketplace of the cost and/or URL for a reference offer.
+            Sent in response to an OfferReferenceCostRequest.  
+            Provides the cost and/or URL for a reference offer.
 
         Returns
         -------
@@ -411,29 +411,24 @@ class Maoto:
     
     async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
         """
-        Register a new Skill, OfferCallable, or OfferReference with the Marketplace to make it available.
-        
+        Register a new object with the Marketplace to make it available.
+
         Parameters
         ----------
         obj : NewSkill or NewOfferCallable or NewOfferReference
             The object to register. One of:
-            
+
             - **NewSkill**  
-              Lists the skills the agent can react to when an intent matches.  
-              Enables the marketplace to prompt the agent to resolve `OfferRequests`  
-              with `OfferResponses` when the intent matches the skill.
+            Registers a set of skills the agent can respond to.  
+            Enables the Marketplace to send OfferRequests when an intent matches.
             
             - **NewOfferCallable**  
-              Lists an OfferCallable the agent can resolve. 
-              Enables the marketplace to:
-                - Resolve `OfferCallableCostRequests` with `OfferCallableCostResponses` (when cost is `None`)
-                - Resolve `OfferCalls` with `OfferCallResponses`
+            Registers a callable offer that the agent can fulfill.  
+            Enables cost resolution and execution via the Marketplace.
             
             - **NewOfferReference**  
-              An NewOfferReference the agent links to.  
-              Enables the marketplace to:
-                - Resolve `OfferReferenceCostRequests` with `OfferReferenceCostResponses` (when cost or URL is `None`)
-                - Resolve `OfferCalls` with `OfferCallResponses`
+            Registers a reference offer linking to external resources.  
+            Enables cost/URL resolution or execution through the Marketplace.
 
         Returns
         -------
@@ -469,17 +464,21 @@ class Maoto:
     
     async def get_registered(self, type_ref: Skill | OfferCallable | OfferReference) -> list[Skill | OfferCallable | OfferReference]:
         """
-        Retrieve registered objects of a specified type from the Marketplace.
+        Retrieve registered objects of a given type from the Marketplace.
 
         Parameters
         ----------
-        type_ref : Skill or OfferCallable or OfferReference
-            The type of object to retrieve.
+        type_ref : type
+            One of the following types:
+            
+            - **Skill**
+            - **OfferCallable**
+            - **OfferReference**
 
         Returns
         -------
-        list of Skill or OfferCallable or OfferReference
-            A list of registered objects of the specified type.
+        list
+            A list of registered objects of the given type.
 
         Raises
         ------
@@ -537,25 +536,25 @@ class Maoto:
     
     async def refund_offercall(self, offercall: OfferCall | None = None, id: uuid.UUID | None = None) -> bool:
         """
-        Refund an OfferCall in case of an error or other issues. This might also be in case the user asks to cancel the OfferCall.
+        Refund an OfferCall due to an error, cancellation, or other issues.
 
         Parameters
         ----------
-        offercall : OfferCall or None, optional
+        offercall : OfferCall, optional
             The OfferCall object to refund.
         id : uuid.UUID, optional
-            The ID of the OfferCall to refund.
+            The ID of the OfferCall.
 
         Returns
         -------
         bool
-            True if the OfferCall was successfully refunded.
+            True if the refund was successful.
 
         Raises
         ------
         ValueError
-            If required parameters are missing.
-        """            
+            If neither an object nor ID is provided.
+        """
         offercall_id = (offercall.id if offercall else None) or id
         if not offercall_id:
             raise ValueError("Either offercall or id must be provided.")
@@ -571,13 +570,13 @@ class Maoto:
     
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
         """
-        Sends a new OfferCall to the Marketplace / Agent.
+        Send a new OfferCall to the Marketplace.
 
         Parameters
         ----------
         new_offercall : NewOfferCall
-            The OfferCall object to create.
-        
+            The OfferCall to create.
+
         Returns
         -------
         OfferCall
@@ -586,7 +585,7 @@ class Maoto:
         Raises
         ------
         ValueError
-            If the OfferCall object is invalid.
+            If the input is invalid.
         """
         query = gql_client('''
         mutation createNewOfferCall($input: NewOfferCall!) {
@@ -606,18 +605,17 @@ class Maoto:
     
     async def set_webhook(self, url: str = None):
         """
-        Set or update the webhook URL associated with the agent's API key.
+        Set or update the webhook URL associated with this agent's API key.
 
         Parameters
         ----------
         url : str, optional
-            The webhook URL to be set. If not provided, the value is retrieved from the
-            MAOTO_AGENT_URL environment variable.
+            The webhook URL to be set. If not provided, reads from `MAOTO_AGENT_URL`.
 
         Raises
         ------
         ValueError
-            If neither a `url` argument nor the MAOTO_AGENT_URL environment variable is provided.
+            If neither a `url` nor `MAOTO_AGENT_URL` is available.
         """
         if not url:
             env_url = os.getenv("MAOTO_AGENT_URL")
@@ -636,21 +634,21 @@ class Maoto:
     def register_handler(self, event: OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation):
         """
         Register a handler function for a specific event type.
-        
+
         Parameters
         ----------
         event : OfferCall or OfferRequest or OfferCallableCostRequest or OfferReferenceCostRequest or Response or PaymentRequest or LinkConfirmation
-            The event type to register a handler for.
+            The event type for which to register a handler.
 
         Returns
         -------
         function
-            The decorator function to register the handler.
+            The decorator function used to register the handler.
 
         Raises
         ------
         ValueError
-            If the event type is not supported
+            If the event type is not supported.
         """
         def decorator(func):
             self._handler_registry[event] = func
@@ -659,17 +657,29 @@ class Maoto:
         
     async def send_to_assistant(self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest):
         """
-        Send a supported object to the Assistant service via a GraphQL mutation.
+        Send a supported object to the Assistant service via GraphQL.
 
         Parameters
         ----------
         obj : PALocationResponse or PAUserResponse or PANewConversation or PASupportRequest
-            The object to forward to the Assistant service.
+            The object to send. One of:
+
+            - **PALocationResponse**  
+            Sends location info from a user back to the Assistant.
+
+            - **PAUserResponse**  
+            Sends a user's response back to the Assistant.
+
+            - **PANewConversation**  
+            Starts a new conversation with the Assistant.
+
+            - **PASupportRequest**  
+            Sends a support-related request.
 
         Raises
         ------
         GraphQLError
-            If the provided object type is not supported.
+            If the object type is not supported.
         """
         if isinstance(obj, PALocationResponse):
             value_name = "pa_locationresponse"
