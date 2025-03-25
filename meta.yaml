@@ -27,6 +27,7 @@ requirements:
     - python-dateutil >=2.9.0
     - aiohttp >=3.8.6
     - ariadne >=0.23.0
+    - pydantic[email] >=2.10.6
 
 about:
   home: https://maoto.world

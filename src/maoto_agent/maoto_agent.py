@@ -1,11 +1,11 @@
 import inspect
 import os
-from pathlib import Path
 import sys
 import json
 import time
 import queue
 import signal
+import uuid
 import atexit
 from typing import Callable
 import psutil
@@ -206,13 +206,14 @@ class Maoto:
 
                     if not value:
                         raise GraphQLError("Authentication failed. No API key provided.")
-
+                    # random uuid
+                    random_uuid = uuid.uuid4()
                     if value in ["marketplace_apikey_value", "assistant_apikey_value"]:
                         info.context['apikey'] = ApiKey(
-                            apikey_id=None,
-                            time=None,
-                            user_id=None,
-                            name=None,
+                            id=uuid.uuid4(),
+                            time=datetime.now(),
+                            user_id=uuid.uuid4(),
+                            name=value,
                             roles=[],
                             url=None,
                         )
@@ -225,174 +226,44 @@ class Maoto:
                 return field
             
         def __init__(self, logger: logging.Logger, resolver: Callable[[object], None], debug: bool):
-            self.logger = logger
-            self.resolver = resolver
-            self.debug = debug
+            self.logger, self.resolver, self.debug = logger, resolver, debug
             
-            self.query = QueryType()
-            self.mutation = MutationType()
-            self.subscription = SubscriptionType()
+            self.query, self.mutation = QueryType(), MutationType()
+            self.scalars = [
+                ScalarType(name, serializer=serializer, value_parser=parser_)
+                for name, (serializer, parser_) in {
+                    "Datetime": (lambda v: v.isoformat(), lambda v: parser.parse(v)),
+                    "DICTSTR": (json.dumps, json.loads),
+                    "UUID": (str, uuid.UUID),
+                }.items()
+            ]
 
-            self.datetime_scalar = ScalarType("Datetime")
-            @self.datetime_scalar.serializer
-            def serialize_datetime(value: datetime) -> str:
-                return value.isoformat()
-            @self.datetime_scalar.value_parser
-            def parse_datetime_value(value: str) -> datetime:
-                return parser.parse(value)
-            
-            self.json_scalar = ScalarType("JSON")
-            @self.json_scalar.serializer
-            def serialize_json(value: dict) -> str:
-                return json.dumps(value)
-            @self.json_scalar.value_parser
-            def parse_json_value(value: str) -> dict:
-                return json.loads(value)
+            mutation_mappings = {
+                "callOffer": OfferCall,
+                "requestCallableOfferCost": OfferCallableCostRequest,
+                "requestReferenceOfferCost": OfferReferenceCostRequest,
+                "requestOffers": OfferRequest,
+                "forwardResponse": Response,
+                "forwardPaymentRequest": PaymentRequest,
+                "forwardLinkConfirmation": LinkConfirmation,
+                "forwardPAPaymentRequest": PAPaymentRequest,
+                "forwardPALocationRequest": PALocationRequest,
+                "forwardPAUserMessage": PAUserMessage,
+                "forwardPALinkUrl": PALinkUrl,
+            }
 
-            @self.mutation.field("forwardActioncalls")
-            async def forward_actioncalls(_, info, actioncalls: list[dict[str, object]]) -> list[bool]:
-                actioncalls = [Actioncall(
-                    actioncall_id=uuid.UUID(actioncall["actioncall_id"]),
-                    apikey_id=uuid.UUID(actioncall["apikey_id"]),
-                    time=actioncall["time"],
-                    action_id=uuid.UUID(actioncall["action_id"]),
-                    post_id=uuid.UUID(actioncall["post_id"]),
-                    parameters=actioncall["parameters"],
-                ) for actioncall in actioncalls]
-
-                status = []
-                for actioncall in actioncalls:
-                    try:
-                        asyncio.create_task(self.resolver(actioncall))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving actioncall: {e}")
-                        status.append(False)
-
-                return status
-
-            @self.mutation.field("forwardResponses")
-            async def forward_responses(_, info, responses: list[dict[str, object]]) -> list[bool]:
-                responses = [Response(
-                    response_id=uuid.UUID(response["response_id"]),
-                    post_id=uuid.UUID(response["post_id"]),
-                    description=response["description"],
-                    apikey_id=uuid.UUID(response["apikey_id"]) if "apikey_id" in response else None, #TODO why is this not send as None?
-                    time=response["time"],
-                ) for response in responses]
-
-                status = []
-                for response in responses:
-                    try:
-                        asyncio.create_task(self.resolver(response))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving response: {e}")
-                        status.append(False)
-
-                return status
-
-            @self.mutation.field("forwardBidRequests")
-            async def forward_bidrequests(_, info, bidrequests: list[dict[str, object]]) -> list[bool]:
-                bidrequests = [BidRequest(
-                    action_id=bidrequest["action_id"],
-                    post=Post(
-                        post_id=uuid.UUID(bidrequest["post"]["post_id"]),
-                        description=bidrequest["post"]["description"],
-                        context=bidrequest["post"]["context"],
-                        apikey_id=uuid.UUID(bidrequest["post"]["apikey_id"]),
-                        time=bidrequest["post"]["time"],
-                        resolved=bidrequest["post"]["resolved"],
-                    )
-                ) for bidrequest in bidrequests]
-
-                status = []
-                for bidrequest in bidrequests:
-                    try:
-                        asyncio.create_task(self.resolver(bidrequest))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving bid request: {e}")
-                        status.append(False)
-
-                return status
-
-            @self.mutation.field("forwardPaymentRequests")
-            async def forward_paymentrequests(_, info, paymentrequests: list[dict[str, object]]) -> list[bool]:
-                paymentrequests = [PaymentRequest(
-                    actioncall_id=uuid.UUID(paymentrequest["actioncall_id"]),
-                    post_id=uuid.UUID(paymentrequest["post_id"]),
-                    payment_link=paymentrequest["payment_link"],
-                ) for paymentrequest in paymentrequests]
-
-                status = []
-                for paymentrequest in paymentrequests:
-                    try:
-                        asyncio.create_task(self.resolver(paymentrequest))
-
-                        status.append(True)
-                    except Exception as e:
-                        self.logger.error(f"Error resolving payment request: {e}")
-                        status.append(False)
-
-                return status
-            
-            @self.mutation.field("forwardPAPaymentRequest")
-            async def forward_paymentrequest(_, info, pa_paymentrequest: dict[str, object]) -> bool:
-                paymentrequest = PAPaymentRequest(
-                    ui_id=pa_paymentrequest["ui_id"],
-                    payment_link=pa_paymentrequest["payment_link"],
-                )
-
-                asyncio.create_task(self.resolver(paymentrequest))
-                return True
-
-            @self.mutation.field("forwardPALocationRequest")
-            async def forward_locationrequest(_, info, pa_locationrequest: dict[str, object]) -> bool:
-                locationrequest = PALocationRequest(
-                    ui_id=pa_locationrequest["ui_id"],
-                )
-
-                asyncio.create_task(self.resolver(locationrequest))
-                return True
-
-            @self.mutation.field("forwardPAUserMessage")
-            async def forward_usermessage(_, info, pa_usermessage: dict[str, object]) -> bool:
-                usermessage = PAUserMessage(
-                    ui_id=pa_usermessage["ui_id"],
-                    text=pa_usermessage["text"],
-                )
-
-                asyncio.create_task(self.resolver(usermessage))
-                return True
-            
-            @self.mutation.field("forwardPALinkUrl")
-            async def forward_linkurl(_, info, pa_linkurl: dict[str, object]) -> bool:
-                linkurl = PALinkUrl.from_dict(pa_linkurl)
-
-                asyncio.create_task(self.resolver(linkurl))
-                return True
-                
-            @self.mutation.field("forwardLinkConfirmation")
-            async def forward_linkconfirmation(_, info, linkconfirmation: dict[str, object]) -> bool:
-                linkconfirmation = LinkConfirmation(
-                    pa_user_id=uuid.UUID(linkconfirmation["pa_user_id"]),
-                    apikey_id=uuid.UUID(linkconfirmation["apikey_id"]),
-                )
-
-                try:
-                    asyncio.create_task(self.resolver(linkconfirmation))
-
+            for field_name, model_class in mutation_mappings.items():
+                @self.mutation.field(field_name)
+                async def resolver(_, info, input: dict[str, object], model_class=model_class):
+                    instance = model_class(**input)
+                    asyncio.create_task(self.resolver(instance))
                     return True
-                except Exception as e:
-                    self.logger.error(f"Error resolving login response: {e}")
-                    return False
                 
             schema_str = (importlib.resources.files(__package__) / "agent.graphql").read_text()
-            self.executable_schema = make_executable_schema(schema_str, self.query, self.mutation, self.datetime_scalar, self.json_scalar, directives={"auth": self.AuthDirective})
+            self.executable_schema = make_executable_schema(
+                schema_str, [self.query, self.mutation] + self.scalars,
+                directives={"auth": self.AuthDirective}
+            )
 
             self.graphql_app = GraphQL(
                 self.executable_schema, 
@@ -401,10 +272,7 @@ class Maoto:
 
     class GraphQLService:
         def __init__(self, url: str, apikey_value: str, schema = None, version: str = "undefined"):
-            self._url = url
-            self._apikey_value = apikey_value
-            self._schema = schema
-            self._version = version
+            self._url, self._apikey_value, self._schema, self._version = url, apikey_value, schema, version
 
         def _get_client(self, server_url: str) -> Client:
             transport = AIOHTTPTransport(
@@ -454,35 +322,39 @@ class Maoto:
         if not self._apikey_value:
             raise ValueError("API key is required.")
 
-        self._action_cache: list[Action] = []
-        self._id_action_map = {}
-
-        self._handler_registry = {
-            "Response": None,
-            "PaymentStatusUpdate": None,
-            "Actioncall": {},
-            "Actioncall_fallback": None,
-            "PaymentRequest": None,
-            "BidRequest": {},
-            "BidRequest_fallback": None,
-            "LinkConfirmation": None,
-
-            "PAPaymentRequest": None,
-            "PALocationRequest": None,
-            "PAUserMessage": None,
-            "PALinkUrl": None,
-        }
+        self._handler_registry = dict()
 
         if assistant:
-            self._graphql_service_pa = self.GraphQLService(url=self._url_pa, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
+            self._graphql_service_assistant = self.GraphQLService(url=self._url_pa, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
 
         if marketplace:
-            self._graphql_service_mp = self.GraphQLService(url=self._url_mp, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
+            self._graphql_service_marketplace = self.GraphQLService(url=self._url_mp, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
 
         self._server = self.ServerMode(self.logger, self._resolve_event, self._debug)
         self.handle_request = self._server.graphql_app.handle_request
 
+    async def _resolve_event(self, event_obj: object):
+        event = type(event_obj)
+        if event in self._handler_registry:
+            self._handler_registry[event](event_obj)
+        else:
+            self.logger.warning(f"No handler registered for event type {event}")
+
     def start_polling(self, blocking=True):
+        """
+        Start the event-driven polling process.
+
+        Parameters
+        ----------
+        blocking : bool, optional
+            If True, blocks the main thread and waits for a termination signal (Ctrl+C). Default is True.
+
+        Notes
+        -----
+        When `blocking` is enabled, this method will not return until interrupted.
+        Useful for running long-lived agents or services.
+        """
+
         self.polling = self.EventDrivenQueueProcessor(self.logger, worker_count=1, scale_threshold=10)
         self.polling.run(self._subscribe_to_events, self._resolve_event)
             
@@ -496,22 +368,6 @@ class Maoto:
 
             self.logger.info("Running... Press Ctrl+C to stop.")
             signal.pause()  # Blocks here until a signal (Ctrl+C) is received
-
-    # Decorator to allow synchronous and asynchronous usage of the same method
-    @staticmethod
-    def _sync_or_async(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                # Check if there's an active event loop
-                loop = asyncio.get_running_loop()
-                # If we're inside an active loop, just return the coroutine
-                return func(*args, **kwargs)
-            except RuntimeError:
-                # If no loop is running, create a new one
-                return asyncio.run(func(*args, **kwargs))
-        wrapper.__signature__ = inspect.signature(func) # TODO: did this line fix the docs problem?
-        return wrapper
     
     async def _get_own_api_key(self) -> ApiKey:
         # Query to fetch the user's own API keys, limiting the result to only one
@@ -527,400 +383,414 @@ class Maoto:
         }
         ''')
 
-        result = await self._graphql_service_mp.execute_async(query)
+        result = await self._graphql_service_marketplace.execute_async(query)
         data_list = result["getOwnApiKeys"]
 
         # Return the first API key (assume the list is ordered by time or relevance)
         if data_list:
             data = data_list[0]
-            return ApiKey(
-                apikey_id=uuid.UUID(data["apikey_id"]),
-                user_id=uuid.UUID(data["user_id"]),
-                time=datetime.fromisoformat(data["time"]),
-                name=data["name"],
-                roles=data["roles"]
-            )
+            return ApiKey(**data)
         else:
             raise Exception("No API keys found for the user.")
 
-    @_sync_or_async
+    
     async def get_own_api_key(self) -> ApiKey:
+        """
+        Retrieve and cache the current API key.
+
+        Returns
+        -------
+        ApiKey
+            The API key associated with this agent instance.
+        """
         if not self._apikey:
             self._apikey = await self._get_own_api_key()
         return self._apikey
 
-    @_sync_or_async
-    async def check_status_mp(self) -> bool:
-        query = gql_client('''
-        query {
-            checkStatus
-        }
-        ''')
-        result = await self._graphql_service_mp.execute_async(query)
-        return result["checkStatus"]
     
-    @_sync_or_async
-    async def check_status_pa(self) -> bool:
+    async def check_status_marketplace(self) -> bool:
+        """
+        Check if the Marketplace service is available.
+
+        Returns
+        -------
+        bool
+            True if the Marketplace is operational, False otherwise.
+        """
         query = gql_client('''
         query {
             checkStatus
         }
         ''')
-        result = await self._graphql_service_pa.execute_async(query)
+        result = await self._graphql_service_marketplace.execute_async(query)
         return result["checkStatus"]
 
-    async def _create_actions_core(self, new_actions: list[NewAction]) -> list[Action]: # TODO: confirm this the first time when agent is started as well (not only when reconnecting)
-        if new_actions:
-            actions = [{'name': action.get_name(), 'parameters': action.get_parameters(), 'description': action.get_description(), 'tags': action.get_tags(), 'cost': action.get_cost(), 'followup': action.get_followup()} for action in new_actions]
+    
+    async def check_status_assistant(self) -> bool:
+        """
+        Check if the Assistant service is available.
+
+        Returns
+        -------
+        bool
+            True if the Assistant is operational, False otherwise.
+        """
+        query = gql_client('''
+        query {
+            checkStatus
+        }
+        ''')
+        result = await self._graphql_service_assistant.execute_async(query)
+        return result["checkStatus"]
+
+    async def create_intent(self, obj: NewIntent) -> None:
+        """
+        Create a new Intent.
+
+        Parameters
+        ----------
+        obj : NewIntent
+            The Intent object to create.
+        """
+        query = gql_client('''
+        mutation createIntent($input: NewIntent!) {
+            createIntent(input: $input)
+        }
+        ''')
+        await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+    
+    async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type | None = None, id: uuid.UUID | None = None, solver_id: type | None = None) -> bool:
+        """
+        Unregister an existing Skill, OfferCallable, or OfferReference from the Marketplace.
+
+        Parameters
+        ----------
+        obj : Skill or OfferCallable or OfferReference or None, optional
+            The object to unregister.
+        obj_type : type, optional
+            The type of the object if `obj` is not provided.
+        id : uuid.UUID, optional
+            The ID of the object to unregister.
+        solver_id : type, optional
+            The solver ID, used if `id` is not provided.
+
+        Returns
+        -------
+        bool
+            True if the object was successfully unregistered.
+
+        Raises
+        ------
+        ValueError
+            If required parameters are missing or the object type is unsupported.
+        """
+        if obj:
+            obj_type, obj_id = type(obj), obj.id
+        elif obj_type and (id or solver_id):
+            obj_id = id or solver_id
+        else:
+            raise ValueError("Either obj or obj_type and id/solver_id must be provided.")
+        
+        if obj_type == Skill:
             query = gql_client('''
-            mutation createActions($new_actions: [NewAction!]!) {
-                createActions(new_actions: $new_actions) {
-                    action_id
-                    apikey_id
-                    name
-                    parameters
+                mutation unregisterSkill($skill_id: ID!) {
+                    unregisterSkill(skill_id: $skill_id)
+                }
+            ''')
+            variable_values = {"skill_id": str(obj_id)}
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values=variable_values)
+            return result["unregisterSkill"]
+        
+        elif obj_type == OfferCallable:
+                query = gql_client('''
+                    mutation unregisterOfferCallable($offercallable_id: ID!) {
+                        unregisterOfferCallable(offercallable_id: $offercallable_id)
+                    }
+                ''')
+                variable_values = {"offercallable_id": str(obj_id)}
+                result = await self._graphql_service_marketplace.execute_async(query, variable_values=variable_values)
+                return result["unregisterOfferCallable"]
+        
+        elif obj_type == OfferReference:
+            query = gql_client('''
+                mutation unregisterOfferReference($offerreference_id: ID!) {
+                    unregisterOfferReference(offerreference_id: $offerreference_id)
+                }
+            ''')
+            variable_values = {"offerreference_id": str(obj_id)}
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values=variable_values)
+            return result["unregisterOfferReference"]
+        
+        else:
+            raise ValueError(f"Object type {obj_type} not supported.")
+    
+    
+    async def send_response(self, obj: NewOfferCallResponse | OfferResponse | NewOfferCallableCostResponse | NewOfferReferenceCostResponse) -> bool:
+        """
+        Send a response object to the Marketplace.
+
+        Parameters
+        ----------
+        obj : NewOfferCallResponse or OfferResponse or NewOfferCallableCostResponse or NewOfferReferenceCostResponse
+            The response object to send.
+
+        Returns
+        -------
+        bool
+            True if the response was successfully sent.
+
+        Raises
+        ------
+        ValueError
+            If the object type is unsupported.
+        """
+        if isinstance(obj, NewOfferCallResponse):
+            query = gql_client('''
+            mutation sendOfferCallResponse($input: OfferCallResponse!) {
+                sendOfferCallResponse(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["sendOfferCallResponse"]
+
+        if isinstance(obj, OfferResponse):
+            query = gql_client('''
+            mutation sendOfferResponse($input: OfferResponse!) {
+                sendOfferResponse(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["sendOfferResponse"]
+        
+        elif isinstance(obj, NewOfferCallableCostResponse):
+            query = gql_client('''
+            mutation sendNewOfferCallableCostResponse($input: NewOfferCallableCostResponse!) {
+                sendNewOfferCallableCostResponse(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["sendOfferCallableCostResponse"]
+
+        elif isinstance(obj, NewOfferReferenceCostResponse):
+            query = gql_client('''
+            mutation sendNewOfferReferenceCostResponse($input: NewOfferReferenceCostResponse!) {
+                sendNewOfferReferenceCostResponse(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["sendOfferReferenceCostResponse"]
+        
+        else:
+            raise ValueError(f"Object type {type(obj)} not supported.")
+
+    
+    async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
+        """
+        Register a new Skill, OfferCallable, or OfferReference with the Marketplace.
+
+        Parameters
+        ----------
+        obj : NewSkill or NewOfferCallable or NewOfferReference
+            The object to register.
+
+        Returns
+        -------
+        bool
+            True if the object was successfully registered.
+        """
+        if isinstance(obj, NewSkill):
+            query = gql_client('''
+            mutation registerSkill($input: NewSkill!) {
+                registerSkill(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["registerSkill"]
+        
+        elif isinstance(obj, NewOfferCallable):
+            query = gql_client('''
+            mutation registerOfferCallable($input: NewOfferCallable!) {
+                registerOfferCallable(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["registerOfferCallable"]
+        
+        elif isinstance(obj, NewOfferReference):
+            query = gql_client('''
+            mutation registerOfferReference($input: NewOfferReference!) {
+                registerOfferReference(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["registerOfferReference"]
+    
+    
+    async def get_registered(self, obj_type: type) -> list[Skill | OfferCallable | OfferReference]:
+        """
+        Retrieve registered objects of a specified type from the Marketplace.
+
+        Parameters
+        ----------
+        obj_type : type
+            The type of object to retrieve. Must be one of: Skill, OfferCallable, or OfferReference.
+
+        Returns
+        -------
+        list of Skill or OfferCallable or OfferReference
+            A list of registered objects of the specified type.
+
+        Raises
+        ------
+        ValueError
+            If the provided type is not supported.
+        """
+        if obj_type == Skill:
+            query = gql_client('''
+            query {
+                getSkills {
+                    id
+                    time
                     description
                     tags
-                    cost
-                    followup
-                    time
                 }
             }
             ''')
+            result = await self._graphql_service_marketplace.execute_async(query)
+            return [Skill(**data) for data in result["getSkills"]]
+        
+        elif obj_type == OfferCallable:
+            query = gql_client('''
+            query {
+                getOfferCallables {
+                    id
+                    time
+                    parameters
+                    description
+                    tags
+                    followup
+                    cost
+                }
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query)
+            return [OfferCallable(**data) for data in result["getOfferCallables"]]
+        
+        elif obj_type == OfferReference:
+            query = gql_client('''
+            query {
+                getOfferReferences {
+                    id
+                    time
+                    url
+                    description
+                    tags
+                    followup
+                    cost
+                }
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query)
+            return [OfferReference(**data) for data in result["getOfferReferences"]]
 
-            result = await self._graphql_service_mp.execute_async(query, variable_values={"new_actions": actions})
-            data_list = result["createActions"]
-            self._id_action_map.update({data["action_id"]: data["name"] for data in data_list})
+    
+    async def refund_offercall(self, offercall: OfferCall | None = None, id: uuid.UUID | None = None) -> bool:
+        """
+        Refund an OfferCall.
 
-            actions = [Action(
-                action_id=uuid.UUID(data["action_id"]),
-                apikey_id=uuid.UUID(data["apikey_id"]),
-                name=data["name"],
-                parameters=data["parameters"],
-                description=data["description"],
-                tags=data["tags"],
-                cost=data["cost"],
-                followup=data["followup"],
-                time=datetime.fromisoformat(data["time"])
-            ) for data in data_list]
+        Parameters
+        ----------
+        offercall : OfferCall or None, optional
+            The OfferCall object to refund.
+        id : uuid.UUID, optional
+            The ID of the OfferCall to refund.
 
-            self.logger.info(f"Successfully created {len(actions)} actions.")
-            
-        else:
-            actions = []
+        Returns
+        -------
+        bool
+            True if the OfferCall was successfully refunded.
 
-        return actions
-
-    @_sync_or_async
-    async def create_actions(self, new_actions: list[NewAction]) -> list[Action]:
-        self._action_cache.extend(new_actions)
-
-        actions = await self._create_actions_core(new_actions)
-
-        return actions
-
-    @_sync_or_async
-    async def delete_actions(self, action_ids: list[Action | str]) -> list[bool]: #TODO: this should not actually delete but deactivate only
-        action_ids = [str(action.get_action_id()) if isinstance(action, Action) else str(action) for action in action_ids]
+        Raises
+        ------
+        ValueError
+            If required parameters are missing.
+        """            
+        offercall_id = (offercall.id if offercall else None) or id
+        if not offercall_id:
+            raise ValueError("Either offercall or id must be provided.")
+        
         query = gql_client('''
-        mutation deleteActions($action_ids: [ID!]!) {
-            deleteActions(action_ids: $action_ids)
+        mutation refundOfferCall($offer_call_id: ID!) {
+            refundOfferCall(offer_call_id: $offer_call_id)
         }
         ''')
+        result = await self._graphql_service_marketplace.execute_async(query, variable_values={"offer_call_id": str(offercall_id)})
+        return result["refundOfferCall"]
 
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"action_ids": action_ids})
-
-        # remove the respecitive actions from the cache
-        self._action_cache = [action for action in self._action_cache if action.get_action_id() not in action_ids]
-
-        return result["deleteActions"]
     
-    @_sync_or_async
-    async def refund_payment(self, actioncall_id: uuid.UUID) -> bool:
-        query = gql_client('''
-        mutation refundPayment($actioncall_id: ID!) {
-            refundPayment(actioncall_id: $actioncall_id)
-        }
-        ''')
+    async def create_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
+        """
+        Create a new OfferCall.
 
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"actioncall_id": str(actioncall_id)})
-        return result["refundPayment"]
-    
-    @_sync_or_async
-    async def get_actions(self, apikey_ids: list[ApiKey | str]) -> list[Action]:
-        apikey_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
+        Parameters
+        ----------
+        new_offercall : NewOfferCall
+            The OfferCall object to create.
+        
+        Returns
+        -------
+        OfferCall
+            The created OfferCall object.
+
+        Raises
+        ------
+        ValueError
+            If the OfferCall object is invalid.
+        """
         query = gql_client('''
-        query getActions($apikey_ids: [ID!]!) {
-            getActions(apikey_ids: $apikey_ids) {
-                action_id
+        mutation createNewOfferCall($input: NewOfferCall!) {
+            createNewOfferCall(input: $input) {
+                id
+                time
                 apikey_id
-                name
+                offer_id
+                deputy_apikey_id
                 parameters
-                description
-                tags
-                cost
-                followup
-                time
             }
         }
         ''')
+        result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": new_offercall.model_dump()})
+        return OfferCall(**result["createNewOfferCall"])
 
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
-        data_list = result["getActions"]
-        return [Action(
-            action_id=uuid.UUID(data["action_id"]),
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            name=data["name"],
-            parameters=data["parameters"],
-            description=data["description"],
-            tags=data["tags"],
-            cost=data["cost"],
-            followup=data["followup"],
-            time=datetime.fromisoformat(data["time"])
-        ) for data in data_list]
     
-    @_sync_or_async
-    async def get_own_actions(self) -> list[Action]:
-        query = gql_client('''
-        query {
-            getOwnActions {
-                action_id
-                apikey_id
-                name
-                parameters
-                description
-                tags
-                cost
-                followup
-                time
-            }
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query)
-        data_list = result["getOwnActions"]
-        return [Action(
-            action_id=uuid.UUID(data["action_id"]),
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            name=data["name"],
-            parameters=data["parameters"],
-            description=data["description"],
-            tags=data["tags"],
-            cost=data["cost"],
-            followup=data["followup"],
-            time=datetime.fromisoformat(data["time"])
-        ) for data in data_list]
-    
-    @_sync_or_async
-    async def fetch_action_info(self, new_posts: list[NewPost]) -> list[str]:
-        posts = [{'description': post.get_description(), 'context': post.get_context()} for post in new_posts]
-        query = gql_client('''
-        query fetchActionInfo($new_posts: [NewPost!]!) {
-            fetchActionInfo(new_posts: $new_posts)
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"new_posts": posts})
-        return result["fetchActionInfo"]
-
-    @_sync_or_async
-    async def create_posts(self, new_posts: list[NewPost]) -> list[Post]:
-        posts = [{'description': post.get_description(), 'context': post.get_context()} for post in new_posts]
-        query = gql_client('''
-        mutation createPosts($new_posts: [NewPost!]!) {
-            createPosts(new_posts: $new_posts) {
-                post_id
-                description
-                context
-                apikey_id
-                time
-                resolved
-            }
-        }
-        ''')
-
-        try:
-            result = await self._graphql_service_mp.execute_async(query, variable_values={"new_posts": posts})
-        except Exception as e:
-            self.logger.error(f"Error creating posts: {e}")
-            GraphQLError(f"Error creating posts: {e}")
-            
-        data_list = result["createPosts"]
-        return [Post(
-            post_id=uuid.UUID(data["post_id"]),
-            description=data["description"],
-            context=data["context"],
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            time=datetime.fromisoformat(data["time"]),
-            resolved=data["resolved"]
-        ) for data in data_list]
-
-    @_sync_or_async
-    async def delete_posts(self, post_ids: list[Post | str]) -> list[bool]: # TODO: only make this deactivate instead of delete (mark as done)
-        post_ids = [str(post.get_post_id()) if isinstance(post, Post) else str(post) for post in post_ids]
-        query = gql_client('''
-        mutation deletePosts($post_ids: [ID!]!) {
-            deletePosts(post_ids: $post_ids)
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"post_ids": post_ids})
-        return result["deletePosts"]
-
-    @_sync_or_async
-    async def get_posts(self, apikey_ids: list[ApiKey | str]) -> list[Post]:
-        apikey_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
-        query = gql_client('''
-        query getPosts($apikey_ids: [ID!]!) {
-            getPosts(apikey_ids: $apikey_ids) {
-                post_id
-                description
-                context
-                apikey_id
-                time
-                resolved
-            }
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"apikey_ids": apikey_ids})
-        data_list = result["getPosts"]
-        return [Post(
-            post_id=uuid.UUID(data["post_id"]),
-            description=data["description"],
-            context=data["context"],
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            time=datetime.fromisoformat(data["time"]),
-            resolved=data["resolved"]
-        ) for data in data_list]
-
-    @_sync_or_async
-    async def get_own_posts(self) -> list[Post]:
-        query = gql_client('''
-        query {
-            getOwnPosts {
-                post_id
-                description
-                context
-                apikey_id
-                time
-                resolved
-            }
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query)
-        data_list = result["getOwnPosts"]
-        return [Post(
-            post_id=uuid.UUID(data["post_id"]),
-            description=data["description"],
-            context=data["context"],
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            time=datetime.fromisoformat(data["time"]),
-            resolved=data["resolved"]
-        ) for data in data_list]
-    
-    @_sync_or_async
-    async def create_actioncalls(self, new_actioncalls: list[NewActioncall]) -> list[Actioncall]:
-        actioncalls = [{'action_id': str(actioncall.action_id), 'post_id': str(actioncall.post_id), 'parameters': actioncall.parameters} for actioncall in new_actioncalls]
-        query = gql_client('''
-        mutation createActioncalls($new_actioncalls: [NewActioncall!]!) {
-            createActioncalls(new_actioncalls: $new_actioncalls) {
-                actioncall_id
-                action_id
-                post_id
-                apikey_id
-                parameters
-                time
-            }
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"new_actioncalls": actioncalls})
-        data_list = result["createActioncalls"]
-        return [Actioncall(
-            actioncall_id=uuid.UUID(data["actioncall_id"]),
-            action_id=uuid.UUID(data["action_id"]),
-            post_id=uuid.UUID(data["post_id"]),
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            parameters=data["parameters"],
-            time=datetime.fromisoformat(data["time"])
-        ) for data in data_list]
-    
-    @_sync_or_async
-    async def create_responses(self, new_responses: list[NewResponse]) -> list[Response]:
-        responses = [{'post_id': str(response.post_id), 'description': response.description} for response in new_responses]
-        query = gql_client('''
-        mutation createResponses($new_responses: [NewResponse!]!) {
-            createResponses(new_responses: $new_responses) {
-                response_id
-                post_id
-                description
-                apikey_id
-                time
-            }
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"new_responses": responses})
-        data_list = result["createResponses"]
-        return [Response(
-            response_id=uuid.UUID(data["response_id"]),
-            post_id=uuid.UUID(data["post_id"]),
-            description=data["description"],
-            apikey_id=uuid.UUID(data["apikey_id"]),
-            time=datetime.fromisoformat(data["time"])
-        ) for data in data_list]
-    
-    @_sync_or_async
-    async def create_bidresponses(self, bidresponses: list[BidResponse]) -> list[bool]:
-        # Prepare the input
-        bidresponses = [
-            {
-                'action_id': str(bidresponse.get_action_id()),
-                'post_id': str(bidresponse.get_post_id()),
-                'cost': bidresponse.get_cost()
-            }
-            for bidresponse in bidresponses
-        ]
-
-        # Define the GQL mutation
-        query = gql_client('''
-        mutation createBidResponses($bidresponses: [BidResponse!]!) {
-            createBidResponses(bidresponses: $bidresponses)
-        }
-        ''')
-
-        # Execute asynchronously
-        data_list = await self._graphql_service_mp.execute_async(query, variable_values={"bidresponses": bidresponses}
-        )
-
-        # 'createBidResponses' is already a list of booleans, so just return it.
-        return data_list['createBidResponses']
-    
-    @_sync_or_async
-    async def _add_url_to_apikey(self, urls: list[Url]) -> list[bool]:
-        urls = [{'url': url.get_url()} for url in urls]
-        query = gql_client('''
-        mutation addUrlToApikey($urls: [Url!]!) {
-            addUrlToApikey(urls: $urls)
-        }
-        ''')
-
-        result = await self._graphql_service_mp.execute_async(query, variable_values={"urls": urls})
-        return result["addUrlToApikey"]
-
-    @_sync_or_async
     async def set_webhook(self, url: str = None):
-        if url:
-            url = Url(url=url)
-        else:
+        """
+        Set or update the webhook URL associated with the agent's API key.
+
+        Parameters
+        ----------
+        url : str, optional
+            The webhook URL to be set. If not provided, the value is retrieved from the
+            MAOTO_AGENT_URL environment variable.
+
+        Raises
+        ------
+        ValueError
+            If neither a `url` argument nor the MAOTO_AGENT_URL environment variable is provided.
+        """
+        if not url:
             env_url = os.getenv("MAOTO_AGENT_URL")
             if not env_url:
                 raise ValueError("No URL provided in environment variable MAOTO_AGENT_URL.")
             url = Url(env_url)
 
-        await self._add_url_to_apikey([url])
+        query = gql_client('''
+        mutation addUrlToApikey($url: String!) {
+            addUrlToApikey(urls: $url)
+        }
+        ''')
+
+        result = await self._graphql_service_marketplace.execute_async(query, variable_values={"url": url})
 
     # only used for open connection server
     async def _subscribe_to_events(self, task_queue, stop_event):
@@ -929,31 +799,33 @@ class Maoto:
         subscription subscribeToEvents {
             subscribeToEvents {
                 __typename
-                ... on Actioncall {
-                    actioncall_id
-                    action_id
-                    post_id
-                    apikey_id
-                    parameters
+                ... on OfferCall {
+                    id
                     time
+                    apikey_id
+                    offer_id
+                    deputy_apikey_id
+                    parameters
+                }
+                ... on RequestOffers {
+                    skill_id
+                    resolver_id
+                    offer
+                }
+                ... on OfferCallableCostRequest {
+                    offerreference
+                    parameters
+                }
+                ... on OfferReferenceCostRequest {
+                    offerreference
+                    parameters
                 }
                 ... on Response {
-                    response_id
-                    post_id
+                    id
+                    time
+                    offercallable_id
                     description
                     apikey_id
-                    time
-                }
-                ... on BidRequest {
-                    action_id
-                    post {
-                        post_id
-                        description
-                        context
-                        apikey_id
-                        time
-                        resolved
-                    }
                 }
                 ... on PaymentRequest {
                     actioncall_id
@@ -1019,11 +891,11 @@ class Maoto:
                     self.logger.info("Successfully connected. Listening for events.")
                     attempt = 0  # Reset attempt count on successful connection
 
-                    if reconnect:
-                        try:
-                            actions = await self._create_actions_core(self._action_cache)
-                        except Exception as e:
-                            self.logger.info(f"Error recreating actions.")
+                    # if reconnect:
+                    #     try:
+                    #         actions = await self._create_actions_core(self._action_cache)
+                    #     except Exception as e:
+                    #         self.logger.info(f"Error recreating actions.")
 
                     reconnect = True # Set reconnect flag to True if reconnected
 
@@ -1050,128 +922,65 @@ class Maoto:
         self.logger.info("Stopped subscription due to stop_event or cancellation.")
 
     async def _handle_subscription_event(self, task_queue, result):
-        """
-        Handle the result of the subscription. Identify the
-        event type via __typename, instantiate the corresponding
-        event object, and put it on the queue.
-        """
         event_data = result['subscribeToEvents']
         event_type = event_data["__typename"]
-
-        if event_type == "Actioncall":
-            event = Actioncall( #  TODO: make these class inits use class methods (from dict?)
-                actioncall_id=uuid.UUID(event_data["actioncall_id"]),
-                action_id=uuid.UUID(event_data["action_id"]),
-                post_id=uuid.UUID(event_data["post_id"]),
-                apikey_id=uuid.UUID(event_data["apikey_id"]),
-                parameters=event_data["parameters"],
-                time=datetime.fromisoformat(event_data["time"])
-            )
-        elif event_type == "Response":
-            event = Response(
-                response_id=uuid.UUID(event_data["response_id"]),
-                post_id=uuid.UUID(event_data["post_id"]),
-                description=event_data["description"],
-                apikey_id=uuid.UUID(event_data["apikey_id"]) if event_data["apikey_id"] else None,
-                time=datetime.fromisoformat(event_data["time"])
-            )
-        elif event_type == "BidRequest":
-            post_data = event_data["post"]
-            post = Post(
-                post_id=uuid.UUID(post_data["post_id"]),
-                description=post_data["description"],
-                context=post_data["context"],
-                apikey_id=uuid.UUID(post_data["apikey_id"]),
-                time=datetime.fromisoformat(post_data["time"]),
-                resolved=post_data["resolved"]
-            )
-            event = BidRequest(
-                action_id=uuid.UUID(event_data["action_id"]),
-                post=post
-            )
-        elif event_type == "PaymentRequest":
-            event = PaymentRequest(
-                actioncall_id=uuid.UUID(event_data["actioncall_id"]),
-                post_id=uuid.UUID(event_data["post_id"]),
-                payment_link=event_data["payment_link"]
-            )
-        elif event_type == "LinkConfirmation":
-            event = LinkConfirmation(
-                pa_user_id=uuid.UUID(event_data["pa_user_id"]),
-                apikey_id=uuid.UUID(event_data["apikey_id"])
-            )
-        else:
-            self.logger.error(f"Unknown event type: {event_type}")
+        try:
+            cls = locals().get(event_type)
+            event_obj = cls(**event_data)
+        except Exception as e:
+            self.logger.error(f"Error creating event object: {e}")
             return
+        task_queue.put(event_obj)
 
-        # Put the event on the queue for handling in your system
-        task_queue.put(event)
-
-    def register_handler(self, event_type: str, name: str | None = None):
+    def register_handler(self, event: type):
         def decorator(func):
-            # python case (new version) statement here
-            if name is not None:
-                self._handler_registry[event_type][name] = func
-            else:
-                self._handler_registry[event_type] = func
+            self._handler_registry[event] = func
             return func
         return decorator
-
-    async def _resolve_event(self, obj: object, apikey: ApiKey | None = None):
-        # get handler from registry
-        try:
-            if isinstance(obj, Actioncall) or isinstance(obj, BidRequest):
-                try:
-                    handler = self._handler_registry[type(obj).__name__][self._id_action_map[str(obj.get_action_id())]]
-                except KeyError:
-                    handler = self._handler_registry[f"{type(obj).__name__}_fallback"]
-            else:
-                handler = self._handler_registry[type(obj).__name__]
-        except KeyError:
-            self.logger.error(f"No handler found for {type(obj).__name__}")
-            return
-
-        try:
-            await handler(obj)
-        except Exception as e:
-            self.logger.error(f"Error resolving event: {e}")
         
-    @_sync_or_async
-    async def send_to_assistant(self, objects: list[object]):
-        for obj in objects:
-            if isinstance(obj, PALocationResponse):
-                value_name = "pa_locationresponses"
-                query = gql_client('''
-                    mutation forwardPALocationResponses($pa_locationresponses: [PALocationResponse!]!) {
-                        forwardPALocationResponses(pa_locationresponses: $pa_locationresponses)
-                    }
-                ''')
-                value = [obj.to_dict()]
-            elif isinstance(obj, PAUserResponse):
-                value_name = "pa_userresponses"
-                query = gql_client('''
-                    mutation forwardPAUserResponses($pa_userresponses: [PAUserResponse!]!) {
-                        forwardPAUserResponses(pa_userresponses: $pa_userresponses)
-                    }
-                ''')
-                value = [obj.to_dict()]
-            elif isinstance(obj, PANewConversation):
-                value_name = "pa_newconversations"
-                query = gql_client('''
-                    mutation forwardPANewConversations($pa_newconversations: [PANewConversation!]!) {
-                        forwardPANewConversations(pa_newconversations: $pa_newconversations)
-                    }
-                ''')
-                value = [obj.to_dict()]
-            elif isinstance(obj, PASupportRequest):
-                value_name = "pa_supportrequest"
-                query = gql_client('''
-                    mutation forwardPASupportRequest($pa_supportrequest: PASupportRequest!) {
-                        forwardPASupportRequest(pa_supportrequest: $pa_supportrequest)
-                    }
-                ''')
-                value = obj.to_dict()
-            else:
-                raise GraphQLError(f"Object type {type(obj).__name__} not supported.")
+    async def send_to_assistant(self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest):
+        """
+        Send a supported object to the Assistant service via a GraphQL mutation.
 
-            await self._graphql_service_pa.execute_async(query, variable_values={value_name: value})
+        Parameters
+        ----------
+        obj : PALocationResponse or PAUserResponse or PANewConversation or PASupportRequest
+            The object to forward to the Assistant service.
+
+        Raises
+        ------
+        GraphQLError
+            If the provided object type is not supported.
+        """
+        if isinstance(obj, PALocationResponse):
+            value_name = "pa_locationresponse"
+            query = gql_client('''
+                mutation forwardPALocationResponse($pa_locationresponse: PALocationResponse!) {
+                    forwardPALocationResponse(pa_locationresponse: $pa_locationresponse)
+                }
+            ''')
+        elif isinstance(obj, PAUserResponse):
+            value_name = "pa_userresponse"
+            query = gql_client('''
+                mutation forwardPAUserResponse($pa_userresponse: PAUserResponse!) {
+                    forwardPAUserResponse(pa_userresponse: $pa_userresponse)
+                }
+            ''')
+        elif isinstance(obj, PANewConversation):
+            value_name = "pa_newconversation"
+            query = gql_client('''
+                mutation forwardPANewConversation($pa_newconversation: PANewConversation!) {
+                    forwardPANewConversation(pa_newconversation: $pa_newconversation)
+                }
+            ''')
+        elif isinstance(obj, PASupportRequest):
+            value_name = "pa_supportrequest"
+            query = gql_client('''
+                mutation forwardPASupportRequest($pa_supportrequest: PASupportRequest!) {
+                    forwardPASupportRequest(pa_supportrequest: $pa_supportrequest)
+                }
+            ''')
+        else:
+            raise GraphQLError(f"Object type {type(obj).__name__} not supported.")
+
+        await self._graphql_service_assistant.execute_async(query, variable_values={value_name: obj.model_dump()})

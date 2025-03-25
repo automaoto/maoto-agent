@@ -28,6 +28,8 @@ dependencies = [
     "python-dateutil>=2.9.0",
     "aiohttp>=3.8.6",
     "ariadne >=0.23.0",
+    "pydantic >=2.10.6",
+    "email-validator >=2.2.0",
 ]
 
 dynamic = ["version"]
