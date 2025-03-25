@@ -270,7 +270,7 @@ class Maoto:
         ''')
         await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
     
-    async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type | None = None, id: uuid.UUID | None = None, solver_id: type | None = None) -> bool:
+    async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type[Skill | OfferCallable | OfferReference] | None = None, id: uuid.UUID | None = None, solver_id: uuid.UUID | None = None) -> bool:
         """
         Unregister an existing Skill, OfferCallable, or OfferReference from the Marketplace.
 
@@ -279,11 +279,11 @@ class Maoto:
         obj : Skill or OfferCallable or OfferReference or None, optional
             The object to unregister.
         obj_type : type, optional
-            The type of the object if `obj` is not provided.
+            The type of object to unregister.
         id : uuid.UUID, optional
             The ID of the object to unregister.
-        solver_id : type, optional
-            The solver ID, used if `id` is not provided.
+        solver_id : uuid.UUID, optional
+            The ID of the object to unregister.
 
         Returns
         -------
