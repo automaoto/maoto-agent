@@ -403,14 +403,28 @@ class Maoto:
     async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
         """
         Register a new Skill, OfferCallable, or OfferReference with the Marketplace to make it available.
-        NewSkill: This lists the skills that the agent can resolve. It allows the marketplace to prompt the agent to resolve Offerrequests with OfferResponses when the intent matches the skill.
-        NewOfferCallable: This lists the offer callables that the agent can resolve. It allows the marketplace to prompt the agent to resolve OfferCallableCostRequests with OfferCallableCostResponses when the cost is None. It also allows the marketplace to prompt the agent to resolve OfferCalls with OfferCallResponses.
-        NewOfferReference: This lists the offer references that the agent can resolve. It allows the marketplace to prompt the agent to resolve OfferReferenceCostRequests with OfferReferenceCostResponses when the cost or url is None. It also allows the marketplace to prompt the agent to resolve OfferCalls with OfferCallResponses.
-
+        
         Parameters
         ----------
         obj : NewSkill or NewOfferCallable or NewOfferReference
-            The object to register.
+            The object to register. One of:
+            
+            - **NewSkill**  
+              Lists the skills the agent can resolve.  
+              Enables the marketplace to prompt the agent to resolve `OfferRequests`  
+              with `OfferResponses` when the intent matches the skill.
+            
+            - **NewOfferCallable**  
+              Lists offer callables the agent can resolve.  
+              Enables the marketplace to:
+                - Resolve `OfferCallableCostRequests` with `OfferCallableCostResponses` (when cost is `None`)
+                - Resolve `OfferCalls` with `OfferCallResponses`
+            
+            - **NewOfferReference**  
+              Lists offer references the agent can resolve.  
+              Enables the marketplace to:
+                - Resolve `OfferReferenceCostRequests` with `OfferReferenceCostResponses` (when cost or URL is `None`)
+                - Resolve `OfferCalls` with `OfferCallResponses`
 
         Returns
         -------
@@ -443,7 +457,6 @@ class Maoto:
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
             return result["registerOfferReference"]
-    
     
     async def get_registered(self, type_ref: Skill | OfferCallable | OfferReference) -> list[Skill | OfferCallable | OfferReference]:
         """
