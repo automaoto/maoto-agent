@@ -335,20 +335,30 @@ class Maoto:
         else:
             raise ValueError(f"Object type {obj_type} not supported.")
     
-    
     async def send_response(self, obj: NewOfferResponse | NewOfferCallResponse | NewOfferCallableCostResponse | NewOfferReferenceCostResponse) -> bool:
         """
-        Send a response object to the Marketplace to complete an OfferCall, OfferRequest, OfferCallableCostRequest, or OfferReferenceCostRequest.
-        
-        NewOfferresponse: This is the response to an offer request. It is sent to the marketplace to inform the marketplace of the offers that are made when an intent matches a skill.
-        NewOfferCallResponse: This is the response to an offer call. It is sent to the marketplace to inform the caller of status updates regarding the offer call.
-        NewOfferCallableCostResponse: This is the response to an offer callable cost request. It is sent to the marketplace to inform the marketplace of the cost of an offer callable in case the cost is None.
-        NewOfferReferenceCostResponse: This is the response to an offer reference cost request. It is sent to the marketplace to inform the marketplace of the cost (and/or the url) of an offer reference in case the cost or url is None.
+        Send a response object to the Marketplace to complete a request or update its status.
 
         Parameters
         ----------
-        obj : NewOfferCallResponse or OfferResponse or NewOfferCallableCostResponse or NewOfferReferenceCostResponse
-            The response object to send.
+        obj : NewOfferResponse or NewOfferCallResponse or NewOfferCallableCostResponse or NewOfferReferenceCostResponse
+            The response object to send. One of:
+
+            - **NewOfferResponse**  
+              Sent in response to an `OfferRequest`.  
+              Informs the marketplace of the offers made when an intent matches a registered skill.
+
+            - **NewOfferCallResponse**  
+              Sent in response to an `OfferCall`.  
+              Informs the caller of status updates related to the offer call.
+
+            - **NewOfferCallableCostResponse**  
+              Sent in response to an `OfferCallableCostRequest` (when cost is `None`).  
+              Informs the marketplace of the actual cost for a callable offer.
+
+            - **NewOfferReferenceCostResponse**  
+              Sent in response to an `OfferReferenceCostRequest` (when cost or URL is `None`).  
+              Informs the marketplace of the cost and/or URL for a reference offer.
 
         Returns
         -------
@@ -398,7 +408,6 @@ class Maoto:
         
         else:
             raise ValueError(f"Object type {type(obj)} not supported.")
-
     
     async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
         """
