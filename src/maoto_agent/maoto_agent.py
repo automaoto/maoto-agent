@@ -743,7 +743,7 @@ class Maoto:
             return
         task_queue.put(event_obj)
 
-    def register_handler(self, event: type):
+    def register_handler(self, event: OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation):
         def decorator(func):
             self._handler_registry[event] = func
             return func
