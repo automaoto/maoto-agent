@@ -130,7 +130,7 @@ class OfferRequest(BaseModel):
     resolver_id: UUID | None
     intent: Intent
 
-class OfferResponse(BaseModel):
+class NewOfferResponse(BaseModel):
     offerreference_ids: list[UUID]
     offercallable_ids: list[UUID]
 

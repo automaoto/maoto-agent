@@ -256,7 +256,7 @@ class Maoto:
 
     async def send_intent(self, new_intent: NewIntent) -> None:
         """
-        Create a new Intent.
+        Send an Intent object to the Marketplace for resolution.
 
         Parameters
         ----------
@@ -272,7 +272,7 @@ class Maoto:
     
     async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type[Skill | OfferCallable | OfferReference] | None = None, id: uuid.UUID | None = None, solver_id: uuid.UUID | None = None) -> bool:
         """
-        Unregister an existing Skill, OfferCallable, or OfferReference from the Marketplace.
+        Unregister an existing Skill, OfferCallable, or OfferReference from the Marketplace to make it unavailable for use.
 
         Parameters
         ----------
@@ -336,9 +336,14 @@ class Maoto:
             raise ValueError(f"Object type {obj_type} not supported.")
     
     
-    async def send_response(self, obj: NewOfferCallResponse | OfferResponse | NewOfferCallableCostResponse | NewOfferReferenceCostResponse) -> bool:
+    async def send_response(self, obj: NewOfferResponse | NewOfferCallResponse | NewOfferCallableCostResponse | NewOfferReferenceCostResponse) -> bool:
         """
-        Send a response object to the Marketplace.
+        Send a response object to the Marketplace to complete an OfferCall, OfferRequest, OfferCallableCostRequest, or OfferReferenceCostRequest.
+        
+        NewOfferresponse: This is the response to an offer request. It is sent to the marketplace to inform the marketplace of the offers that are made when an intent matches a skill.
+        NewOfferCallResponse: This is the response to an offer call. It is sent to the marketplace to inform the caller of status updates regarding the offer call.
+        NewOfferCallableCostResponse: This is the response to an offer callable cost request. It is sent to the marketplace to inform the marketplace of the cost of an offer callable in case the cost is None.
+        NewOfferReferenceCostResponse: This is the response to an offer reference cost request. It is sent to the marketplace to inform the marketplace of the cost (and/or the url) of an offer reference in case the cost or url is None.
 
         Parameters
         ----------
@@ -397,7 +402,10 @@ class Maoto:
     
     async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
         """
-        Register a new Skill, OfferCallable, or OfferReference with the Marketplace.
+        Register a new Skill, OfferCallable, or OfferReference with the Marketplace to make it available.
+        NewSkill: This lists the skills that the agent can resolve. It allows the marketplace to prompt the agent to resolve Offerrequests with OfferResponses when the intent matches the skill.
+        NewOfferCallable: This lists the offer callables that the agent can resolve. It allows the marketplace to prompt the agent to resolve OfferCallableCostRequests with OfferCallableCostResponses when the cost is None. It also allows the marketplace to prompt the agent to resolve OfferCalls with OfferCallResponses.
+        NewOfferReference: This lists the offer references that the agent can resolve. It allows the marketplace to prompt the agent to resolve OfferReferenceCostRequests with OfferReferenceCostResponses when the cost or url is None. It also allows the marketplace to prompt the agent to resolve OfferCalls with OfferCallResponses.
 
         Parameters
         ----------
