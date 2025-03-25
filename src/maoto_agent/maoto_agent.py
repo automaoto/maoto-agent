@@ -752,6 +752,24 @@ class Maoto:
         task_queue.put(event_obj)
 
     def register_handler(self, event: OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation):
+        """
+        Register a handler function for a specific event type.
+        
+        Parameters
+        ----------
+        event : OfferCall or OfferRequest or OfferCallableCostRequest or OfferReferenceCostRequest or Response or PaymentRequest or LinkConfirmation
+            The event type to register a handler for.
+
+        Returns
+        -------
+        function
+            The decorator function to register the handler.
+
+        Raises
+        ------
+        ValueError
+            If the event type is not supported
+        """
         def decorator(func):
             self._handler_registry[event] = func
             return func
