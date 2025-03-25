@@ -419,18 +419,18 @@ class Maoto:
             The object to register. One of:
             
             - **NewSkill**  
-              Lists the skills the agent can resolve.  
+              Lists the skills the agent can react to when an intent matches.  
               Enables the marketplace to prompt the agent to resolve `OfferRequests`  
               with `OfferResponses` when the intent matches the skill.
             
             - **NewOfferCallable**  
-              Lists offer callables the agent can resolve.  
+              Lists an OfferCallable the agent can resolve. 
               Enables the marketplace to:
                 - Resolve `OfferCallableCostRequests` with `OfferCallableCostResponses` (when cost is `None`)
                 - Resolve `OfferCalls` with `OfferCallResponses`
             
             - **NewOfferReference**  
-              Lists offer references the agent can resolve.  
+              An NewOfferReference the agent links to.  
               Enables the marketplace to:
                 - Resolve `OfferReferenceCostRequests` with `OfferReferenceCostResponses` (when cost or URL is `None`)
                 - Resolve `OfferCalls` with `OfferCallResponses`
