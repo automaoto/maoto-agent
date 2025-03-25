@@ -254,13 +254,13 @@ class Maoto:
         result = await self._graphql_service_assistant.execute_async(query)
         return result["checkStatus"]
 
-    async def send_intent(self, obj: NewIntent) -> None:
+    async def send_intent(self, new_intent: NewIntent) -> None:
         """
         Create a new Intent.
 
         Parameters
         ----------
-        obj : NewIntent
+        new_intent : NewIntent
             The Intent object to create.
         """
         query = gql_client('''
@@ -268,7 +268,7 @@ class Maoto:
             createIntent(input: $input)
         }
         ''')
-        await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+        await self._graphql_service_marketplace.execute_async(query, variable_values={"input": new_intent.model_dump()})
     
     async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type[Skill | OfferCallable | OfferReference] | None = None, id: uuid.UUID | None = None, solver_id: uuid.UUID | None = None) -> bool:
         """
@@ -443,8 +443,8 @@ class Maoto:
 
         Parameters
         ----------
-        obj_type : type
-            The type of object to retrieve. Must be one of: Skill, OfferCallable, or OfferReference.
+        type_ref : Skill or OfferCallable or OfferReference
+            The type of object to retrieve.
 
         Returns
         -------
