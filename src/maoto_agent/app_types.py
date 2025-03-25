@@ -34,7 +34,7 @@ class ApiKeyWithSecret(ApiKey):
     value: str
 
 class NewResponse(BaseModel):
-    offercallable_id: UUID
+    intent_id: UUID
     description: str
 
 class Response(NewResponse):
