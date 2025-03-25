@@ -112,6 +112,7 @@ class OfferReferenceCostRequest(BaseModel):
 
 class NewOfferCallableCostResponse(BaseModel):
     offercallable_id: UUID
+    intent_id: UUID
     cost: float
 
 class OfferCallableCostResponse(NewOfferCallableCostResponse):
