@@ -51,12 +51,12 @@ class OfferCallResponse(NewOfferCallResponse):
     apikey_id: UUID
 
 class NewIntent(BaseModel):
-    apikey_id: UUID
     description: str
     tags: list[str]
 
 class Intent(NewIntent):
     id: UUID
+    apikey_id: UUID
     test: bool
     time: datetime
     resolved: bool
