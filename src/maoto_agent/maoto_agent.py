@@ -443,7 +443,7 @@ class Maoto:
         result = await self._graphql_service_assistant.execute_async(query)
         return result["checkStatus"]
 
-    async def create_intent(self, obj: NewIntent) -> None:
+    async def send_intent(self, obj: NewIntent) -> None:
         """
         Create a new Intent.
 
@@ -728,7 +728,7 @@ class Maoto:
         return result["refundOfferCall"]
 
     
-    async def create_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
+    async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
         """
         Create a new OfferCall.
 
