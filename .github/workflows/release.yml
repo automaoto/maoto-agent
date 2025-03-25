@@ -51,9 +51,8 @@ jobs:
 
   prepare-conda-forge:
     name: Prepare conda-forge feedstock
-    # Always runs on all pushes
     needs:
-      - build-pypi  # Only depend on build-pypi, not publish-to-pypi
+      - build-pypi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -122,19 +121,27 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "Version: ${GITHUB_REF#refs/tags/}"
             echo ""
-            echo "This is a release version. To submit to conda-forge:"
+            echo "This is a release version."
+            echo ""
+            echo "If this is your first submission:"
             echo "1. Fork https://github.com/conda-forge/staged-recipes"
             echo "2. Create a new branch"
             echo "3. Copy the generated recipe to recipes/maoto-agent/"
             echo "4. Submit a PR to conda-forge/staged-recipes"
+            echo ""
+            echo "If you already have a feedstock:"
+            echo "1. Fork https://github.com/conda-forge/maoto-agent-feedstock"
+            echo "2. Create a new branch"
+            echo "3. Update the recipe in recipe/meta.yaml"
+            echo "4. Submit a PR to conda-forge/maoto-agent-feedstock"
           else
             echo "This is a development build."
             echo "The recipe is generated for testing purposes only."
             echo "Only submit tagged releases to conda-forge."
           fi
           echo ""
-          echo "For subsequent releases, update the feedstock repo"
-          echo "that will be created after initial submission"
+          echo "For more information, see:"
+          echo "https://conda-forge.org/docs/maintainer/updating_pkgs.html"
           echo "================================================"
 
   github-release:
