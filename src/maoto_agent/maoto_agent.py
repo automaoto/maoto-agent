@@ -379,9 +379,9 @@ class Maoto:
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
             return result["sendOfferCallResponse"]
 
-        if isinstance(obj, OfferResponse):
+        if isinstance(obj, NewOfferResponse):
             query = gql_client('''
-            mutation sendOfferResponse($input: OfferResponse!) {
+            mutation sendOfferResponse($input: NewOfferResponse!) {
                 sendOfferResponse(input: $input)
             }
             ''')
