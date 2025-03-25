@@ -515,7 +515,7 @@ class Maoto:
     
     async def refund_offercall(self, offercall: OfferCall | None = None, id: uuid.UUID | None = None) -> bool:
         """
-        Refund an OfferCall.
+        Refund an OfferCall in case of an error or other issues. This might also be in case the user asks to cancel the OfferCall.
 
         Parameters
         ----------
@@ -549,7 +549,7 @@ class Maoto:
     
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
         """
-        Create a new OfferCall.
+        Sends a new OfferCall to the Marketplace / Agent.
 
         Parameters
         ----------
