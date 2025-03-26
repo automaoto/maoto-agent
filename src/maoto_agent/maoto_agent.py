@@ -18,7 +18,7 @@ from .app_types import *
 from datetime import datetime
 from gql import gql as gql_client
 from gql import Client
-from pkg_resources import get_distribution
+from importlib.metadata import version
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.websockets import WebsocketsTransport
 
@@ -165,10 +165,10 @@ class Maoto:
         self._handler_registry = dict()
 
         if assistant:
-            self._graphql_service_assistant = self.GraphQLService(url=self._url_pa, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
+            self._graphql_service_assistant = self.GraphQLService(url=self._url_pa, apikey_value=self._apikey_value, version=version("maoto-agent"))
 
         if marketplace:
-            self._graphql_service_marketplace = self.GraphQLService(url=self._url_mp, apikey_value=self._apikey_value, version=get_distribution("maoto_agent").version)
+            self._graphql_service_marketplace = self.GraphQLService(url=self._url_mp, apikey_value=self._apikey_value, version=version("maoto-agent"))
 
         self._server = self.ServerMode(self.logger, self._resolve_event, self._debug)
         self.handle_request = self._server.graphql_app.handle_request
@@ -379,7 +379,7 @@ class Maoto:
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
             return result["sendOfferCallResponse"]
 
-        if isinstance(obj, OfferResponse):
+        if isinstance(obj, NewOfferResponse):
             query = gql_client('''
             mutation sendOfferResponse($input: OfferResponse!) {
                 sendOfferResponse(input: $input)
