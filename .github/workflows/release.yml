@@ -1,30 +1,43 @@
 name: Publish Python 🐍 distribution 📦
 
-on: push
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release'
+        required: true
+        type: string
+        pattern: '^v\d+\.\d+\.\d+$'
 
 jobs:
   build-pypi:
     name: Build pypi distribution 📦
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.x"
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="$HOME/.local/bin" sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+          version: "0.6.10"
       - name: Build a binary wheel and a source tarball
-        run: uv build --sdist --wheel
+        run: uv build --trusted-publishing automatic
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
         with:
           name: python-package-distributions-pypi
           path: dist/
+          retention-days: 1
 
   publish-to-pypi:
     name: >-
@@ -120,6 +133,7 @@ jobs:
         with:
           name: conda-forge-recipe
           path: conda-forge-output
+          retention-days: 1
       
       - name: Instructions for conda-forge submission
         run: |
