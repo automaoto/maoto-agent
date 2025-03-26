@@ -1,4 +1,14 @@
+from pathlib import Path
+import aiohttp
 from maoto_agent import *
+import functools
+import aiofiles
+
+def _sync_or_async(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
 
 class OutsourcedMaotoAgentMethods(Maoto):
     def __init__(self, logging_level=logging.INFO, receive_messages=True, open_connection=False, db_connection=False):
