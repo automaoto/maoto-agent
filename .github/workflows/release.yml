@@ -14,14 +14,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Install pypa/build
-        run: >-
-          python3 -m
-          pip install
-          build
-          --user
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="$HOME/.local/bin" sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Build a binary wheel and a source tarball
-        run: python3 -m build --sdist --wheel
+        run: uv build --sdist --wheel
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
         with:
@@ -47,7 +45,7 @@ jobs:
           name: python-package-distributions-pypi
           path: dist/
       - name: Publish distribution 📦 to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        run: uv publish --trusted-publishing automatic
 
   prepare-conda-forge:
     name: Prepare conda-forge feedstock
@@ -59,11 +57,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
       
       - name: Create conda-forge recipe
         run: |
