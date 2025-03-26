@@ -51,6 +51,7 @@ jobs:
     name: Prepare conda-forge feedstock
     needs:
       - build-pypi
+      - publish-to-pypi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +73,21 @@ jobs:
             # Generate from PyPI for tagged releases (only after PyPI publish)
             if [[ "${{ github.event_name }}" == "release" ]]; then
               echo "Generating recipe from PyPI package"
-              grayskull pypi maoto-agent -o conda-forge-recipe
+              # Add retry logic for PyPI metadata
+              max_attempts=3
+              attempt=1
+              while [ $attempt -le $max_attempts ]; do
+                if grayskull pypi maoto-agent -o conda-forge-recipe; then
+                  break
+                fi
+                echo "Attempt $attempt failed, waiting 30 seconds before retry..."
+                sleep 30
+                attempt=$((attempt + 1))
+              done
+              if [ $attempt -gt $max_attempts ]; then
+                echo "Failed to generate recipe after $max_attempts attempts"
+                exit 1
+              fi
             else
               echo "Generating recipe from local source with tag version"
               # Export VERSION for meta.yaml template
