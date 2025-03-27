@@ -11,38 +11,40 @@ class SuccessResponse(BaseModel):
 
 class NewUser(BaseModel):
     email: EmailStr
-    password: SecretStr
+    name: str | None
     roles: list[str]
 
 class User(NewUser):
     id: UUID
+    time: datetime
+    verified: bool
+
+class NewUserWithSecret(NewUser):
+    password: SecretStr
 
 class NewApiKey(BaseModel):
     user_id: UUID
     name: str
     roles: list[str]
-
-class ApiKey(BaseModel):
-    id: UUID
-    time: datetime
-    user_id: UUID
-    name: str
-    roles: list[str]
     url: HttpUrl | None
 
+class ApiKey(NewApiKey):
+    id: UUID
+    time: datetime
+
 class ApiKeyWithSecret(ApiKey):
-    value: str
+    value: SecretStr
 
 class NewResponse(BaseModel):
     intent_id: UUID
     description: str
 
 class Response(NewResponse):
-    id: UUID
-    time: datetime
+    pass
 
 class NewOfferCallResponse(BaseModel):
     offercall_id: UUID
+    offercallable_id: UUID
     description: str
 
 class OfferCallResponse(NewOfferCallResponse):
@@ -132,12 +134,18 @@ class OfferRequest(BaseModel):
     intent: Intent
 
 class NewOfferResponse(BaseModel):
+    intent_id: UUID
+    
     offerreference_ids: list[UUID]
     offercallable_ids: list[UUID]
 
     missinginfo: list[MissingInfo]
     newoffercallables: list[NewOfferCallable]
     newofferreferences: list[NewOfferReference]
+
+class OfferResponse(NewOfferResponse):
+    apikey_id: UUID
+    time: datetime
 
 class NewOfferCall(BaseModel):
     offercallable_id: UUID
@@ -172,7 +180,6 @@ class HistoryElement(NewHistoryElement):
 
 class PaymentRequest(BaseModel):
     offercall_id: UUID
-    intent_id: UUID
     payment_link: str
 
 class Location(BaseModel):

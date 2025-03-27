@@ -95,6 +95,7 @@ type Mutation {
     requestOffers(input: OfferRequest!): Boolean! @auth
 
     forwardResponse(input: Response!): Boolean! @auth
+    forwardOfferCallResponse(input: OfferCallResponse!): Boolean! @auth
     forwardPaymentRequest(input: PaymentRequest!): Boolean! @auth
     forwardLinkConfirmation(input: LinkConfirmation!): Boolean! @auth
                         

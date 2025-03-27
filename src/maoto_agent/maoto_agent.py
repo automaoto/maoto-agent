@@ -84,6 +84,7 @@ class Maoto:
                 "requestReferenceOfferCost": OfferReferenceCostRequest,
                 "requestOffers": OfferRequest,
                 "forwardResponse": Response,
+                "forwardOfferCallResponse": OfferCallResponse,
                 "forwardPaymentRequest": PaymentRequest,
                 "forwardLinkConfirmation": LinkConfirmation,
                 "forwardPAPaymentRequest": PAPaymentRequest,
@@ -180,11 +181,11 @@ class Maoto:
         else:
             self.logger.warning(f"No handler registered for event type {event}")
     
-    async def _get_own_api_key(self) -> ApiKey:
+    async def get_own_api_key(self) -> ApiKey:
         # Query to fetch the user's own API keys, limiting the result to only one
         query = gql_client('''
         query {
-            getOwnApiKeys {
+            getOwnApiKey {
                 apikey_id
                 user_id
                 name
@@ -195,29 +196,13 @@ class Maoto:
         ''')
 
         result = await self._graphql_service_marketplace.execute_async(query)
-        data_list = result["getOwnApiKeys"]
+        data = result["getOwnApiKey"]
 
         # Return the first API key (assume the list is ordered by time or relevance)
-        if data_list:
-            data = data_list[0]
+        if data:
             return ApiKey(**data)
         else:
-            raise Exception("No API keys found for the user.")
-
-    
-    async def get_own_api_key(self) -> ApiKey:
-        """
-        Retrieve and cache the API key associated with this agent instance.
-
-        Returns
-        -------
-        ApiKey
-            The current API key for this agent.
-        """
-        if not self._apikey:
-            self._apikey = await self._get_own_api_key()
-        return self._apikey
-
+            raise Exception("No API key found for the user.")
     
     async def check_status_marketplace(self) -> bool:
         """
@@ -370,14 +355,6 @@ class Maoto:
         ValueError
             If the object type is unsupported.
         """
-        if isinstance(obj, NewOfferCallResponse):
-            query = gql_client('''
-            mutation sendOfferCallResponse($input: OfferCallResponse!) {
-                sendOfferCallResponse(input: $input)
-            }
-            ''')
-            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["sendOfferCallResponse"]
 
         if isinstance(obj, NewOfferResponse):
             query = gql_client('''
@@ -387,6 +364,15 @@ class Maoto:
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
             return result["sendOfferResponse"]
+        
+        if isinstance(obj, NewOfferCallResponse):
+            query = gql_client('''
+            mutation sendOfferCallResponse($input: OfferCallResponse!) {
+                sendOfferCallResponse(input: $input)
+            }
+            ''')
+            result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
+            return result["sendOfferCallResponse"]
         
         elif isinstance(obj, NewOfferCallableCostResponse):
             query = gql_client('''
@@ -567,7 +553,6 @@ class Maoto:
         result = await self._graphql_service_marketplace.execute_async(query, variable_values={"offer_call_id": str(offercall_id)})
         return result["refundOfferCall"]
 
-    
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
         """
         Send a new OfferCall to the Marketplace.
@@ -631,7 +616,7 @@ class Maoto:
 
         result = await self._graphql_service_marketplace.execute_async(query, variable_values={"url": url})
 
-    def register_handler(self, event: OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation):
+    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation]):
         """
         Register a handler function for a specific event type.
 
@@ -682,31 +667,31 @@ class Maoto:
             If the object type is not supported.
         """
         if isinstance(obj, PALocationResponse):
-            value_name = "pa_locationresponse"
+            value_name = "input"
             query = gql_client('''
-                mutation forwardPALocationResponse($pa_locationresponse: PALocationResponse!) {
-                    forwardPALocationResponse(pa_locationresponse: $pa_locationresponse)
+                mutation forwardPALocationResponse($input: PALocationResponse!) {
+                    forwardPALocationResponse(input: $input)
                 }
             ''')
         elif isinstance(obj, PAUserResponse):
-            value_name = "pa_userresponse"
+            value_name = "input"
             query = gql_client('''
-                mutation forwardPAUserResponse($pa_userresponse: PAUserResponse!) {
-                    forwardPAUserResponse(pa_userresponse: $pa_userresponse)
+                mutation forwardPAUserResponse($input: PAUserResponse!) {
+                    forwardPAUserResponse(input: $input)
                 }
             ''')
         elif isinstance(obj, PANewConversation):
-            value_name = "pa_newconversation"
+            value_name = "input"
             query = gql_client('''
-                mutation forwardPANewConversation($pa_newconversation: PANewConversation!) {
-                    forwardPANewConversation(pa_newconversation: $pa_newconversation)
+                mutation forwardPANewConversation($input: PANewConversation!) {
+                    forwardPANewConversation(input: $input)
                 }
             ''')
         elif isinstance(obj, PASupportRequest):
-            value_name = "pa_supportrequest"
+            value_name = "input"
             query = gql_client('''
-                mutation forwardPASupportRequest($pa_supportrequest: PASupportRequest!) {
-                    forwardPASupportRequest(pa_supportrequest: $pa_supportrequest)
+                mutation forwardPASupportRequest($input: PASupportRequest!) {
+                    forwardPASupportRequest(input: $input)
                 }
             ''')
         else:
