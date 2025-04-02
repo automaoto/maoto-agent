@@ -70,111 +70,111 @@ jobs:
       - name: Publish distribution 📦 to PyPI
         run: uv publish
 
-  prepare-conda-forge:
-    name: Prepare conda-forge feedstock
-    needs:
-      - build-pypi
-      - publish-to-pypi
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+  # prepare-conda-forge:
+  #   name: Prepare conda-forge feedstock
+  #   needs:
+  #     - build-pypi
+  #     - publish-to-pypi
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         persist-credentials: false
+  #         fetch-depth: 0
       
-      - name: Create conda-forge recipe
-        run: |
-          # Install required tools
-          pip install grayskull
+  #     - name: Create conda-forge recipe
+  #       run: |
+  #         # Install required tools
+  #         pip install grayskull
           
-          # For non-tag pushes, use a development version number
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-            echo "Running for tag: $VERSION"
-            export FEEDSTOCK_TYPE="release"
+  #         # For non-tag pushes, use a development version number
+  #         if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+  #           VERSION=${GITHUB_REF#refs/tags/}
+  #           echo "Running for tag: $VERSION"
+  #           export FEEDSTOCK_TYPE="release"
             
-            # Generate from PyPI for tagged releases (only after PyPI publish)
-            if [[ "${{ github.event_name }}" == "release" ]]; then
-              echo "Generating recipe from PyPI package"
-              # Add retry logic for PyPI metadata
-              max_attempts=3
-              attempt=1
-              while [ $attempt -le $max_attempts ]; do
-                if grayskull pypi maoto-agent -o conda-forge-recipe; then
-                  break
-                fi
-                echo "Attempt $attempt failed, waiting 30 seconds before retry..."
-                sleep 30
-                attempt=$((attempt + 1))
-              done
-              if [ $attempt -gt $max_attempts ]; then
-                echo "Failed to generate recipe after $max_attempts attempts"
-                exit 1
-              fi
-            else
-              echo "Generating recipe from local source with tag version"
-              # Export VERSION for meta.yaml template
-              export VERSION=$VERSION
-              grayskull pypi . -o conda-forge-recipe
-            fi
-          else
-            echo "Running for branch: ${GITHUB_REF#refs/heads/}"
-            export FEEDSTOCK_TYPE="development"
-            export VERSION="dev"
+  #           # Generate from PyPI for tagged releases (only after PyPI publish)
+  #           if [[ "${{ github.event_name }}" == "release" ]]; then
+  #             echo "Generating recipe from PyPI package"
+  #             # Add retry logic for PyPI metadata
+  #             max_attempts=3
+  #             attempt=1
+  #             while [ $attempt -le $max_attempts ]; do
+  #               if grayskull pypi maoto-agent -o conda-forge-recipe; then
+  #                 break
+  #               fi
+  #               echo "Attempt $attempt failed, waiting 30 seconds before retry..."
+  #               sleep 30
+  #               attempt=$((attempt + 1))
+  #             done
+  #             if [ $attempt -gt $max_attempts ]; then
+  #               echo "Failed to generate recipe after $max_attempts attempts"
+  #               exit 1
+  #             fi
+  #           else
+  #             echo "Generating recipe from local source with tag version"
+  #             # Export VERSION for meta.yaml template
+  #             export VERSION=$VERSION
+  #             grayskull pypi . -o conda-forge-recipe
+  #           fi
+  #         else
+  #           echo "Running for branch: ${GITHUB_REF#refs/heads/}"
+  #           export FEEDSTOCK_TYPE="development"
+  #           export VERSION="dev"
             
-            # Generate from local source for development
-            echo "Generating recipe from local source"
-            grayskull pypi . -o conda-forge-recipe
-          fi
+  #           # Generate from local source for development
+  #           echo "Generating recipe from local source"
+  #           grayskull pypi . -o conda-forge-recipe
+  #         fi
           
-          # Display generated recipe for debugging
-          echo "Generated meta.yaml:"
-          cat conda-forge-recipe/maoto-agent/meta.yaml
+  #         # Display generated recipe for debugging
+  #         echo "Generated meta.yaml:"
+  #         cat conda-forge-recipe/maoto-agent/meta.yaml
           
-          # Store recipe for inspection
-          mkdir -p conda-forge-output
-          cp -r conda-forge-recipe conda-forge-output/
+  #         # Store recipe for inspection
+  #         mkdir -p conda-forge-output
+  #         cp -r conda-forge-recipe conda-forge-output/
           
-          # Also copy our custom meta.yaml as reference
-          cp meta.yaml conda-forge-output/meta.yaml.reference
+  #         # Also copy our custom meta.yaml as reference
+  #         cp meta.yaml conda-forge-output/meta.yaml.reference
       
-      - name: Upload conda-forge recipe
-        uses: actions/upload-artifact@v4
-        with:
-          name: conda-forge-recipe
-          path: conda-forge-output
-          retention-days: 1
+  #     - name: Upload conda-forge recipe
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: conda-forge-recipe
+  #         path: conda-forge-output
+  #         retention-days: 1
       
-      - name: Instructions for conda-forge submission
-        run: |
-          echo "================================================"
-          echo "CONDA-FORGE SUBMISSION INSTRUCTIONS"
-          echo "================================================"
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "Version: ${GITHUB_REF#refs/tags/}"
-            echo ""
-            echo "This is a release version."
-            echo ""
-            echo "If this is your first submission:"
-            echo "1. Fork https://github.com/conda-forge/staged-recipes"
-            echo "2. Create a new branch"
-            echo "3. Copy the generated recipe to recipes/maoto-agent/"
-            echo "4. Submit a PR to conda-forge/staged-recipes"
-            echo ""
-            echo "If you already have a feedstock:"
-            echo "1. Fork https://github.com/conda-forge/maoto-agent-feedstock"
-            echo "2. Create a new branch"
-            echo "3. Update the recipe in recipe/meta.yaml"
-            echo "4. Submit a PR to conda-forge/maoto-agent-feedstock"
-          else
-            echo "This is a development build."
-            echo "The recipe is generated for testing purposes only."
-            echo "Only submit tagged releases to conda-forge."
-          fi
-          echo ""
-          echo "For more information, see:"
-          echo "https://conda-forge.org/docs/maintainer/updating_pkgs.html"
-          echo "================================================"
+  #     - name: Instructions for conda-forge submission
+  #       run: |
+  #         echo "================================================"
+  #         echo "CONDA-FORGE SUBMISSION INSTRUCTIONS"
+  #         echo "================================================"
+  #         if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+  #           echo "Version: ${GITHUB_REF#refs/tags/}"
+  #           echo ""
+  #           echo "This is a release version."
+  #           echo ""
+  #           echo "If this is your first submission:"
+  #           echo "1. Fork https://github.com/conda-forge/staged-recipes"
+  #           echo "2. Create a new branch"
+  #           echo "3. Copy the generated recipe to recipes/maoto-agent/"
+  #           echo "4. Submit a PR to conda-forge/staged-recipes"
+  #           echo ""
+  #           echo "If you already have a feedstock:"
+  #           echo "1. Fork https://github.com/conda-forge/maoto-agent-feedstock"
+  #           echo "2. Create a new branch"
+  #           echo "3. Update the recipe in recipe/meta.yaml"
+  #           echo "4. Submit a PR to conda-forge/maoto-agent-feedstock"
+  #         else
+  #           echo "This is a development build."
+  #           echo "The recipe is generated for testing purposes only."
+  #           echo "Only submit tagged releases to conda-forge."
+  #         fi
+  #         echo ""
+  #         echo "For more information, see:"
+  #         echo "https://conda-forge.org/docs/maintainer/updating_pkgs.html"
+  #         echo "================================================"
 
   github-release:
     name: >-
