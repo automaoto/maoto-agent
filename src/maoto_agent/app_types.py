@@ -1,8 +1,8 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr
 from uuid import UUID
+from abc import ABC
 from datetime import datetime
-from abc import ABC, abstractmethod
-
+    
 class ErrorResponse(BaseModel):
     message: str
 
@@ -64,10 +64,9 @@ class Intent(NewIntent):
     resolved: bool
 
 class NewOffer(BaseModel, ABC):
-    apikey_id: UUID
     resolver_id: UUID | None
     description: str
-    params: str
+    params: dict
     tags: list[str]
     followup: bool
     cost: float | None
@@ -75,6 +74,7 @@ class NewOffer(BaseModel, ABC):
 class Offer(NewOffer, ABC):
     id: UUID
     time: datetime
+    apikey_id: UUID
 
 class NewOfferCallable(NewOffer):
     pass
@@ -90,7 +90,7 @@ class OfferReference(Offer):
 
 class NewSkill(BaseModel):
     description: str
-    args: str
+    args: dict
     resolver_id: UUID | None
     tags: list[str]
 
@@ -122,6 +122,7 @@ class OfferCallableCostResponse(NewOfferCallableCostResponse):
 
 class NewOfferReferenceCostResponse(BaseModel):
     offerreference_id: UUID
+    intent_id: UUID
     cost: float
     url: HttpUrl
 
@@ -150,7 +151,7 @@ class OfferResponse(NewOfferResponse):
 class NewOfferCall(BaseModel):
     offercallable_id: UUID
     deputy_apikey_id: UUID | None
-    args: str
+    args: dict
 
 class OfferCall(NewOfferCall):
     id: UUID
@@ -161,7 +162,7 @@ class NewFile(BaseModel):
     extension: str
 
 class File(NewFile):
-    file_id: UUID
+    id: UUID
     time: datetime
     apikey_id: UUID
 
@@ -170,12 +171,12 @@ class NewHistoryElement(BaseModel):
     tree_id: UUID
     parent_id: UUID | None
     apikey_id: UUID | None
-    role: str | None
+    role: str
     file_ids: list[UUID]
     name: str | None
 
 class HistoryElement(NewHistoryElement):
-    history_id: UUID
+    id: UUID
     time: datetime
 
 class PaymentRequest(BaseModel):
@@ -224,7 +225,7 @@ class LinkConfirmation(BaseModel):
 class LoginUserRequest(BaseModel):
     email: EmailStr
     password: SecretStr
-    params: str
+    params: dict
 
 class LoginUserResponse(BaseModel):
     token: str
@@ -232,11 +233,11 @@ class LoginUserResponse(BaseModel):
 class RegisterUserRequest(BaseModel):
     email: EmailStr
     password: SecretStr
-    params: str
+    params: dict
 
 class EmailVerif(BaseModel):
     token: SecretStr
-    params: str
+    params: dict
 
 class RegisterUserResponse(BaseModel):
     success: bool

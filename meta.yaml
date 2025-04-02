@@ -28,6 +28,8 @@ requirements:
     - aiohttp >=3.8.6
     - ariadne >=0.23.0
     - pydantic[email] >=2.10.6
+    - email-validator >=2.2.0
+    - fastapi >=0.115.12
 
 about:
   home: https://maoto.world

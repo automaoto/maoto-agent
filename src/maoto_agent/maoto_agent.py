@@ -1,26 +1,16 @@
-import inspect
 import os
-import sys
 import json
-import time
-import queue
-import signal
 import uuid
-import atexit
 from typing import Callable
-import psutil
 import logging
-import random
 import asyncio
-import functools
-import threading
 from .app_types import *
+from fastapi import FastAPI
 from datetime import datetime
 from gql import gql as gql_client
 from gql import Client
 from pkg_resources import get_distribution
 from gql.transport.aiohttp import AIOHTTPTransport
-from gql.transport.websockets import WebsocketsTransport
 
 # Server Mode:
 import importlib.resources
@@ -249,8 +239,8 @@ class Maoto:
             The intent object to create and send.
         """
         query = gql_client('''
-        mutation createIntent($input: NewIntent!) {
-            createIntent(input: $input)
+        mutation createNewIntent($input: NewIntent!) {
+            createNewIntent(input: $input)
         }
         ''')
         await self._graphql_service_marketplace.execute_async(query, variable_values={"input": new_intent.model_dump()})
@@ -358,21 +348,21 @@ class Maoto:
 
         if isinstance(obj, NewOfferResponse):
             query = gql_client('''
-            mutation sendOfferResponse($input: NewOfferResponse!) {
-                sendOfferResponse(input: $input)
+            mutation sendNewOfferResponse($input: NewOfferResponse!) {
+                sendNewOfferResponse(input: $input)
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["sendOfferResponse"]
+            return result["sendNewOfferResponse"]
         
         if isinstance(obj, NewOfferCallResponse):
             query = gql_client('''
-            mutation sendOfferCallResponse($input: OfferCallResponse!) {
-                sendOfferCallResponse(input: $input)
+            mutation sendNewOfferCallResponse($input: NewOfferCallResponse!) {
+                sendNewOfferCallResponse(input: $input)
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["sendOfferCallResponse"]
+            return result["sendNewOfferCallResponse"]
         
         elif isinstance(obj, NewOfferCallableCostResponse):
             query = gql_client('''
@@ -381,7 +371,7 @@ class Maoto:
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["sendOfferCallableCostResponse"]
+            return result["sendNewOfferCallableCostResponse"]
 
         elif isinstance(obj, NewOfferReferenceCostResponse):
             query = gql_client('''
@@ -390,7 +380,7 @@ class Maoto:
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["sendOfferReferenceCostResponse"]
+            return result["sendNewOfferReferenceCostResponse"]
         
         else:
             raise ValueError(f"Object type {type(obj)} not supported.")
@@ -423,30 +413,30 @@ class Maoto:
         """
         if isinstance(obj, NewSkill):
             query = gql_client('''
-            mutation registerSkill($input: NewSkill!) {
-                registerSkill(input: $input)
+            mutation registerNewSkill($input: NewSkill!) {
+                registerNewSkill(input: $input)
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["registerSkill"]
+            return result["registerNewSkill"]
         
         elif isinstance(obj, NewOfferCallable):
             query = gql_client('''
-            mutation registerOfferCallable($input: NewOfferCallable!) {
-                registerOfferCallable(input: $input)
+            mutation registerNewOfferCallable($input: NewOfferCallable!) {
+                registerNewOfferCallable(input: $input)
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["registerOfferCallable"]
+            return result["registerNewOfferCallable"]
         
         elif isinstance(obj, NewOfferReference):
             query = gql_client('''
-            mutation registerOfferReference($input: NewOfferReference!) {
-                registerOfferReference(input: $input)
+            mutation registerNewOfferReference($input: NewOfferReference!) {
+                registerNewOfferReference(input: $input)
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query, variable_values={"input": obj.model_dump()})
-            return result["registerOfferReference"]
+            return result["registerNewOfferReference"]
     
     async def get_registered(self, type_ref: Skill | OfferCallable | OfferReference) -> list[Skill | OfferCallable | OfferReference]:
         """
@@ -483,7 +473,7 @@ class Maoto:
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query)
-            return [Skill(**data) for data in result["getSkills"]]
+            return [Skill.model_validate(data) for data in result["getSkills"]]
         
         elif type_ref == OfferCallable:
             query = gql_client('''
@@ -500,7 +490,7 @@ class Maoto:
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query)
-            return [OfferCallable(**data) for data in result["getOfferCallables"]]
+            return [OfferCallable.model_validate(data) for data in result["getOfferCallables"]]
         
         elif type_ref == OfferReference:
             query = gql_client('''
@@ -517,8 +507,7 @@ class Maoto:
             }
             ''')
             result = await self._graphql_service_marketplace.execute_async(query)
-            return [OfferReference(**data) for data in result["getOfferReferences"]]
-
+            return [OfferReference.model_validate(data) for data in result["getOfferReferences"]]
     
     async def refund_offercall(self, offercall: OfferCall | None = None, id: uuid.UUID | None = None) -> bool:
         """
@@ -541,16 +530,16 @@ class Maoto:
         ValueError
             If neither an object nor ID is provided.
         """
-        offercall_id = (offercall.id if offercall else None) or id
-        if not offercall_id:
+        offercallid = (offercall.id if offercall else None) or id
+        if not offercallid:
             raise ValueError("Either offercall or id must be provided.")
         
         query = gql_client('''
-        mutation refundOfferCall($offer_call_id: ID!) {
-            refundOfferCall(offer_call_id: $offer_call_id)
+        mutation refundOfferCall($offercallid: ID!) {
+            refundOfferCall(offercallid: $offercallid)
         }
         ''')
-        result = await self._graphql_service_marketplace.execute_async(query, variable_values={"offer_call_id": str(offercall_id)})
+        result = await self._graphql_service_marketplace.execute_async(query, variable_values={"offercallid": str(offercallid)})
         return result["refundOfferCall"]
 
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
@@ -616,7 +605,7 @@ class Maoto:
 
         result = await self._graphql_service_marketplace.execute_async(query, variable_values={"url": url})
 
-    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation]):
+    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation | OfferCallResponse]):
         """
         Register a handler function for a specific event type.
 
@@ -636,7 +625,7 @@ class Maoto:
             If the event type is not supported.
         """
         def decorator(func):
-            self._handler_registry[event] = func
+            self._handler_registry[event_type] = func
             return func
         return decorator
         

@@ -13,15 +13,13 @@ input Response {
 }
 
 input NewOfferCall {
-    apikey_id: UUID!
     offercallable_id: UUID!
     deputy_apikey_id: UUID!
-    arguments: DICTSTR!
+    args: DICTSTR!
 }
 
 input OfferCall {
-    apikey_id: UUID!
-    offer_id: UUID!
+    offercallable_id: UUID!
     deputy_apikey_id: UUID!
     parameters: DICTSTR!
     id: UUID!
@@ -54,8 +52,7 @@ input OfferRequest {
 }
 
 input PaymentRequest {
-    actioncall_id: UUID!
-    post_id: UUID!
+    offercall_id: UUID!
     payment_link: String!
 }
                         
@@ -82,6 +79,15 @@ input LinkConfirmation {
 input PAPaymentRequest {
     ui_id: String!
     payment_link: String!
+}
+
+input OfferCallResponse {
+    id: UUID!
+    time: Datetime!
+    apikey_id: UUID!
+    offercall_id: UUID!
+    offercallable_id: UUID!
+    description: String!
 }
                         
 type Query {
