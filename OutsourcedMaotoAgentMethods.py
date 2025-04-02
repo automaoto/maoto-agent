@@ -1,12 +1,40 @@
+import functools
+import json
+import logging
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+import aiofiles
+import aiohttp
+from gql import gql as gql_client
+
 from maoto_agent import *
+from maoto_agent.app_types import ApiKey, ApiKeyWithSecret, File, NewApiKey, NewFile, NewUser, User
+from maoto_agent.maoto_agent import DATA_CHUNK_SIZE
+
+
+def _sync_or_async(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
 
 class OutsourcedMaotoAgentMethods(Maoto):
-    def __init__(self, logging_level=logging.INFO, receive_messages=True, open_connection=False, db_connection=False):
+    def __init__(
+        self,
+        logging_level=logging.INFO,
+        receive_messages=True,
+        open_connection=False,
+        db_connection=False,
+    ):
         super().__init__(logging_level, receive_messages, open_connection, db_connection)
 
     @_sync_or_async
     async def get_own_user(self) -> User:
-        query = gql_client('''
+        query = gql_client("""
         query {
             getOwnUser {
                 user_id
@@ -15,16 +43,21 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 roles
             }
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query)
         data = result["getOwnUser"]
-        return User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"])
+        return User(
+            data["username"],
+            uuid.UUID(data["user_id"]),
+            datetime.fromisoformat(data["time"]),
+            data["roles"],
+        )
 
     @_sync_or_async
     async def get_own_api_keys(self) -> list[bool]:
         # Note: the used API key id is always the first one
-        query = gql_client('''
+        query = gql_client("""
         query {
             getOwnApiKeys {
                 apikey_id
@@ -34,16 +67,28 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 roles
             }
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query)
         data_list = result["getOwnApiKeys"]
-        return [ApiKey(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"]) for data in data_list]
+        return [
+            ApiKey(
+                uuid.UUID(data["apikey_id"]),
+                uuid.UUID(data["user_id"]),
+                datetime.fromisoformat(data["time"]),
+                data["name"],
+                data["roles"],
+            )
+            for data in data_list
+        ]
 
     @_sync_or_async
     async def create_users(self, new_users: list[NewUser]):
-        users = [{'username': user.username, 'password': user.password, 'roles': user.roles} for user in new_users]
-        query = gql_client('''
+        users = [
+            {"username": user.username, "password": user.password, "roles": user.roles}
+            for user in new_users
+        ]
+        query = gql_client("""
         mutation createUsers($new_users: [NewUser!]!) {
             createUsers(new_users: $new_users) {
                 username
@@ -52,27 +97,37 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 roles
             }
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query, variable_values={"new_users": users})
         data_list = result["createUsers"]
-        return [User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"]) for data in data_list]
+        return [
+            User(
+                data["username"],
+                uuid.UUID(data["user_id"]),
+                datetime.fromisoformat(data["time"]),
+                data["roles"],
+            )
+            for data in data_list
+        ]
 
     @_sync_or_async
     async def delete_users(self, user_ids: list[User | str]) -> bool:
-        user_ids = [str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids]
-        query = gql_client('''
+        user_ids = [
+            str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids
+        ]
+        query = gql_client("""
         mutation deleteUsers($user_ids: [ID!]!) {
             deleteUsers(user_ids: $user_ids)
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query, variable_values={"user_ids": user_ids})
         return result["deleteUsers"]
-    
+
     @_sync_or_async
     async def get_users(self) -> list[User]:
-        query = gql_client('''
+        query = gql_client("""
         query {
             getUsers {
                 user_id
@@ -81,16 +136,31 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 roles
             }
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query)
         data_list = result["getUsers"]
-        return [User(data["username"], uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["roles"]) for data in data_list]
-    
+        return [
+            User(
+                data["username"],
+                uuid.UUID(data["user_id"]),
+                datetime.fromisoformat(data["time"]),
+                data["roles"],
+            )
+            for data in data_list
+        ]
+
     @_sync_or_async
     async def create_apikeys(self, api_keys: list[NewApiKey]) -> list[ApiKey]:
-        api_keys_data = [{'name': key.get_name(), 'user_id': str(key.get_user_id()), 'roles': key.get_roles()} for key in api_keys]
-        query = gql_client('''
+        api_keys_data = [
+            {
+                "name": key.get_name(),
+                "user_id": str(key.get_user_id()),
+                "roles": key.get_roles(),
+            }
+            for key in api_keys
+        ]
+        query = gql_client("""
         mutation createApiKeys($new_apikeys: [NewApiKey!]!) {
             createApiKeys(new_apikeys: $new_apikeys) {
                 apikey_id
@@ -101,28 +171,45 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 value
             }
         }
-        ''')
+        """)
 
-        result = await self.client.execute_async(query, variable_values={"new_apikeys": api_keys_data})
+        result = await self.client.execute_async(
+            query, variable_values={"new_apikeys": api_keys_data}
+        )
         data_list = result["createApiKeys"]
-        return [ApiKeyWithSecret(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"], data["value"]) for data in data_list]
-        
+        return [
+            ApiKeyWithSecret(
+                uuid.UUID(data["apikey_id"]),
+                uuid.UUID(data["user_id"]),
+                datetime.fromisoformat(data["time"]),
+                data["name"],
+                data["roles"],
+                data["value"],
+            )
+            for data in data_list
+        ]
+
     @_sync_or_async
     async def delete_apikeys(self, apikey_ids: list[ApiKey | str]) -> list[bool]:
-        api_key_ids = [str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey) for apikey in apikey_ids]
-        query = gql_client('''
+        api_key_ids = [
+            str(apikey.get_apikey_id()) if isinstance(apikey, ApiKey) else str(apikey)
+            for apikey in apikey_ids
+        ]
+        query = gql_client("""
         mutation deleteApiKeys($apikey_ids: [ID!]!) {
             deleteApiKeys(apikey_ids: $apikey_ids)
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query, variable_values={"apikey_ids": api_key_ids})
         return result["deleteApiKeys"]
 
     @_sync_or_async
     async def get_apikeys(self, user_ids: list[User | str]) -> list[ApiKey]:
-        user_ids = [str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids]
-        query = gql_client('''
+        user_ids = [
+            str(user.get_user_id()) if isinstance(user, User) else str(user) for user in user_ids
+        ]
+        query = gql_client("""
         query getApiKeys($user_ids: [ID!]!) {
             getApiKeys(user_ids: $user_ids) {
                 apikey_id
@@ -132,15 +219,24 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 roles
             }
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query, variable_values={"user_ids": user_ids})
         data_list = result["getApiKeys"]
-        return [ApiKey(uuid.UUID(data["apikey_id"]), uuid.UUID(data["user_id"]), datetime.fromisoformat(data["time"]), data["name"], data["roles"]) for data in data_list]
+        return [
+            ApiKey(
+                uuid.UUID(data["apikey_id"]),
+                uuid.UUID(data["user_id"]),
+                datetime.fromisoformat(data["time"]),
+                data["name"],
+                data["roles"],
+            )
+            for data in data_list
+        ]
 
     @_sync_or_async
     async def _download_file_async(self, file_id: str, destination_dir: Path) -> File:
-        query = gql_client('''
+        query = gql_client("""
         query downloadFile($file_id: ID!) {
             downloadFile(file_id: $file_id) {
                 file_id
@@ -149,19 +245,21 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 time
             }
         }
-        ''')
+        """)
 
         result = await self.client.execute_async(query, variable_values={"file_id": file_id})
         file_metadata = result["downloadFile"]
-        
+
         download_url = f"{self.server_url}/download/{str(file_id)}"
         async with aiohttp.ClientSession() as session:
-            async with session.get(download_url, headers={"Authorization": self.apikey_value}) as response:
+            async with session.get(
+                download_url, headers={"Authorization": self.apikey_value}
+            ) as response:
                 if response.status == 200:
                     filename = f"{str(file_id)}{file_metadata['extension']}"
                     destination_path = destination_dir / filename
-                    
-                    async with aiofiles.open(destination_path, 'wb') as f:
+
+                    async with aiofiles.open(destination_path, "wb") as f:
                         while True:
                             chunk = await response.content.read(DATA_CHUNK_SIZE)
                             if not chunk:
@@ -172,7 +270,7 @@ class OutsourcedMaotoAgentMethods(Maoto):
                         file_id=uuid.UUID(file_metadata["file_id"]),
                         apikey_id=uuid.UUID(file_metadata["apikey_id"]),
                         extension=file_metadata["extension"],
-                        time=datetime.fromisoformat(file_metadata["time"])
+                        time=datetime.fromisoformat(file_metadata["time"]),
                     )
                 else:
                     raise Exception(f"Failed to download file: {response.status}")
@@ -190,7 +288,7 @@ class OutsourcedMaotoAgentMethods(Maoto):
         new_file = NewFile(
             extension=file_path.suffix,
         )
-        query_str = '''
+        query_str = """
         mutation uploadFile($new_file: NewFile!, $file: Upload!) {
             uploadFile(new_file: $new_file, file: $file) {
                 file_id
@@ -198,22 +296,26 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 extension
                 time
             }
-        }'''
+        }"""
         async with aiohttp.ClientSession() as session:
-            async with aiofiles.open(file_path, 'rb') as f:
+            async with aiofiles.open(file_path, "rb") as f:
                 form = aiohttp.FormData()
-                form.add_field('operations', json.dumps({
-                    'query': query_str,
-                    'variables': {"new_file": {"extension": new_file.get_extension()}, "file": None}
-                }))
-                form.add_field('map', json.dumps({
-                    '0': ['variables.file']
-                }))
-                form.add_field('0', await f.read(), filename=str(file_path))
+                form.add_field(
+                    "operations",
+                    json.dumps(
+                        {
+                            "query": query_str,
+                            "variables": {
+                                "new_file": {"extension": new_file.get_extension()},
+                                "file": None,
+                            },
+                        }
+                    ),
+                )
+                form.add_field("map", json.dumps({"0": ["variables.file"]}))
+                form.add_field("0", await f.read(), filename=str(file_path))
 
-                headers = {
-                    "Authorization": self.apikey_value
-                }
+                headers = {"Authorization": self.apikey_value}
                 async with session.post(self.graphql_url, data=form, headers=headers) as response:
                     if response.status != 200:
                         raise Exception(f"Failed to upload file: {response.status}")
@@ -224,7 +326,7 @@ class OutsourcedMaotoAgentMethods(Maoto):
             file_id=uuid.UUID(file_metadata["file_id"]),
             apikey_id=uuid.UUID(file_metadata["apikey_id"]),
             extension=file_metadata["extension"],
-            time=datetime.fromisoformat(file_metadata["time"])
+            time=datetime.fromisoformat(file_metadata["time"]),
         )
 
     @_sync_or_async
@@ -234,7 +336,7 @@ class OutsourcedMaotoAgentMethods(Maoto):
             uploaded_file = await self._upload_file_async(file_path)
             uploaded_files.append(uploaded_file)
         return uploaded_files
-    
+
     @_sync_or_async
     async def download_missing_files(self, file_ids: list[str], download_dir: Path) -> list[File]:
         def _if_filenames_in_dir(self, filenames: list[str], dir: Path) -> list[str]:
@@ -244,6 +346,7 @@ class OutsourcedMaotoAgentMethods(Maoto):
                 if not file_path.exists():
                     missing_files.append(filename)
             return missing_files
+
         files_missing = _if_filenames_in_dir(file_ids)
         downloaded_files = await self.download_files(files_missing)
         return downloaded_files

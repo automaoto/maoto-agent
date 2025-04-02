@@ -11,6 +11,7 @@ work_dir_*
 *.secrets
 *.secrets*
 wheelhouse/
+*.lock
 
 # C extensions
 *.so

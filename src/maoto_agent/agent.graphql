@@ -1,48 +1,62 @@
 directive @auth on FIELD_DEFINITION
 
 scalar Datetime
-scalar JSON
-                        
-input Actioncall {
-    actioncall_id: ID!
-    action_id: ID!
-    post_id: ID!
-    apikey_id: ID!
-    parameters: JSON
-    time: Datetime!
-}
+scalar UUID
+scalar DICTSTR
                         
 input Response {
-    response_id: ID!
-    post_id: ID!
+    id: UUID!
+    time: Datetime!
+    offercallable_id: UUID!
     description: String!
-    apikey_id: ID
+    apikey_id: UUID!
+}
+
+input NewOfferCall {
+    apikey_id: UUID!
+    offercallable_id: UUID!
+    deputy_apikey_id: UUID!
+    arguments: DICTSTR!
+}
+
+input OfferCall {
+    apikey_id: UUID!
+    offer_id: UUID!
+    deputy_apikey_id: UUID!
+    parameters: DICTSTR!
+    id: UUID!
     time: Datetime!
 }
-                        
-input Post {
-    post_id: ID!
-    description: String!
-    context: String!
-    apikey_id: ID!
+
+input OfferCallableCostRequest {
+    offerreference: UUID!
+    parameters: DICTSTR!
+}
+
+input OfferReferenceCostRequest {
+    offerreference: UUID!
+    parameters: DICTSTR!
+}
+
+input Intent {
+    id: UUID!
     time: Datetime!
     resolved: Boolean!
+    apikey_id: UUID!
+    description: String!
+    tags: [String]!
 }
-                        
-input BidRequest {
-    action_id: ID
-    post: Post
+
+input OfferRequest {
+    skill_id: UUID!
+    resolver_id: UUID
+    intent: Intent
 }
 
 input PaymentRequest {
-    actioncall_id: ID
-    post_id: ID
-    payment_link: String
-}
-                        
-input Location {
-    latitude: Float
-    longitude: Float
+    actioncall_id: UUID!
+    post_id: UUID!
+    payment_link: String!
 }
                         
 input PALocationRequest {
@@ -50,8 +64,8 @@ input PALocationRequest {
 }
                         
 input PAUserMessage {
-    ui_id: String
-    text: String
+    ui_id: String!
+    text: String!
 }
                     
 input PALinkUrl {
@@ -61,13 +75,13 @@ input PALinkUrl {
 }
                     
 input LinkConfirmation {
-    pa_user_id: ID!
-    apikey_id: ID!
+    pa_user_id: UUID!
+    apikey_id: UUID!
 }
                         
 input PAPaymentRequest {
-    ui_id: String
-    payment_link: String
+    ui_id: String!
+    payment_link: String!
 }
                         
 type Query {
@@ -75,14 +89,17 @@ type Query {
 }
 
 type Mutation {
-    forwardActioncalls(actioncalls: [Actioncall!]!): [Boolean!]! @auth
-    forwardResponses(responses: [Response!]!): [Boolean!]! @auth
-    forwardBidRequests(bidrequests: [BidRequest!]!): [Boolean!]! @auth
-    forwardPaymentRequests(paymentrequests: [PaymentRequest!]!): [Boolean!]! @auth
-    forwardLinkConfirmation(linkconfirmation: LinkConfirmation!): Boolean! @auth
+    callOffer(input: OfferCall): Boolean! @auth
+    requestCallableOfferCost(input: OfferCallableCostRequest!): Boolean! @auth
+    requestReferenceOfferCost(input: OfferReferenceCostRequest!): Boolean! @auth
+    requestOffers(input: OfferRequest!): Boolean! @auth
+
+    forwardResponse(input: Response!): Boolean! @auth
+    forwardPaymentRequest(input: PaymentRequest!): Boolean! @auth
+    forwardLinkConfirmation(input: LinkConfirmation!): Boolean! @auth
                         
-    forwardPALocationRequest(pa_locationrequest: PALocationRequest!): Boolean! @auth
-    forwardPAUserMessage(pa_usermessage: PAUserMessage!): Boolean! @auth
-    forwardPAPaymentRequest(pa_paymentrequest: PAPaymentRequest!): Boolean! @auth
-    forwardPALinkUrl(pa_linkurl: PALinkUrl!): Boolean! @auth
+    forwardPALocationRequest(input: PALocationRequest!): Boolean! @auth
+    forwardPAUserMessage(input: PAUserMessage!): Boolean! @auth
+    forwardPAPaymentRequest(input: PAPaymentRequest!): Boolean! @auth
+    forwardPALinkUrl(input: PALinkUrl!): Boolean! @auth
 }
