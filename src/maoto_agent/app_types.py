@@ -2,12 +2,6 @@ from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr
 from uuid import UUID
 from abc import ABC
 from datetime import datetime
-    
-class ErrorResponse(BaseModel):
-    message: str
-
-class SuccessResponse(BaseModel):
-    message: str
 
 class NewUser(BaseModel):
     email: EmailStr
@@ -140,7 +134,7 @@ class NewOfferResponse(BaseModel):
     offerreference_ids: list[UUID]
     offercallable_ids: list[UUID]
 
-    missinginfo: list[MissingInfo]
+    missinginfos: list[MissingInfo]
     newoffercallables: list[NewOfferCallable]
     newofferreferences: list[NewOfferReference]
 
@@ -157,6 +151,7 @@ class OfferCall(NewOfferCall):
     id: UUID
     time: datetime
     apikey_id: UUID
+    resolver_id: UUID | None
 
 class NewFile(BaseModel):
     extension: str
@@ -255,8 +250,6 @@ class Url(BaseModel):
 
 class SessionToken(BaseModel):
     token: SecretStr
-
-
 
 # intent = Intent(
 #     id=UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
