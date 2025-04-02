@@ -21,7 +21,7 @@ class Maoto:
 
         self.app = self._app
 
-    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | PaymentRequest | LinkConfirmation | OfferCallResponse]):
+    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | OfferCallResponse | PaymentRequest | LinkConfirmation | PALocationRequest]):
         """
         Decorator to register a handler function for a specific event type.
 
