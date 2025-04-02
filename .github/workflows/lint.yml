@@ -21,7 +21,9 @@ jobs:
         version: "0.6.10"
     
     - name: Install dependencies
-      run: uv pip install -e ".[dev]"
+      run: |
+        uv pip install -e ".[dev]"
+        uv pip install ruff
     
     - name: Run Ruff linter
       run: |
