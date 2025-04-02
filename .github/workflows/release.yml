@@ -46,12 +46,22 @@ jobs:
     needs:
       - build-pypi
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
     environment:
       name: release_pypi
       url: https://pypi.org/p/maoto-agent
     permissions:
       id-token: write
     steps:
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+          version: "0.6.10"
       - name: Download all the dists
         uses: actions/download-artifact@v4
         with:
