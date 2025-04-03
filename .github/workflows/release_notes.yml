@@ -1,0 +1,10 @@
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  call-workflow:
+    uses: lennardkorte/auto-release-notes/.github/workflows/auto-release-notes.yml@main
