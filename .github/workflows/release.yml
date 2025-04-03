@@ -13,6 +13,60 @@ on:
         pattern: '^v\d+\.\d+\.\d+$'
 
 jobs:
+  auto-release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Pull & Rebase
+        run: |
+          git pull --rebase origin main
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install git+https://github.com/lennardkorte/auto-release-notes.git@main
+
+      - name: Checkout external repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'lennardkorte/auto-release-notes'
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: auto-release-notes
+
+      - name: Check latest tag
+        run: |
+          git tag --list
+      
+      - name: Run Python script
+        run: |
+          python auto-release-notes/run.py > output.txt
+
+      - name: Display output
+        run: |
+          cat output.txt
+
+      - name: Upload output artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-output
+          path: output.txt
+
   build-pypi:
     name: Build pypi distribution 📦
     runs-on: ubuntu-latest
@@ -200,6 +254,13 @@ jobs:
         with:
           name: python-package-distributions-pypi
           path: dist/
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes-output
+          path: release-notes
+
       - name: Sign the dists with Sigstore
         uses: sigstore/gh-action-sigstore-python@v3.0.0
         with:
@@ -213,7 +274,7 @@ jobs:
           gh release create
           "$GITHUB_REF_NAME"
           --repo "$GITHUB_REPOSITORY"
-          --generate-notes
+          --notes-file release-notes/output.txt
       - name: Upload artifact signatures to GitHub Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
