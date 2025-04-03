@@ -732,6 +732,8 @@ class Maoto:
         result = await self._graphql_service_marketplace.execute_async(
             query, variable_values={"url": url}
         )
+        result = result["addUrlToApikey"]
+        return result
 
     def register_handler(
         self,
