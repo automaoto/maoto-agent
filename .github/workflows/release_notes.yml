@@ -1,3 +1,5 @@
+name: Auto Release Notes
+
 on:
   push:
     branches: [ main ]
