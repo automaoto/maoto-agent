@@ -13,6 +13,24 @@ on:
         pattern: '^v\d+\.\d+\.\d+$'
 
 jobs:
+  verify-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release-notes-output artifact
+        id: download_artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes-output
+          path: ./artifact
+        continue-on-error: true  # allow the step to complete even if it fails
+
+      - name: Verify artifact exists
+        run: |
+          if [ ! -f "./artifact/output.txt" ]; then
+            echo "Artifact not found, stopping workflow."
+            exit 1
+          fi
+
   build-pypi:
     name: Build pypi distribution 📦
     runs-on: ubuntu-latest
@@ -201,12 +219,6 @@ jobs:
           name: python-package-distributions-pypi
           path: dist/
 
-      - name: Download release notes
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes-output
-          path: release-notes
-
       - name: Sign the dists with Sigstore
         uses: sigstore/gh-action-sigstore-python@v3.0.0
         with:
@@ -220,7 +232,7 @@ jobs:
           gh release create
           "$GITHUB_REF_NAME"
           --repo "$GITHUB_REPOSITORY"
-          --notes-file release-notes/output.txt
+          --notes-file artifact/output.txt
       - name: Upload artifact signatures to GitHub Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
