@@ -696,11 +696,13 @@ class Maoto:
             }
         }
         """)
-        return OfferCall(**(
-            await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": new_offercall.model_dump()}
-            )
-        )["createNewOfferCall"])
+        return OfferCall(
+            **(
+                await self._graphql_service_marketplace.execute_async(
+                    query, variable_values={"input": new_offercall.model_dump()}
+                )
+            )["createNewOfferCall"]
+        )
 
     async def set_webhook(self, url: str = None):
         """
