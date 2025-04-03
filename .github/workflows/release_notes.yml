@@ -7,4 +7,4 @@ on:
 
 jobs:
   call-workflow:
-    uses: lennardkorte/auto-release-notes/.github/workflows/auto-release-notes.yml@main
+    uses: lennardkorte/auto-release-notes/.github/workflows/auto_release_notes.yml@main
