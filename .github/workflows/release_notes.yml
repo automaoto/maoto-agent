@@ -17,4 +17,3 @@ jobs:
     uses: lennardkorte/auto-release-notes/.github/workflows/auto_release_notes.yml@main
     secrets:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      PAT: ${{ secrets.PRIVATE_REPO_PAT }}
