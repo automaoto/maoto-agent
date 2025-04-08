@@ -1,14 +1,20 @@
-### 0.1.0 (yyyy-mm-dd)
+### 0.1.0
 
 ### New Features
-* Added workflow to automatically generate release notes.  (See `.github/workflows/release_notes.yml`)
-* Added `set_webhook` function to `maoto_agent.py` to set or update the webhook URL.
-* Improved `set_webhook` function in `maoto_agent.py` to return the result of the mutation.
+
+* Added auto release notes workflow.
+* Added `set_webhook` method to `Maoto` class.  This method sets or updates the webhook URL associated with the agent's API key.  The URL can be provided as an argument or retrieved from the `MAOTO_AGENT_URL` environment variable.  Returns a boolean indicating success or failure.
+
 
 ### Bug Fixes
-* Fixed an issue in `maoto_agent.py` where `send_newoffercall` was not returning the created `OfferCall` object.  The created object is now correctly returned.
-* Fixed the GitHub release workflow to correctly upload release notes using a notes file.
+
+* Fixed the `send_newoffercall` method in the `Maoto` class to correctly return an `OfferCall` object.  Previously, it was returning a dictionary.
+* Updated the GitHub release workflow to include a notes file.
 
 
 ### Other Changes
-* Commented out the conda-forge recipe preparation section in the release workflow.  (See `.github/workflows/release.yml`)
+
+* Updated `Maoto` class to handle boolean responses to `set_webhook`.
+* Removed commented-out code for conda-forge recipe preparation from the release workflow.  This functionality will be added in a future release.
+
+
