@@ -1,355 +1,198 @@
-import asyncio
-
-# Server Mode:
-import importlib.resources
-import json
-import logging
 import os
 import uuid
-from datetime import datetime
+from .app_types import *
+from fastapi import FastAPI
 from importlib.metadata import version
-from typing import Callable
-
-from ariadne import (
-    MutationType,
-    QueryType,
-    ScalarType,
-    SchemaDirectiveVisitor,
-    make_executable_schema,
-)
-from ariadne.asgi import GraphQL
-from dateutil import parser
-from gql import Client
-from gql import gql as gql_client
-from gql.transport.aiohttp import AIOHTTPTransport
-from graphql import FieldDefinitionNode, GraphQLError
-
-from .app_types import (
-    ApiKey,
-    LinkConfirmation,
-    NewIntent,
-    NewOfferCall,
-    NewOfferCallable,
-    NewOfferCallableCostResponse,
-    NewOfferCallResponse,
-    NewOfferReference,
-    NewOfferReferenceCostResponse,
-    NewOfferResponse,
-    NewSkill,
-    OfferCall,
-    OfferCallable,
-    OfferCallableCostRequest,
-    OfferReference,
-    OfferReferenceCostRequest,
-    OfferRequest,
-    PALinkUrl,
-    PALocationRequest,
-    PALocationResponse,
-    PANewConversation,
-    PAPaymentRequest,
-    PASupportRequest,
-    PAUserMessage,
-    PAUserResponse,
-    PaymentRequest,
-    Response,
-    Skill,
-    Url,
-)
-
-DATA_CHUNK_SIZE = 1024 * 1024  # 1 MB in bytes
-
+from pydantic import BaseModel, HttpUrl
+from .agent_settings import AgentSettings
+from typing import Literal
+from loguru import logger
 
 class Maoto:
-    class ServerMode:
-        class AuthDirective(SchemaDirectiveVisitor):
-            def visit_field_definition(self, field: FieldDefinitionNode, _) -> FieldDefinitionNode:
-                original_resolver = field.resolve
+    def __init__(self, apikey_value: str | None = None):
+        self._settings = AgentSettings(maoto_api_key=apikey_value or None)
+        
+        logger.remove()  # Remove default handler
+        logger.add(lambda msg: print(msg), level=self._settings.logging_level)
+        self.logger = logger
 
-                async def resolve_auth(root, info, **kwargs):
-                    """Authenticate and authorize API key."""
+        self._app = FastAPI(debug=self._settings.debug)
+        self._version = version("maoto_agent")
+        self._headers = {"Authorization": self._settings.apikey, "Version": self._version}
 
-                    request = info.context["request"]
-                    value = request.headers.get("Authorization")
+        self.app = self._app
 
-                    if not value:
-                        raise GraphQLError("Authentication failed. No API key provided.")
-                    if value in ["marketplace_apikey_value", "assistant_apikey_value"]:
-                        info.context["apikey"] = ApiKey(
-                            id=uuid.uuid4(),
-                            time=datetime.now(),
-                            user_id=uuid.uuid4(),
-                            name=value,
-                            roles=[],
-                            url=None,
-                        )
-                    else:
-                        raise GraphQLError("Wrong apikey value.")
-
-                    return await original_resolver(root, info, **kwargs)
-
-                field.resolve = resolve_auth
-                return field
-
-        def __init__(
-            self,
-            logger: logging.Logger,
-            resolver: Callable[[object], None],
-            debug: bool,
-        ):
-            self.logger, self.resolver, self.debug = logger, resolver, debug
-
-            self.query, self.mutation = QueryType(), MutationType()
-            self.scalars = [
-                ScalarType(name, serializer=serializer, value_parser=parser_)
-                for name, (serializer, parser_) in {
-                    "Datetime": (lambda v: v.isoformat(), lambda v: parser.parse(v)),
-                    "DICTSTR": (json.dumps, json.loads),
-                    "UUID": (str, uuid.UUID),
-                }.items()
-            ]
-
-            mutation_mappings = {
-                "callOffer": OfferCall,
-                "requestCallableOfferCost": OfferCallableCostRequest,
-                "requestReferenceOfferCost": OfferReferenceCostRequest,
-                "requestOffers": OfferRequest,
-                "forwardResponse": Response,
-                "forwardPaymentRequest": PaymentRequest,
-                "forwardLinkConfirmation": LinkConfirmation,
-                "forwardPAPaymentRequest": PAPaymentRequest,
-                "forwardPALocationRequest": PALocationRequest,
-                "forwardPAUserMessage": PAUserMessage,
-                "forwardPALinkUrl": PALinkUrl,
-            }
-
-            for field_name, model_class in mutation_mappings.items():
-
-                @self.mutation.field(field_name)
-                async def resolver(_, info, input: dict[str, object], model_class=model_class):
-                    instance = model_class(**input)
-                    asyncio.create_task(self.resolver(instance))
-                    return True
-
-            schema_str = (importlib.resources.files(__package__) / "agent.graphql").read_text()
-            self.executable_schema = make_executable_schema(
-                schema_str,
-                [self.query, self.mutation] + self.scalars,
-                directives={"auth": self.AuthDirective},
-            )
-
-            self.graphql_app = GraphQL(
-                self.executable_schema,
-                debug=self.debug,
-            )
-
-    class GraphQLService:
-        def __init__(self, url: str, apikey_value: str, schema=None, version: str = "undefined"):
-            self._url, self._apikey_value, self._schema, self._version = (
-                url,
-                apikey_value,
-                schema,
-                version,
-            )
-
-        def _get_client(self, server_url: str) -> Client:
-            transport = AIOHTTPTransport(
-                ssl=True,
-                url=server_url,
-                headers={"Authorization": self._apikey_value, "Version": self._version},
-            )
-            client = Client(
-                transport=transport,
-                fetch_schema_from_transport=False,
-                schema=self._schema,
-            )
-            return client
-
-        async def execute_async(self, query, variable_values=None):
-            gql_client = self._get_client(self._url)
-            return await gql_client.execute_async(query, variable_values=variable_values)
-
-    def __init__(
-        self,
-        logging_level=None,
-        assistant=True,
-        marketplace=True,
-        apikey_value: str | None = None,
-    ):
-        self._apikey = None
-
-        # Set up logging and debug mode
-        self._debug = (
-            os.getenv("DEBUG", "False").lower() == "true"
-            or os.getenv("MAOTO_DEBUG", "False").lower() == "true"
-        )
-        # Set up logging
-        self._logging_level = (
-            logging_level if logging_level else logging.DEBUG if self._debug else logging.INFO
-        )
-        logging.basicConfig(
-            level=self._logging_level,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-        )
-        self.logger = logging.getLogger(__name__)
-        # Disable INFO logs for gql and websockets
-        logging.getLogger("gql").setLevel(logging.DEBUG if self._debug else logging.WARNING)
-        logging.getLogger("websockets").setLevel(logging.DEBUG if self._debug else logging.WARNING)
-
-        self._domain_mp = os.environ.get("DOMAIN_MP", "mp.maoto.world")
-        self._domain_pa = os.environ.get("DOMAIN_PA", "pa.maoto.world")
-
-        self._use_ssl = os.environ.get("USE_SSL", "true").lower() == "true"
-        self._protocol = "https" if self._use_ssl else "http"
-        self._port_mp = os.environ.get("PORT_MP", "443" if self._use_ssl else "80")
-        self._port_pa = os.environ.get("PORT_PA", "443" if self._use_ssl else "80")
-
-        self._url_mp = self._protocol + "://" + self._domain_mp + ":" + self._port_mp + "/graphql"
-        self._url_pa = self._protocol + "://" + self._domain_pa + ":" + self._port_pa + "/graphql"
-
-        self._protocol_websocket = "wss" if self._use_ssl else "ws"
-        self._url_marketplace_subscription = self._url_mp.replace(
-            self._protocol, self._protocol_websocket
-        )
-
-        self._apikey_value = apikey_value or os.environ.get("MAOTO_API_KEY")
-        if not self._apikey_value:
-            raise ValueError("API key is required.")
-
-        self._handler_registry = dict()
-
-        if assistant:
-            self._graphql_service_assistant = self.GraphQLService(
-                url=self._url_pa,
-                apikey_value=self._apikey_value,
-                version=version("maoto-agent"),
-            )
-
-        if marketplace:
-            self._graphql_service_marketplace = self.GraphQLService(
-                url=self._url_mp,
-                apikey_value=self._apikey_value,
-                version=version("maoto-agent"),
-            )
-
-        self._server = self.ServerMode(self.logger, self._resolve_event, self._debug)
-        self.handle_request = self._server.graphql_app.handle_request
-
-    async def _resolve_event(self, event_obj: object):
-        event = type(event_obj)
-        if event in self._handler_registry:
-            self._handler_registry[event](event_obj)
-        else:
-            self.logger.warning(f"No handler registered for event type {event}")
-
-    async def _get_own_api_key(self) -> ApiKey:
-        # Query to fetch the user's own API keys, limiting the result to only one
-        query = gql_client("""
-        query {
-            getOwnApiKeys {
-                apikey_id
-                user_id
-                name
-                time
-                roles
-            }
-        }
-        """)
-
-        result = await self._graphql_service_marketplace.execute_async(query)
-        data_list = result["getOwnApiKeys"]
-
-        # Return the first API key (assume the list is ordered by time or relevance)
-        if data_list:
-            data = data_list[0]
-            return ApiKey(**data)
-        else:
-            raise Exception("No API keys found for the user.")
-
-    async def get_own_api_key(self) -> ApiKey:
+    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | OfferCallResponse | PaymentRequest | LinkConfirmation | PALocationRequest]):
         """
-        Retrieve and cache the current API key.
+        Decorator to register a handler function for a specific event type.
+
+        Parameters
+        ----------
+        event_type : type
+            The event type to handle. One of the supported incoming event models like OfferCall, OfferRequest, etc.
+
+        Returns
+        -------
+        function
+            A decorator function that registers the given handler.
+        
+        Raises
+        ------
+        ValueError
+            If the provided type is not among supported event types.
+
+        Examples
+        --------
+        >>> @maoto.register_handler(OfferCall)
+        >>> def handle_offer_call(event):
+        >>>     print("Handling OfferCall", event)
+        """
+        def decorator(func):
+            self._app.add_api_route(
+                path=f"/{event_type.__name__}",
+                endpoint=func,
+                methods=["POST", "GET"],
+                response_model=event_type
+            )
+            return func
+        return decorator
+
+    async def _request(
+        self,
+        method: Literal["GET", "POST", "PUT", "DELETE"],
+        input: BaseModel | None = None,
+        result_type: type | None = None,
+        is_list: bool = False,
+        route: str | None = None,
+        url: HttpUrl = None
+    ) -> BaseModel:
+        """Send a request to another FastAPI server with a Pydantic object and return a validated response."""
+        request_kwargs = {
+            "url": url + "/" + route if route else url,
+            "headers": self._headers,
+        }
+
+        if method in {"POST", "PUT"}:
+            if isinstance(input, BaseModel):
+                request_kwargs["json"] = input.model_dump_json()
+            elif isinstance(input, dict):
+                request_kwargs["json"] = input
+            else:
+                raise Exception()
+
+        async with self.app.client_session.request(method, **request_kwargs) as response:
+            if response.status != 200:
+                raise Exception(status_code=response.status, detail=await response.text())
+            
+            data = await response.json()
+            if result_type is bool:
+                return data
+            return [result_type.model_validate(item) for item in data] if is_list else result_type.model_validate(data)
+
+    async def get_own_apikey(self) -> ApiKey:
+        """
+        Retrieve the API key associated with the current agent.
 
         Returns
         -------
         ApiKey
-            The API key associated with this agent instance.
-        """
-        if not self._apikey:
-            self._apikey = await self._get_own_api_key()
-        return self._apikey
+            The API key object containing the key details.
 
+        Raises
+        ------
+        Exception
+            If no API key is found for the user.
+
+        Examples
+        --------
+        >>> apikey = await maoto.get_own_apikey()
+        >>> print(apikey.key)
+        """
+        return await self._request(
+            result_type=ApiKey,
+            route="get_own_apikey",
+            url=self._settings.url_mp,
+            method="GET"
+        )
+    
     async def check_status_marketplace(self) -> bool:
         """
-        Check if the Marketplace service is available.
+        Check if the Marketplace service is currently available.
 
         Returns
         -------
         bool
             True if the Marketplace is operational, False otherwise.
+
+        Examples
+        --------
+        >>> is_up = await maoto.check_status_marketplace()
+        >>> print("Marketplace is up" if is_up else "Marketplace is down")
         """
-        query = gql_client("""
-        query {
-            checkStatus
-        }
-        """)
-        result = await self._graphql_service_marketplace.execute_async(query)
-        return result["checkStatus"]
+        await self._request(
+            result_type=bool,
+            route="checkStatus",
+            url=self._settings.url_mp,
+            method="GET"
+        )
 
     async def check_status_assistant(self) -> bool:
         """
-        Check if the Assistant service is available.
+        Check if the Assistant service is currently available.
 
         Returns
         -------
         bool
             True if the Assistant is operational, False otherwise.
+
+        Examples
+        --------
+        >>> is_up = await maoto.check_status_assistant()
+        >>> print("Assistant is running" if is_up else "Assistant is down")
         """
-        query = gql_client("""
-        query {
-            checkStatus
-        }
-        """)
-        result = await self._graphql_service_assistant.execute_async(query)
-        return result["checkStatus"]
+        await self._request(
+            result_type=bool,
+            route="checkStatus",
+            url=self._settings.url_pa,
+            method="GET"
+        )
 
     async def send_intent(self, new_intent: NewIntent) -> None:
         """
-        Send an Intent object to the Marketplace for resolution.
+        Send an intent to the Marketplace for resolution.
 
         Parameters
         ----------
         new_intent : NewIntent
-            The Intent object to create.
-        """
-        query = gql_client("""
-        mutation createIntent($input: NewIntent!) {
-            createIntent(input: $input)
-        }
-        """)
-        await self._graphql_service_marketplace.execute_async(
-            query, variable_values={"input": new_intent.model_dump()}
-        )
+            The intent object to create and send.
 
-    async def unregister(
-        self,
-        obj: Skill | OfferCallable | OfferReference | None = None,
-        obj_type: type[Skill | OfferCallable | OfferReference] | None = None,
-        id: uuid.UUID | None = None,
-        solver_id: uuid.UUID | None = None,
-    ) -> bool:
+        Examples
+        --------
+        >>> intent = NewIntent(name="BookFlight", parameters={"destination": "Tokyo"})
+        >>> await maoto.send_intent(intent)
         """
-        Unregister an existing Skill, OfferCallable, or OfferReference from the Marketplace to make it unavailable for use.
+        return await self._request(
+            input=new_intent,
+            result_type=Intent,
+            route="createIntent",
+            url=self._settings.url_mp,
+            method="POST"
+        )
+    
+    async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type[Skill | OfferCallable | OfferReference] | None = None, id: uuid.UUID | None = None, solver_id: uuid.UUID | None = None) -> bool:
+        """
+        Unregister a Skill, OfferCallable, or OfferReference to make it unavailable.
 
         Parameters
         ----------
-        obj : Skill or OfferCallable or OfferReference or None, optional
-            The object to unregister.
+        obj : Skill or OfferCallable or OfferReference, optional
+            The object instance to unregister.
         obj_type : type, optional
-            The type of object to unregister.
+            The type of object (used if `obj` is not given).
         id : uuid.UUID, optional
-            The ID of the object to unregister.
+            ID of the object to unregister.
         solver_id : uuid.UUID, optional
-            The ID of the object to unregister.
+            Solver ID of the object to unregister.
 
         Returns
         -------
@@ -360,6 +203,11 @@ class Maoto:
         ------
         ValueError
             If required parameters are missing or the object type is unsupported.
+
+        Examples
+        --------
+        >>> await maoto.unregister(obj=my_skill)
+        >>> await maoto.unregister(obj_type=Skill, id=UUID("abc123"))
         """
         if obj:
             obj_type, obj_id = type(obj), obj.id
@@ -367,53 +215,26 @@ class Maoto:
             obj_id = id or solver_id
         else:
             raise ValueError("Either obj or obj_type and id/solver_id must be provided.")
-
-        if obj_type == Skill:
-            query = gql_client("""
-                mutation unregisterSkill($skill_id: ID!) {
-                    unregisterSkill(skill_id: $skill_id)
-                }
-            """)
-            variable_values = {"skill_id": str(obj_id)}
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values=variable_values
-            )
-            return result["unregisterSkill"]
-
-        elif obj_type == OfferCallable:
-            query = gql_client("""
-                    mutation unregisterOfferCallable($offercallable_id: ID!) {
-                        unregisterOfferCallable(offercallable_id: $offercallable_id)
-                    }
-                """)
-            variable_values = {"offercallable_id": str(obj_id)}
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values=variable_values
-            )
-            return result["unregisterOfferCallable"]
-
-        elif obj_type == OfferReference:
-            query = gql_client("""
-                mutation unregisterOfferReference($offerreference_id: ID!) {
-                    unregisterOfferReference(offerreference_id: $offerreference_id)
-                }
-            """)
-            variable_values = {"offerreference_id": str(obj_id)}
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values=variable_values
-            )
-            return result["unregisterOfferReference"]
-
-        else:
-            raise ValueError(f"Object type {obj_type} not supported.")
-
-    async def send_response(
-        self,
-        obj: NewOfferResponse
-        | NewOfferCallResponse
-        | NewOfferCallableCostResponse
-        | NewOfferReferenceCostResponse,
-    ) -> bool:
+        
+        # check types of provided parameters if they are defined (optionals)
+        if obj_type and obj_id:
+            if obj_type not in {Skill, OfferCallable, OfferReference}:
+                raise ValueError("Unsupported type. Must be one of: Skill, OfferCallable, OfferReference.")
+            if not isinstance(obj_id, uuid.UUID):
+                raise ValueError("ID must be a valid UUID.")
+        elif obj:
+            if not isinstance(obj, (Skill, OfferCallable, OfferReference)):
+                raise ValueError("Input must be one of: Skill, OfferCallable, OfferReference.")
+        
+        return await self._request(
+            input={"id": str(obj_id)},
+            result_type=bool,
+            route=f"unregister{obj_type.__name__}",
+            url=self._settings.url_mp,
+            method="POST"
+        )
+    
+    async def send_response(self, obj: NewOfferResponse | NewOfferCallResponse | NewOfferCallableCostResponse | NewOfferReferenceCostResponse) -> bool:
         """
         Send a response object to the Marketplace to complete a request or update its status.
 
@@ -422,21 +243,21 @@ class Maoto:
         obj : NewOfferResponse or NewOfferCallResponse or NewOfferCallableCostResponse or NewOfferReferenceCostResponse
             The response object to send. One of:
 
-            - **NewOfferResponse**
-              Sent in response to an `OfferRequest`.
-              Informs the marketplace of the offers made when an intent matches a registered skill.
+            - **NewOfferResponse**  
+            Sent in response to an OfferRequest.  
+            Informs the Marketplace of the offers made when an intent matches a registered skill.
+            
+            - **NewOfferCallResponse**  
+            Sent in response to an OfferCall.  
+            Informs the caller of status updates related to the offer call.
 
-            - **NewOfferCallResponse**
-              Sent in response to an `OfferCall`.
-              Informs the caller of status updates related to the offer call.
+            - **NewOfferCallableCostResponse**  
+            Sent in response to an OfferCallableCostRequest.  
+            Provides the actual cost for a callable offer.
 
-            - **NewOfferCallableCostResponse**
-              Sent in response to an `OfferCallableCostRequest` (when cost is `None`).
-              Informs the marketplace of the actual cost for a callable offer.
-
-            - **NewOfferReferenceCostResponse**
-              Sent in response to an `OfferReferenceCostRequest` (when cost or URL is `None`).
-              Informs the marketplace of the cost and/or URL for a reference offer.
+            - **NewOfferReferenceCostResponse**  
+            Sent in response to an OfferReferenceCostRequest.  
+            Provides the cost and/or URL for a reference offer.
 
         Returns
         -------
@@ -447,232 +268,151 @@ class Maoto:
         ------
         ValueError
             If the object type is unsupported.
+
+        Examples
+        --------
+        >>> response = NewOfferResponse(...)  # Fill with valid response data
+        >>> await maoto.send_response(response)
         """
-        if isinstance(obj, NewOfferCallResponse):
-            query = gql_client("""
-            mutation sendOfferCallResponse($input: OfferCallResponse!) {
-                sendOfferCallResponse(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["sendOfferCallResponse"]
-
-        if isinstance(obj, NewOfferResponse):
-            query = gql_client("""
-            mutation sendOfferResponse($input: OfferResponse!) {
-                sendOfferResponse(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["sendOfferResponse"]
-
-        elif isinstance(obj, NewOfferCallableCostResponse):
-            query = gql_client("""
-            mutation sendNewOfferCallableCostResponse($input: NewOfferCallableCostResponse!) {
-                sendNewOfferCallableCostResponse(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["sendOfferCallableCostResponse"]
-
-        elif isinstance(obj, NewOfferReferenceCostResponse):
-            query = gql_client("""
-            mutation sendNewOfferReferenceCostResponse($input: NewOfferReferenceCostResponse!) {
-                sendNewOfferReferenceCostResponse(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["sendOfferReferenceCostResponse"]
-
-        else:
-            raise ValueError(f"Object type {type(obj)} not supported.")
-
+        if not isinstance(obj, (NewOfferResponse, NewOfferCallResponse, NewOfferCallableCostResponse, NewOfferReferenceCostResponse)):
+            raise ValueError("Input must be one of: NewOfferResponse, NewOfferCallResponse, NewOfferCallableCostResponse, NewOfferReferenceCostResponse.")
+        
+        await self._request(
+            input=obj,
+            result_type=bool,
+            route=f"send{type(obj).__name__}",
+            url=self._settings.url_mp,
+            method="POST"
+        )
+    
     async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
         """
-        Register a new Skill, OfferCallable, or OfferReference with the Marketplace to make it available.
+        Register a new object with the Marketplace to make it available.
 
         Parameters
         ----------
         obj : NewSkill or NewOfferCallable or NewOfferReference
             The object to register. One of:
 
-            - **NewSkill**
-              Lists the skills the agent can react to when an intent matches.
-              Enables the marketplace to prompt the agent to resolve `OfferRequests`
-              with `OfferResponses` when the intent matches the skill.
-
-            - **NewOfferCallable**
-              Lists an OfferCallable the agent can resolve.
-              Enables the marketplace to:
-                - Resolve `OfferCallableCostRequests` with `OfferCallableCostResponses` (when cost is `None`)
-                - Resolve `OfferCalls` with `OfferCallResponses`
-
-            - **NewOfferReference**
-              An NewOfferReference the agent links to.
-              Enables the marketplace to:
-                - Resolve `OfferReferenceCostRequests` with `OfferReferenceCostResponses` (when cost or URL is `None`)
-                - Resolve `OfferCalls` with `OfferCallResponses`
+            - **NewSkill**  
+            Registers a set of skills the agent can respond to.  
+            Enables the Marketplace to send OfferRequests when an intent matches.
+            
+            - **NewOfferCallable**  
+            Registers a callable offer that the agent can fulfill.  
+            Enables cost resolution and execution via the Marketplace.
+            
+            - **NewOfferReference**  
+            Registers a reference offer linking to external resources.  
+            Enables cost/URL resolution or execution through the Marketplace.
 
         Returns
         -------
         bool
             True if the object was successfully registered.
+
+        Examples
+        --------
+        >>> skill = NewSkill(name="TranslateText", ...)  # Fill in your data
+        >>> await maoto.register(skill)
         """
-        if isinstance(obj, NewSkill):
-            query = gql_client("""
-            mutation registerSkill($input: NewSkill!) {
-                registerSkill(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["registerSkill"]
-
-        elif isinstance(obj, NewOfferCallable):
-            query = gql_client("""
-            mutation registerOfferCallable($input: NewOfferCallable!) {
-                registerOfferCallable(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["registerOfferCallable"]
-
-        elif isinstance(obj, NewOfferReference):
-            query = gql_client("""
-            mutation registerOfferReference($input: NewOfferReference!) {
-                registerOfferReference(input: $input)
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(
-                query, variable_values={"input": obj.model_dump()}
-            )
-            return result["registerOfferReference"]
-
-    async def get_registered(
-        self, type_ref: Skill | OfferCallable | OfferReference
-    ) -> list[Skill | OfferCallable | OfferReference]:
+        if not isinstance(obj, (NewSkill, NewOfferCallable, NewOfferReference)):
+            raise ValueError("Input must be one of: NewSkill, NewOfferCallable, NewOfferReference.")
+        
+        return await self._request(
+            input=obj,
+            result_type=bool,
+            route=f"register{type(obj).__name__}",
+            url=self._settings.url_mp,
+            method="POST"
+        )
+    
+    async def get_registered(self, type_ref: type[Skill | OfferCallable | OfferReference]) -> list[Skill | OfferCallable | OfferReference]:
         """
-        Retrieve registered objects of a specified type from the Marketplace.
+        Retrieve registered objects of a given type from the Marketplace.
 
         Parameters
         ----------
-        type_ref : Skill or OfferCallable or OfferReference
-            The type of object to retrieve.
+        type_ref : type
+            One of the following types:
+            
+            - **Skill**
+            - **OfferCallable**
+            - **OfferReference**
 
         Returns
         -------
-        list of Skill or OfferCallable or OfferReference
-            A list of registered objects of the specified type.
+        list
+            A list of registered objects of the given type.
 
         Raises
         ------
         ValueError
             If the provided type is not supported.
+
+        Examples
+        --------
+        >>> skills = await maoto.get_registered(Skill)
+        >>> for skill in skills:
+        >>>     print(skill.name)
         """
-        if type_ref == Skill:
-            query = gql_client("""
-            query {
-                getSkills {
-                    id
-                    time
-                    description
-                    tags
-                }
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(query)
-            return [Skill(**data) for data in result["getSkills"]]
+        if type_ref not in {Skill, OfferCallable, OfferReference}:
+            raise ValueError("Unsupported type. Must be one of: Skill, OfferCallable, OfferReference.")
+        
+        return await self._request(
+            result_type=type_ref,
+            is_list=True,
+            route=f"get{type_ref.__name__}",
+            url=self._settings.url_mp,
+            method="GET"
+        )
 
-        elif type_ref == OfferCallable:
-            query = gql_client("""
-            query {
-                getOfferCallables {
-                    id
-                    time
-                    parameters
-                    description
-                    tags
-                    followup
-                    cost
-                }
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(query)
-            return [OfferCallable(**data) for data in result["getOfferCallables"]]
-
-        elif type_ref == OfferReference:
-            query = gql_client("""
-            query {
-                getOfferReferences {
-                    id
-                    time
-                    url
-                    description
-                    tags
-                    followup
-                    cost
-                }
-            }
-            """)
-            result = await self._graphql_service_marketplace.execute_async(query)
-            return [OfferReference(**data) for data in result["getOfferReferences"]]
-
-    async def refund_offercall(
-        self, offercall: OfferCall | None = None, id: uuid.UUID | None = None
-    ) -> bool:
+    async def refund_offercall(self, offercall: OfferCall | None = None, id: uuid.UUID | None = None) -> bool:
         """
-        Refund an OfferCall in case of an error or other issues. This might also be in case the user asks to cancel the OfferCall.
+        Refund an OfferCall due to an error, cancellation, or other issues.
 
         Parameters
         ----------
-        offercall : OfferCall or None, optional
+        offercall : OfferCall, optional
             The OfferCall object to refund.
         id : uuid.UUID, optional
-            The ID of the OfferCall to refund.
+            The ID of the OfferCall.
 
         Returns
         -------
         bool
-            True if the OfferCall was successfully refunded.
+            True if the refund was successful.
 
         Raises
         ------
         ValueError
-            If required parameters are missing.
-        """
-        offercall_id = (offercall.id if offercall else None) or id
-        if not offercall_id:
-            raise ValueError("Either offercall or id must be provided.")
+            If neither an object nor ID is provided.
 
-        query = gql_client("""
-        mutation refundOfferCall($offer_call_id: ID!) {
-            refundOfferCall(offer_call_id: $offer_call_id)
-        }
-        """)
-        result = await self._graphql_service_marketplace.execute_async(
-            query, variable_values={"offer_call_id": str(offercall_id)}
+        Examples
+        --------
+        >>> await maoto.refund_offercall(id=UUID("abc123"))
+        >>> await maoto.refund_offercall(offercall=some_offercall)
+        """
+        offercallid = (offercall.id if offercall else None) or id
+        if not offercallid:
+            raise ValueError("Either offercall or id must be provided.")
+        
+        return await self._request(
+            input={"id": str(offercallid)},
+            result_type=bool,
+            route="refundOfferCall",
+            url=self._settings.url_mp,
+            method="POST"
         )
-        return result["refundOfferCall"]
 
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
         """
-        Sends a new OfferCall to the Marketplace / Agent.
+        Send a new OfferCall to the Marketplace.
 
         Parameters
         ----------
         new_offercall : NewOfferCall
-            The OfferCall object to create.
+            The OfferCall to create.
 
         Returns
         -------
@@ -682,144 +422,99 @@ class Maoto:
         Raises
         ------
         ValueError
-            If the OfferCall object is invalid.
+            If the input is invalid.
+
+        Examples
+        --------
+        >>> new_call = NewOfferCall(...)  # Fill with valid details
+        >>> offer_call = await maoto.send_newoffercall(new_call)
+        >>> print(offer_call.id)
         """
-        query = gql_client("""
-        mutation createNewOfferCall($input: NewOfferCall!) {
-            createNewOfferCall(input: $input) {
-                id
-                time
-                apikey_id
-                offer_id
-                deputy_apikey_id
-                parameters
-            }
-        }
-        """)
-        return OfferCall(
-            **(
-                await self._graphql_service_marketplace.execute_async(
-                    query, variable_values={"input": new_offercall.model_dump()}
-                )
-            )["createNewOfferCall"]
+        if not isinstance(new_offercall, NewOfferCall):
+            raise ValueError("Input must be a NewOfferCall object.")
+        
+        return await self._request(
+            input=new_offercall,
+            result_type=OfferCall,
+            route="sendNewOfferCall",
+            url=self._settings.url_mp,
+            method="POST"
         )
 
-    async def set_webhook(self, url: str = None):
+    async def set_webhook(self, url: str = None) -> bool:
         """
-        Set or update the webhook URL associated with the agent's API key.
+        Set or update the webhook URL associated with this agent's API key.
 
         Parameters
         ----------
         url : str, optional
-            The webhook URL to be set. If not provided, the value is retrieved from the
-            MAOTO_AGENT_URL environment variable.
+            The webhook URL to be set. If not provided, reads from `MAOTO_AGENT_URL`.
 
+        Returns
+        -------
+        bool
+            True if the webhook URL was successfully set.
         Raises
         ------
         ValueError
-            If neither a `url` argument nor the MAOTO_AGENT_URL environment variable is provided.
+            If no URL is provided and `MAOTO_AGENT_URL` is not set.
+
+        Examples
+        --------
+        >>> await maoto.set_webhook("https://agent.example.com/webhook")
         """
         if not url:
             env_url = os.getenv("MAOTO_AGENT_URL")
             if not env_url:
                 raise ValueError("No URL provided in environment variable MAOTO_AGENT_URL.")
-            url = Url(env_url)
+            url = HttpUrl(env_url)
 
-        query = gql_client("""
-        mutation addUrlToApikey($url: String!) {
-            addUrlToApikey(urls: $url)
-        }
-        """)
-
-        result = await self._graphql_service_marketplace.execute_async(
-            query, variable_values={"url": url}
+        return await self._request(
+            input={"url": url},
+            result_type=bool,
+            route="setWebhook",
+            url=self._settings.url_mp,
+            method="POST"
         )
-        result = result["addUrlToApikey"]
-        return result
-
-    def register_handler(
-        self,
-        event: OfferCall
-        | OfferRequest
-        | OfferCallableCostRequest
-        | OfferReferenceCostRequest
-        | Response
-        | PaymentRequest
-        | LinkConfirmation,
-    ):
+        
+    async def send_to_assistant(self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest) -> bool:
         """
-        Register a handler function for a specific event type.
-
-        Parameters
-        ----------
-        event : OfferCall or OfferRequest or OfferCallableCostRequest or OfferReferenceCostRequest or Response or PaymentRequest or LinkConfirmation
-            The event type to register a handler for.
-
-        Returns
-        -------
-        function
-            The decorator function to register the handler.
-
-        Raises
-        ------
-        ValueError
-            If the event type is not supported
-        """
-
-        def decorator(func):
-            self._handler_registry[event] = func
-            return func
-
-        return decorator
-
-    async def send_to_assistant(
-        self,
-        obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest,
-    ):
-        """
-        Send a supported object to the Assistant service via a GraphQL mutation.
+        Send a supported object to the Assistant service via GraphQL.
 
         Parameters
         ----------
         obj : PALocationResponse or PAUserResponse or PANewConversation or PASupportRequest
-            The object to forward to the Assistant service.
+            The object to send. One of:
+
+            - **PALocationResponse**  
+            Sends location info from a user back to the Assistant.
+
+            - **PAUserResponse**  
+            Sends a user's response back to the Assistant.
+
+            - **PANewConversation**  
+            Starts a new conversation with the Assistant.
+
+            - **PASupportRequest**  
+            Sends a support-related request.
 
         Raises
         ------
-        GraphQLError
-            If the provided object type is not supported.
-        """
-        if isinstance(obj, PALocationResponse):
-            value_name = "pa_locationresponse"
-            query = gql_client("""
-                mutation forwardPALocationResponse($pa_locationresponse: PALocationResponse!) {
-                    forwardPALocationResponse(pa_locationresponse: $pa_locationresponse)
-                }
-            """)
-        elif isinstance(obj, PAUserResponse):
-            value_name = "pa_userresponse"
-            query = gql_client("""
-                mutation forwardPAUserResponse($pa_userresponse: PAUserResponse!) {
-                    forwardPAUserResponse(pa_userresponse: $pa_userresponse)
-                }
-            """)
-        elif isinstance(obj, PANewConversation):
-            value_name = "pa_newconversation"
-            query = gql_client("""
-                mutation forwardPANewConversation($pa_newconversation: PANewConversation!) {
-                    forwardPANewConversation(pa_newconversation: $pa_newconversation)
-                }
-            """)
-        elif isinstance(obj, PASupportRequest):
-            value_name = "pa_supportrequest"
-            query = gql_client("""
-                mutation forwardPASupportRequest($pa_supportrequest: PASupportRequest!) {
-                    forwardPASupportRequest(pa_supportrequest: $pa_supportrequest)
-                }
-            """)
-        else:
-            raise GraphQLError(f"Object type {type(obj).__name__} not supported.")
+        ValueError
+            If the object type is unsupported.
 
-        await self._graphql_service_assistant.execute_async(
-            query, variable_values={value_name: obj.model_dump()}
+        Examples
+        --------
+        >>> response = PAUserResponse(user_id="xyz", message="Yes")
+        >>> await maoto.send_to_assistant(response)
+        """
+        if not isinstance(obj, (PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest)):
+            raise ValueError("Input must be one of: PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest.")
+        
+        return await self._request(
+            input=obj,
+            result_type=bool,
+            route=f"send{type(obj).__name__}",
+            url=self._settings.url_pa,
+            method="POST"
         )

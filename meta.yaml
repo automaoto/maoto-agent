@@ -1,9 +1,8 @@
 {% set name = "maoto-agent" %}
-{% set version = "0.0.0" %}
 
 package:
   name: {{ name|lower }}
-  version: {{ version }}
+  version: "{{ environ['GIT_DESCRIBE_TAG'] }}"
 
 source:
   path: .
@@ -11,29 +10,24 @@ source:
 build:
   noarch: python
   number: 0
-  script: {{ PYTHON }} -m pip install . -vv
-  entry_points:
-    - maoto-agent = maoto_agent.__main__:main
+  script: |
+    {{ PYTHON }} -m pip install . --no-deps --ignore-installed -v
 
 requirements:
   host:
-    - python >=3.10
+    - python
     - pip
-    - setuptools >=74.1.1
-    - wheel >=0.44.0
-    - setuptools-scm >=8.1.0
+    - hatchling
+    - wheel
+    - hatch-vcs
   run:
     - python >=3.10
-    - gql >=3.4.0
     - websockets >=10.4
-    - setuptools >=74.1.1
-    - psutil >=6.0.0
-    - python-dateutil >=2.9.0
-    - aiohttp >=3.8.6
-    - ariadne >=0.23.0
+    - fastapi >=0.115.12
     - pydantic >=2.10.6
+    - pydantic-settings >=2.8.1
     - email-validator >=2.2.0
-
+    - loguru >=0.7.3
 test:
   imports:
     - maoto_agent
@@ -45,12 +39,21 @@ test:
 
 about:
   home: https://maoto.world
-  summary: Maoto Agent
-  description: |
-    Maoto Agent - Python package for interacting with Maoto services.
-  license: Custom
+  description: "Maoto Agent"
+  license: LGPL-2.1-or-later
   license_file: LICENSE
+  description: |
+    Maoto Agent
+  authors:
+    - Maoto
+  keywords:
+    - "Maoto"
+    - "Agent"
+  classifiers:
+    - "Programming Language :: Python :: 3"
+    - "Operating System :: OS Independent"E
 
 extra:
-  recipe-maintainers:
-    - lennardkorte
+  channels:
+    - conda-forge
+    - defaults

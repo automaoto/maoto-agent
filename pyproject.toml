@@ -20,15 +20,12 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "gql>=3.4.0",
     "websockets>=10.4",
-    "psutil>=6.0.0",
-    "python-dateutil>=2.9.0",
-    "aiohttp>=3.8.6",
-    "ariadne >=0.23.0",
     "pydantic >=2.10.6",
     "email-validator >=2.2.0",
-    "aiofiles>=24.1.0",
+    "pydantic-settings>=2.8.1",
+    "fastapi[all]>=0.115.12",
+    "loguru>=0.7.3",
 ]
 
 
@@ -40,7 +37,6 @@ packages = ["src/maoto_agent"]
 [tool.hatch.build.targets.sdist]
 include = [
     "src/maoto_agent/**/*.py",
-    "src/maoto_agent/**/*.graphql",
 ]
 
 [tool.hatch.version]
@@ -108,4 +104,8 @@ max-complexity = 10
 [dependency-groups]
 dev = [
     "ruff>=0.11.2",
+]
+mcp = [
+    "fastapi-mcp>=0.1.7",
+    "mcp>=1.6.0",
 ]
