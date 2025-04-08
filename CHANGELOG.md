@@ -1,27 +1,14 @@
-### Upgrade Steps
-* **ACTION REQUIRED**: Review changes in `OutsourcedMaotoAgentMethods.py` which has been removed.  Functionality may need to be re-implemented.
-* **ACTION REQUIRED**: The workflow for generating release notes has been added. Ensure your secrets are correctly configured.
-* **ACTION REQUIRED**: Verify the `verify-artifact` step in the release workflow is functioning correctly.
-
-### Breaking Changes
-* Removed `OutsourcedMaotoAgentMethods.py`.  Functionality must be reimplemented.
-* The Github release workflow now requires a notes file (`artifact/output.txt`).
-* The `set_webhook` function in `maoto_agent.py` now returns a boolean indicating success or failure.
-
+### 0.1.0 (yyyy-mm-dd)
 
 ### New Features
-* Added a new workflow (`release_notes.yml`) to automatically generate release notes using the `lennardkorte/auto-release-notes` action.
-* Added `verify-artifact` job to `release.yml` to check for the existence of the release notes file before creating the release.
+* Added workflow to automatically generate release notes.  (See `.github/workflows/release_notes.yml`)
+* Added `set_webhook` function to `maoto_agent.py` to set or update the webhook URL.
+* Improved `set_webhook` function in `maoto_agent.py` to return the result of the mutation.
 
 ### Bug Fixes
-* Fixed the `send_newoffercall` function in `maoto_agent.py` to correctly handle the returned `OfferCall` object.
-* The `set_webhook` function in `maoto_agent.py` now returns the result of the mutation, indicating success or failure.
+* Fixed an issue in `maoto_agent.py` where `send_newoffercall` was not returning the created `OfferCall` object.  The created object is now correctly returned.
+* Fixed the GitHub release workflow to correctly upload release notes using a notes file.
 
-
-### Performance Improvements
-* No performance improvements in this release.
 
 ### Other Changes
-* No other changes in this release.
-
-
+* Commented out the conda-forge recipe preparation section in the release workflow.  (See `.github/workflows/release.yml`)
