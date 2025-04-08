@@ -40,7 +40,7 @@ packages = ["src/maoto_agent"]
 [tool.hatch.build.targets.sdist]
 include = [
     "src/maoto_agent/**/*.py",
-    "src/maoto_agent/**/*.graphql",
+    "CHANGELOG.md",
 ]
 
 [tool.hatch.version]
@@ -48,7 +48,9 @@ source = "vcs"
 raw-options = { version_scheme = "post-release" }
 
 [project.urls]
-Home = "https://maoto.world"
+Homepage = "https://maoto.world"
+Documentation = "http://docs.maoto.world/"
+Issues = "https://discord.gg/hNuqjnGjNw"
 
 [project.scripts]
 maoto-agent = "maoto_agent.__main__:main"
