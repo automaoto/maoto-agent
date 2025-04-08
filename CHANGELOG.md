@@ -6,6 +6,7 @@
 ### Breaking Changes
 * Removed `OutsourcedMaotoAgentMethods.py`.  Functionality must be reimplemented.
 * The Github release workflow now requires a notes file (`artifact/output.txt`).
+* The `set_webhook` function in `maoto_agent.py` now returns a boolean indicating success or failure.
 
 
 ### New Features
