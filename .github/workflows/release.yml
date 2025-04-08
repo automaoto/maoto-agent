@@ -13,24 +13,6 @@ on:
         pattern: '^v\d+\.\d+\.\d+$'
 
 jobs:
-  verify-artifact:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download release-notes-output artifact
-        id: download_artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes-output
-          path: ./artifact
-        continue-on-error: true  # allow the step to complete even if it fails
-
-      - name: Verify artifact exists
-        run: |
-          if [ ! -f "./artifact/output.txt" ]; then
-            echo "Artifact not found, stopping workflow."
-            exit 1
-          fi
-
   build-pypi:
     name: Build pypi distribution 📦
     runs-on: ubuntu-latest
