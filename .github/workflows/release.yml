@@ -214,7 +214,7 @@ jobs:
           gh release create
           "$GITHUB_REF_NAME"
           --repo "$GITHUB_REPOSITORY"
-          --notes-file artifact/output.txt
+          --notes-file CHANGELOG.md
       - name: Upload artifact signatures to GitHub Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
