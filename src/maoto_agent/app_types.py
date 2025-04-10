@@ -33,7 +33,7 @@ class NewResponse(BaseModel):
     intent_id: UUID
     description: str
 
-class Response(NewResponse):
+class IntentResponse(NewResponse):
     pass
 
 class NewOfferCallResponse(BaseModel):
@@ -188,7 +188,7 @@ class PAUserMessage(BaseModel):
 
 class PAPaymentRequest(BaseModel):
     ui_id: str
-    payment_link: str
+    payment_link: HttpUrl
 
 class PALocationRequest(BaseModel):
     ui_id: str

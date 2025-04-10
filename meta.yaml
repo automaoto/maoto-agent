@@ -20,12 +20,14 @@ requirements:
     - setuptools-scm
   run:
     - python >=3.10
-    - websockets >=10.4
     - setuptools >=74.1.1
-    - python-dateutil >=2.9.0
-    - pydantic[email] >=2.10.6
+    - pydantic >=2.10.6
     - email-validator >=2.2.0
+    - pydantic-settings >=2.8.1
+    - httpx >=0.28.1
+
     - fastapi >=0.115.12
+    - setuptools >=74.1.1
 
 about:
   home: https://maoto.world

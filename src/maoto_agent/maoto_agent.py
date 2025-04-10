@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+import httpx
 from .app_types import *
 from fastapi import FastAPI
 from pkg_resources import get_distribution
@@ -9,19 +10,19 @@ from .agent_settings import AgentSettings
 from typing import Literal
 
 class Maoto:
-    def __init__(self, apikey_value: str | None = None):
-        self._settings = AgentSettings(maoto_api_key=apikey_value or None)
+    def __init__(self, apikey_value: SecretStr | None = None):
+        self._settings = AgentSettings(apikey=apikey_value or None)
         
-        logging.basicConfig(level=self._settings.logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
-        self.logger = logging.getLogger(__name__, level=self._settings.logging_level)
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(getattr(logging, self._settings.logging_level.upper(), logging.WARNING))
 
         self._app = FastAPI(debug=self._settings.debug)
         self._version = get_distribution("maoto_agent").version
-        self._headers = {"Authorization": self._settings.apikey, "Version": self._version}
+        self._headers = {"authorization": self._settings.apikey.get_secret_value(), "version": self._version}
 
         self.app = self._app
 
-    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | Response | OfferCallResponse | PaymentRequest | LinkConfirmation | PALocationRequest]):
+    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | IntentResponse | OfferCallResponse | PaymentRequest | LinkConfirmation | PALocationRequest]):
         """
         Decorator to register a handler function for a specific event type.
 
@@ -47,11 +48,14 @@ class Maoto:
         >>>     print("Handling OfferCall", event)
         """
         def decorator(func):
+            no_return_models = {PALinkUrl, PALocationRequest, PAPaymentRequest, PAUserMessage}
+            chosen_response_model = None if event_type in no_return_models else event_type
+
             self._app.add_api_route(
                 path=f"/{event_type.__name__}",
                 endpoint=func,
                 methods=["POST", "GET"],
-                response_model=event_type
+                response_model=chosen_response_model
             )
             return func
         return decorator
@@ -59,34 +63,34 @@ class Maoto:
     async def _request(
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
-        input: BaseModel | None = None,
+        input: BaseModel | dict | None = None,
         result_type: type | None = None,
         is_list: bool = False,
         route: str | None = None,
-        url: HttpUrl = None
+        url: HttpUrl = None,
     ) -> BaseModel:
         """Send a request to another FastAPI server with a Pydantic object and return a validated response."""
-        request_kwargs = {
-            "url": url + "/" + route if route else url,
-            "headers": self._headers,
-        }
+        full_url = f"{url}/{route}" if route else url
+        request_kwargs = {"headers": self._headers}
 
         if method in {"POST", "PUT"}:
             if isinstance(input, BaseModel):
-                request_kwargs["json"] = input.model_dump_json()
+                request_kwargs["json"] = input.model_dump()
             elif isinstance(input, dict):
                 request_kwargs["json"] = input
             else:
-                raise Exception()
+                raise Exception("Invalid input type for POST/PUT requests.")
 
-        async with app.client_session.request(method, **request_kwargs) as response:
-            if response.status != 200:
-                raise Exception(status_code=response.status, detail=await response.text())
-            
-            data = await response.json()
-            if result_type is bool:
-                return data
-            return [result_type.model_validate(item) for item in data] if is_list else result_type.model_validate(data)
+        async with httpx.AsyncClient() as client:
+            response = await client.request(method, full_url, **request_kwargs)
+            response.raise_for_status()
+
+        data = response.json()
+        if result_type is bool:
+            return data
+        if is_list:
+            return [result_type.model_validate(item) for item in data]
+        return result_type.model_validate(data)
 
     async def get_own_apikey(self) -> ApiKey:
         """
@@ -279,7 +283,7 @@ class Maoto:
         await self._request(
             input=obj,
             result_type=bool,
-            route=f"send{type(obj).__name__}",
+            route=f"{type(obj).__name__}",
             url=self._settings.url_mp,
             method="POST"
         )
@@ -513,7 +517,7 @@ class Maoto:
         return await self._request(
             input=obj,
             result_type=bool,
-            route=f"send{type(obj).__name__}",
+            route=f"{type(obj).__name__}",
             url=self._settings.url_pa,
             method="POST"
         )

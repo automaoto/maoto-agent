@@ -10,7 +10,7 @@ class AgentSettings(BaseSettings):
         port_mp: int = 443
         port_pa: int = 443
         apikey: SecretStr
-        logging_level: int = "INFO"
+        logging_level: str = "INFO"
 
         @cached_property
         def protocol(self) -> str:
