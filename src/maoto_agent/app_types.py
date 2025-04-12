@@ -139,8 +139,7 @@ class NewOfferResponse(BaseModel):
     newofferreferences: list[NewOfferReference]
 
 class OfferResponse(NewOfferResponse):
-    apikey_id: UUID
-    time: datetime
+    apikey: ApiKey
 
 class NewOfferCall(BaseModel):
     offercallable_id: UUID

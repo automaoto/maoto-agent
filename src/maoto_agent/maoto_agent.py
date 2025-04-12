@@ -18,7 +18,7 @@ class Maoto:
 
         self._app = FastAPI(debug=self._settings.debug)
         self._version = get_distribution("maoto_agent").version
-        self._headers = {"authorization": self._settings.apikey.get_secret_value(), "version": self._version}
+        self._headers = {"Authorization": self._settings.apikey.get_secret_value(), "Version": self._version}
 
         self.app = self._app
 
