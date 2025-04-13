@@ -450,7 +450,7 @@ class Maoto:
             method="POST"
         )
 
-    async def set_webhook(self, url: str = None) -> bool:
+    async def set_webhook(self, url: str = None) -> str:
         """
         Set or update the webhook URL associated with this agent's API key.
 
