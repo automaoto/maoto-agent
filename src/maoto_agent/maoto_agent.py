@@ -11,7 +11,10 @@ from typing import Literal
 
 class Maoto:
     def __init__(self, apikey_value: SecretStr | None = None):
-        self._settings = AgentSettings(apikey=apikey_value or None)
+        kwargs = {}
+        if apikey_value is not None:
+            kwargs["apikey"] = apikey_value
+        self._settings = AgentSettings(**kwargs)
         
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(getattr(logging, self._settings.logging_level.upper(), logging.WARNING))
@@ -75,16 +78,19 @@ class Maoto:
 
         if method in {"POST", "PUT"}:
             if isinstance(input, BaseModel):
-                request_kwargs["json"] = input.model_dump()
+                request_kwargs["json"] = input.model_dump(mode="json")
             elif isinstance(input, dict):
                 request_kwargs["json"] = input
             else:
                 raise Exception("Invalid input type for POST/PUT requests.")
 
         async with httpx.AsyncClient() as client:
-            response = await client.request(method, full_url, **request_kwargs)
+            response = await client.request(method, str(full_url), **request_kwargs)
             response.raise_for_status()
-
+        
+        if result_type is str:
+            return response.text
+        
         data = response.json()
         if result_type is bool:
             return data
@@ -473,8 +479,8 @@ class Maoto:
             url = HttpUrl(env_url)
 
         return await self._request(
-            input={"url": url},
-            result_type=bool,
+            input={"url": str(url)},
+            result_type=str,
             route="setWebhook",
             url=self._settings.url_mp,
             method="POST"
