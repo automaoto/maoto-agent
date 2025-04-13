@@ -124,7 +124,7 @@ class Maoto:
             method="GET"
         )
     
-    async def check_status_marketplace(self) -> bool:
+    async def health_marketplace(self) -> bool:
         """
         Check if the Marketplace service is currently available.
 
@@ -138,14 +138,14 @@ class Maoto:
         >>> is_up = await maoto.check_status_marketplace()
         >>> print("Marketplace is up" if is_up else "Marketplace is down")
         """
-        await self._request(
-            result_type=bool,
-            route="checkStatus",
+        return await self._request(
+            result_type=str,
+            route="healthz",
             url=self._settings.url_mp,
             method="GET"
         )
 
-    async def check_status_assistant(self) -> bool:
+    async def health_assistant(self) -> bool:
         """
         Check if the Assistant service is currently available.
 
@@ -159,9 +159,9 @@ class Maoto:
         >>> is_up = await maoto.check_status_assistant()
         >>> print("Assistant is running" if is_up else "Assistant is down")
         """
-        await self._request(
-            result_type=bool,
-            route="checkStatus",
+        return await self._request(
+            result_type=str,
+            route="healthz",
             url=self._settings.url_pa,
             method="GET"
         )
