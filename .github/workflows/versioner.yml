@@ -111,8 +111,6 @@ jobs:
         run: |
           NEW_TAG="${{ steps.next_tag.outputs.next_tag }}"
 
-          cd maoto-agent
-
           echo "Creating new tag: $NEW_TAG"
 
           # Configure Git
