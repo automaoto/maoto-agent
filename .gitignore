@@ -13,6 +13,7 @@ work_dir_*
 *.secrets*
 wheelhouse/
 *.lock
+.ruff_cache
 
 # C extensions
 *.so
