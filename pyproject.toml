@@ -17,7 +17,20 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent"
+    "Programming Language :: Python",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "setuptools >=74.1.1",
@@ -44,7 +57,11 @@ source = "vcs"
 raw-options = { version_scheme = "post-release" }
 
 [project.urls]
-Home = "https://maoto.world"
+Homepage = "https://maoto.world"
+Documentation = "https://docs.maoto.world"
+Repository = "https://github.com/automaoto/maoto-agent"
+Issues = "https://github.com/automaoto/maoto-agent/issues"
+Changelog = "https://github.com/automaoto/maoto-agent/releases"
 
 [project.scripts]
 maoto-agent = "maoto_agent.__main__:main"
