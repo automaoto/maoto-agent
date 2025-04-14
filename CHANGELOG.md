@@ -1,31 +1,10 @@
-### Upgrade Steps
+## Release Notes
 
-* No specific upgrade steps are required.
-
-
-### Breaking Changes
-
-* The workflow trigger has changed.  Previously, it triggered on completion of the "Lint and Format" and "Versioner" workflows. Now it triggers on completion of "Lint and Format" workflow and pushes with tags starting with `v*`.  This means that the `Versioner` workflow is no longer a prerequisite for release.
-
-
-### New Features
-
-* Added a new trigger for the workflow: pushing to a branch with a tag starting with `v*`.
-
-
-### Bug Fixes
-
-* No bug fixes in this release.
-
-
-### Performance Improvements
-
-* No performance improvements in this release.
-
+This release includes several changes to the project's CI/CD workflows.  No functional changes to the application itself are included in this release.
 
 ### Other Changes
 
-* Removed the `Versioner` workflow as a trigger for the release workflow.
-* Commented out the `prepare-conda-forge` job.  This functionality is likely to be added back later.
+* **chore(ci):** Add authentication to `git push` in `versioner.yml` workflow.  This change adds the `MAOTO_AGENT` secret to authenticate git pushes to the remote repository.  This ensures that only authorized users can push tags to the repo.
+* **chore(ci):** Remove `if` condition in `release.yml` workflow. The conditional statement `if: ${{ github.event.workflow_run.conclusion == 'success' }}` has been removed from the `build-pypi` job in `release.yml`. While the intention was likely to prevent publishing if linting failed, the current setup automatically handles this by tying the `release.yml` workflow to the successful completion of "Lint and Format".  Removing the extra check simplifies the workflow.
 
 
