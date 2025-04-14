@@ -1,4 +1,5 @@
 import os
+
 from PIL import Image
 
 # Set your source directory where images are stored
