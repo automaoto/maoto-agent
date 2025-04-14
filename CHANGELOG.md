@@ -1,10 +1,8 @@
-## Release Notes
+**Release Notes for Versioner Workflow**
 
-This release includes several changes to the project's CI/CD workflows.  No functional changes to the application itself are included in this release.
+This document details changes made to the `versioner.yml` workflow.  No functional changes were made; the only change is the addition of a second push target.
 
 ### Other Changes
 
-* **chore(ci):** Add authentication to `git push` in `versioner.yml` workflow.  This change adds the `MAOTO_AGENT` secret to authenticate git pushes to the remote repository.  This ensures that only authorized users can push tags to the repo.
-* **chore(ci):** Remove `if` condition in `release.yml` workflow. The conditional statement `if: ${{ github.event.workflow_run.conclusion == 'success' }}` has been removed from the `build-pypi` job in `release.yml`. While the intention was likely to prevent publishing if linting failed, the current setup automatically handles this by tying the `release.yml` workflow to the successful completion of "Lint and Format".  Removing the extra check simplifies the workflow.
-
+* **chore(github-actions):** Added a second push target to the `git push` command in the `create-tag` job.  This pushes the tag to a second remote repository using a personal access token stored in the `MAOTO_AGENT` secret.  This likely improves workflow reliability by ensuring tags are pushed to a second repository, possibly a production or deployment repository.
 
