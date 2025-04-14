@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi_mcp import add_mcp_server
+
 from .mcp_settings import MCPSettings
+
 
 class MCPServer:
     def __init__(

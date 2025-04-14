@@ -1,14 +1,16 @@
 import os
 import uuid
-import logging
+from typing import Literal
+
 import httpx
-from .app_types import *
 from fastapi import FastAPI, Response
+from loguru import logger
 from pkg_resources import get_distribution
 from pydantic import BaseModel, HttpUrl
+
 from .agent_settings import AgentSettings
-from typing import Literal
-from loguru import logger
+from .app_types import *
+
 
 class Maoto(FastAPI):
     def __init__(self, apikey: SecretStr | None = None, *args, **kwargs):

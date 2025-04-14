@@ -1,6 +1,8 @@
 from functools import cached_property
+
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
+
 
 class AgentSettings(BaseSettings):
         debug: bool = False

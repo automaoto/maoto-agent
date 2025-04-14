@@ -1,5 +1,7 @@
 from pydantic import Field
+
 from ..agent_settings import AgentSettings
+
 
 class MCPSettings(AgentSettings):
     """
