@@ -5,11 +5,7 @@ from .mcp_settings import MCPSettings
 
 
 class MCPServer:
-    def __init__(
-        self,
-        app: FastAPI,
-        settings: MCPSettings | None = None
-    ):
+    def __init__(self, app: FastAPI, settings: MCPSettings | None = None):
         """
         Initialize the MCP server with the given FastAPI app.
 
@@ -21,7 +17,7 @@ class MCPServer:
             MCP-specific settings. If not provided, will use default settings.
         """
         self._settings = settings or MCPSettings()
-        
+
         self._server = add_mcp_server(
             app,
             mount_path=self._settings.mcp_mount_path,
@@ -29,7 +25,7 @@ class MCPServer:
             description=self._settings.mcp_description,
             base_url=self._settings.url_mp,  # Inherited from AgentSettings
             describe_all_responses=self._settings.mcp_describe_all_responses,
-            describe_full_response_schema=self._settings.mcp_describe_full_response_schema
+            describe_full_response_schema=self._settings.mcp_describe_full_response_schema,
         )
 
     def add_tool(self, func):

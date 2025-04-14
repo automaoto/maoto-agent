@@ -20,9 +20,9 @@ class Maoto(FastAPI):
         if apikey is not None:
             settings_kwargs["apikey"] = apikey
         self._settings = AgentSettings(**settings_kwargs)
-        
-        self.debug=self._settings.debug
-        
+
+        self.debug = self._settings.debug
+
         logger.remove()
 
         @self.get("/healthz")
@@ -34,9 +34,25 @@ class Maoto(FastAPI):
             return Response(status_code=200, content="OK")
 
         self._version = get_distribution("maoto_agent").version
-        self._headers = {"Authorization": self._settings.apikey.get_secret_value(), "Version": self._version}
+        self._headers = {
+            "Authorization": self._settings.apikey.get_secret_value(),
+            "Version": self._version,
+        }
 
-    def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | IntentResponse | OfferCallResponse | PaymentRequest | LinkConfirmation | PALocationRequest]):
+    def register_handler(
+        self,
+        event_type: type[
+            OfferCall
+            | OfferRequest
+            | OfferCallableCostRequest
+            | OfferReferenceCostRequest
+            | IntentResponse
+            | OfferCallResponse
+            | PaymentRequest
+            | LinkConfirmation
+            | PALocationRequest
+        ],
+    ):
         """
         Decorator to register a handler function for a specific event type.
 
@@ -49,7 +65,7 @@ class Maoto(FastAPI):
         -------
         function
             A decorator function that registers the given handler.
-        
+
         Raises
         ------
         ValueError
@@ -61,6 +77,7 @@ class Maoto(FastAPI):
         >>> def handle_offer_call(event):
         >>>     print("Handling OfferCall", event)
         """
+
         def decorator(func):
             no_return_models = {PALinkUrl, PALocationRequest, PAPaymentRequest, PAUserMessage}
             chosen_response_model = None if event_type in no_return_models else event_type
@@ -69,9 +86,10 @@ class Maoto(FastAPI):
                 path=f"/{event_type.__name__}",
                 endpoint=func,
                 methods=["POST", "GET"],
-                response_model=chosen_response_model
+                response_model=chosen_response_model,
             )
             return func
+
         return decorator
 
     async def _request(
@@ -98,10 +116,10 @@ class Maoto(FastAPI):
         async with httpx.AsyncClient() as client:
             response = await client.request(method, str(full_url), **request_kwargs)
             response.raise_for_status()
-        
+
         if result_type is str:
             return response.text
-        
+
         data = response.json()
         if result_type is bool:
             return data
@@ -129,12 +147,9 @@ class Maoto(FastAPI):
         >>> print(apikey.key)
         """
         return await self._request(
-            result_type=ApiKey,
-            route="get_own_apikey",
-            url=self._settings.url_mp,
-            method="GET"
+            result_type=ApiKey, route="get_own_apikey", url=self._settings.url_mp, method="GET"
         )
-    
+
     async def health_marketplace(self) -> bool:
         """
         Check if the Marketplace service is currently available.
@@ -150,10 +165,7 @@ class Maoto(FastAPI):
         >>> print("Marketplace is up" if is_up else "Marketplace is down")
         """
         return await self._request(
-            result_type=str,
-            route="healthz",
-            url=self._settings.url_mp,
-            method="GET"
+            result_type=str, route="healthz", url=self._settings.url_mp, method="GET"
         )
 
     async def health_assistant(self) -> bool:
@@ -171,10 +183,7 @@ class Maoto(FastAPI):
         >>> print("Assistant is running" if is_up else "Assistant is down")
         """
         return await self._request(
-            result_type=str,
-            route="healthz",
-            url=self._settings.url_pa,
-            method="GET"
+            result_type=str, route="healthz", url=self._settings.url_pa, method="GET"
         )
 
     async def send_intent(self, new_intent: NewIntent) -> None:
@@ -196,10 +205,16 @@ class Maoto(FastAPI):
             result_type=Intent,
             route="createIntent",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
-    
-    async def unregister(self, obj: Skill | OfferCallable | OfferReference | None = None, obj_type: type[Skill | OfferCallable | OfferReference] | None = None, id: uuid.UUID | None = None, solver_id: uuid.UUID | None = None) -> bool:
+
+    async def unregister(
+        self,
+        obj: Skill | OfferCallable | OfferReference | None = None,
+        obj_type: type[Skill | OfferCallable | OfferReference] | None = None,
+        id: uuid.UUID | None = None,
+        solver_id: uuid.UUID | None = None,
+    ) -> bool:
         """
         Unregister a Skill, OfferCallable, or OfferReference to make it unavailable.
 
@@ -235,26 +250,34 @@ class Maoto(FastAPI):
             obj_id = id or solver_id
         else:
             raise ValueError("Either obj or obj_type and id/solver_id must be provided.")
-        
+
         # check types of provided parameters if they are defined (optionals)
         if obj_type and obj_id:
             if obj_type not in {Skill, OfferCallable, OfferReference}:
-                raise ValueError("Unsupported type. Must be one of: Skill, OfferCallable, OfferReference.")
+                raise ValueError(
+                    "Unsupported type. Must be one of: Skill, OfferCallable, OfferReference."
+                )
             if not isinstance(obj_id, uuid.UUID):
                 raise ValueError("ID must be a valid UUID.")
         elif obj:
             if not isinstance(obj, (Skill, OfferCallable, OfferReference)):
                 raise ValueError("Input must be one of: Skill, OfferCallable, OfferReference.")
-        
+
         return await self._request(
             input={"id": str(obj_id)},
             result_type=bool,
             route=f"unregister{obj_type.__name__}",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
-    
-    async def send_response(self, obj: NewOfferResponse | NewOfferCallResponse | NewOfferCallableCostResponse | NewOfferReferenceCostResponse) -> bool:
+
+    async def send_response(
+        self,
+        obj: NewOfferResponse
+        | NewOfferCallResponse
+        | NewOfferCallableCostResponse
+        | NewOfferReferenceCostResponse,
+    ) -> bool:
         """
         Send a response object to the Marketplace to complete a request or update its status.
 
@@ -263,20 +286,20 @@ class Maoto(FastAPI):
         obj : NewOfferResponse or NewOfferCallResponse or NewOfferCallableCostResponse or NewOfferReferenceCostResponse
             The response object to send. One of:
 
-            - **NewOfferResponse**  
-            Sent in response to an OfferRequest.  
+            - **NewOfferResponse**
+            Sent in response to an OfferRequest.
             Informs the Marketplace of the offers made when an intent matches a registered skill.
-            
-            - **NewOfferCallResponse**  
-            Sent in response to an OfferCall.  
+
+            - **NewOfferCallResponse**
+            Sent in response to an OfferCall.
             Informs the caller of status updates related to the offer call.
 
-            - **NewOfferCallableCostResponse**  
-            Sent in response to an OfferCallableCostRequest.  
+            - **NewOfferCallableCostResponse**
+            Sent in response to an OfferCallableCostRequest.
             Provides the actual cost for a callable offer.
 
-            - **NewOfferReferenceCostResponse**  
-            Sent in response to an OfferReferenceCostRequest.  
+            - **NewOfferReferenceCostResponse**
+            Sent in response to an OfferReferenceCostRequest.
             Provides the cost and/or URL for a reference offer.
 
         Returns
@@ -294,18 +317,30 @@ class Maoto(FastAPI):
         >>> response = NewOfferResponse(...)  # Fill with valid response data
         >>> await maoto.send_response(response)
         """
-        if not isinstance(obj, (NewOfferResponse, NewOfferCallResponse, NewOfferCallableCostResponse, NewOfferReferenceCostResponse)):
-            raise ValueError("Input must be one of: NewOfferResponse, NewOfferCallResponse, NewOfferCallableCostResponse, NewOfferReferenceCostResponse.")
-        
+        if not isinstance(
+            obj,
+            (
+                NewOfferResponse,
+                NewOfferCallResponse,
+                NewOfferCallableCostResponse,
+                NewOfferReferenceCostResponse,
+            ),
+        ):
+            raise ValueError(
+                "Input must be one of: NewOfferResponse, NewOfferCallResponse, NewOfferCallableCostResponse, NewOfferReferenceCostResponse."
+            )
+
         await self._request(
             input=obj,
             result_type=bool,
             route=f"{type(obj).__name__}",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
-    
-    async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> Skill | OfferCallable | OfferReference:
+
+    async def register(
+        self, obj: NewSkill | NewOfferCallable | NewOfferReference
+    ) -> Skill | OfferCallable | OfferReference:
         """
         Register a new object with the Marketplace to make it available.
 
@@ -314,16 +349,16 @@ class Maoto(FastAPI):
         obj : NewSkill or NewOfferCallable or NewOfferReference
             The object to register. One of:
 
-            - **NewSkill**  
-            Registers a set of skills the agent can respond to.  
+            - **NewSkill**
+            Registers a set of skills the agent can respond to.
             Enables the Marketplace to send OfferRequests when an intent matches.
-            
-            - **NewOfferCallable**  
-            Registers a callable offer that the agent can fulfill.  
+
+            - **NewOfferCallable**
+            Registers a callable offer that the agent can fulfill.
             Enables cost resolution and execution via the Marketplace.
-            
-            - **NewOfferReference**  
-            Registers a reference offer linking to external resources.  
+
+            - **NewOfferReference**
+            Registers a reference offer linking to external resources.
             Enables cost/URL resolution or execution through the Marketplace.
 
         Returns
@@ -338,7 +373,7 @@ class Maoto(FastAPI):
         """
         if not isinstance(obj, (NewSkill, NewOfferCallable, NewOfferReference)):
             raise ValueError("Input must be one of: NewSkill, NewOfferCallable, NewOfferReference.")
-        
+
         if isinstance(obj, NewSkill):
             result_type = Skill
         elif isinstance(obj, NewOfferCallable):
@@ -346,17 +381,21 @@ class Maoto(FastAPI):
         elif isinstance(obj, NewOfferReference):
             result_type = OfferReference
         else:
-            raise ValueError("Unsupported type. Must be one of: NewSkill, NewOfferCallable, NewOfferReference.")
+            raise ValueError(
+                "Unsupported type. Must be one of: NewSkill, NewOfferCallable, NewOfferReference."
+            )
 
         return await self._request(
             input=obj,
             result_type=result_type,
             route=f"register{type(obj).__name__}",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
-    
-    async def get_registered(self, type_ref: type[Skill | OfferCallable | OfferReference]) -> list[Skill | OfferCallable | OfferReference]:
+
+    async def get_registered(
+        self, type_ref: type[Skill | OfferCallable | OfferReference]
+    ) -> list[Skill | OfferCallable | OfferReference]:
         """
         Retrieve registered objects of a given type from the Marketplace.
 
@@ -364,7 +403,7 @@ class Maoto(FastAPI):
         ----------
         type_ref : type
             One of the following types:
-            
+
             - **Skill**
             - **OfferCallable**
             - **OfferReference**
@@ -386,17 +425,21 @@ class Maoto(FastAPI):
         >>>     print(skill.name)
         """
         if type_ref not in {Skill, OfferCallable, OfferReference}:
-            raise ValueError("Unsupported type. Must be one of: Skill, OfferCallable, OfferReference.")
-        
+            raise ValueError(
+                "Unsupported type. Must be one of: Skill, OfferCallable, OfferReference."
+            )
+
         return await self._request(
             result_type=type_ref,
             is_list=True,
             route=f"get{type_ref.__name__}",
             url=self._settings.url_mp,
-            method="GET"
+            method="GET",
         )
 
-    async def refund_offercall(self, offercall: OfferCall | None = None, id: uuid.UUID | None = None) -> bool:
+    async def refund_offercall(
+        self, offercall: OfferCall | None = None, id: uuid.UUID | None = None
+    ) -> bool:
         """
         Refund an OfferCall due to an error, cancellation, or other issues.
 
@@ -425,13 +468,13 @@ class Maoto(FastAPI):
         offercallid = (offercall.id if offercall else None) or id
         if not offercallid:
             raise ValueError("Either offercall or id must be provided.")
-        
+
         return await self._request(
             input={"id": str(offercallid)},
             result_type=bool,
             route="refundOfferCall",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
 
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
@@ -461,13 +504,13 @@ class Maoto(FastAPI):
         """
         if not isinstance(new_offercall, NewOfferCall):
             raise ValueError("Input must be a NewOfferCall object.")
-        
+
         return await self._request(
             input=new_offercall,
             result_type=OfferCall,
             route="sendNewOfferCall",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
 
     async def set_webhook(self, url: str = None) -> str:
@@ -503,10 +546,12 @@ class Maoto(FastAPI):
             result_type=str,
             route="setWebhook",
             url=self._settings.url_mp,
-            method="POST"
+            method="POST",
         )
-        
-    async def send_to_assistant(self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest) -> bool:
+
+    async def send_to_assistant(
+        self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest
+    ) -> bool:
         """
         Send a supported object to the Assistant service via GraphQL.
 
@@ -515,16 +560,16 @@ class Maoto(FastAPI):
         obj : PALocationResponse or PAUserResponse or PANewConversation or PASupportRequest
             The object to send. One of:
 
-            - **PALocationResponse**  
+            - **PALocationResponse**
             Sends location info from a user back to the Assistant.
 
-            - **PAUserResponse**  
+            - **PAUserResponse**
             Sends a user's response back to the Assistant.
 
-            - **PANewConversation**  
+            - **PANewConversation**
             Starts a new conversation with the Assistant.
 
-            - **PASupportRequest**  
+            - **PASupportRequest**
             Sends a support-related request.
 
         Raises
@@ -537,13 +582,17 @@ class Maoto(FastAPI):
         >>> response = PAUserResponse(user_id="xyz", message="Yes")
         >>> await maoto.send_to_assistant(response)
         """
-        if not isinstance(obj, (PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest)):
-            raise ValueError("Input must be one of: PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest.")
-        
+        if not isinstance(
+            obj, (PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest)
+        ):
+            raise ValueError(
+                "Input must be one of: PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest."
+            )
+
         return await self._request(
             input=obj,
             result_type=bool,
             route=f"{type(obj).__name__}",
             url=self._settings.url_pa,
-            method="POST"
+            method="POST",
         )
