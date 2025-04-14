@@ -122,10 +122,6 @@ jobs:
           # Create and push tag
           git tag "$NEW_TAG"
 
-      - name: Push new tag
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.MAOTO_AGENT }}
-          branch: ${{ github.ref }}
+          git push origin "$NEW_TAG"
           
 
