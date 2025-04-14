@@ -107,14 +107,6 @@ jobs:
           echo "NEXT_TAG=$NEXT_TAG"
           echo "next_tag=$NEXT_TAG" >> $GITHUB_OUTPUT
 
-      - name: Checkout another repo
-        uses: actions/checkout@v3
-        with:
-          repository: automaoto/maoto-agent
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: maoto-agent
-          fetch-depth: 0
-
       - name: Create and push new tag
         run: |
           NEW_TAG="${{ steps.next_tag.outputs.next_tag }}"
@@ -129,6 +121,11 @@ jobs:
 
           # Create and push tag
           git tag "$NEW_TAG"
-          git push https://x-access-token:${{ secrets.MAOTO_AGENT }}@github.com/automaoto/maoto-agent.git "$NEW_TAG"
 
-          echo "Tag $NEW_TAG pushed successfully."
+      - name: Push new tag
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.MAOTO_AGENT }}
+          branch: ${{ github.ref }}
+          
+
