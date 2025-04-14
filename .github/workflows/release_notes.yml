@@ -1,0 +1,19 @@
+name: Auto Release Notes
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  call-workflow:
+    uses: lennardkorte/auto-release-notes/.github/workflows/auto_release_notes.yml@main
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
