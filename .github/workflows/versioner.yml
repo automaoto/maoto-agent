@@ -107,9 +107,19 @@ jobs:
           echo "NEXT_TAG=$NEXT_TAG"
           echo "next_tag=$NEXT_TAG" >> $GITHUB_OUTPUT
 
+      - name: Checkout another repo
+        uses: actions/checkout@v3
+        with:
+          repository: user_or_org/another-repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: maoto-agent
+          fetch-depth: 0
+
       - name: Create and push new tag
         run: |
           NEW_TAG="${{ steps.next_tag.outputs.next_tag }}"
+
+          cd maoto-agent
 
           echo "Creating new tag: $NEW_TAG"
 
