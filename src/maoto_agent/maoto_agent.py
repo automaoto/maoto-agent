@@ -3,27 +3,36 @@ import uuid
 import logging
 import httpx
 from .app_types import *
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from pkg_resources import get_distribution
 from pydantic import BaseModel, HttpUrl
 from .agent_settings import AgentSettings
 from typing import Literal
 
-class Maoto:
-    def __init__(self, apikey_value: SecretStr | None = None):
-        kwargs = {}
-        if apikey_value is not None:
-            kwargs["apikey"] = apikey_value
-        self._settings = AgentSettings(**kwargs)
-        
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(getattr(logging, self._settings.logging_level.upper(), logging.WARNING))
+class Maoto(FastAPI):
+    def __init__(self, apikey: SecretStr | None = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-        self._app = FastAPI(debug=self._settings.debug)
+        settings_kwargs = {}
+        if apikey is not None:
+            settings_kwargs["apikey"] = apikey
+        self._settings = AgentSettings(**settings_kwargs)
+        
+        self.debug=self._settings.debug
+        
+        # self.logger = logging.getLogger(__name__)
+        # self.logger.setLevel(getattr(logging, self._settings.logging_level.upper(), logging.WARNING))
+
+        @self.get("/healthz")
+        async def healthz_check():
+            return Response(status_code=200, content="OK")
+
+        @self.get("/health")
+        async def human_health_check():
+            return Response(status_code=200, content="OK")
+
         self._version = get_distribution("maoto_agent").version
         self._headers = {"Authorization": self._settings.apikey.get_secret_value(), "Version": self._version}
-
-        self.app = self._app
 
     def register_handler(self, event_type: type[OfferCall | OfferRequest | OfferCallableCostRequest | OfferReferenceCostRequest | IntentResponse | OfferCallResponse | PaymentRequest | LinkConfirmation | PALocationRequest]):
         """
@@ -54,7 +63,7 @@ class Maoto:
             no_return_models = {PALinkUrl, PALocationRequest, PAPaymentRequest, PAUserMessage}
             chosen_response_model = None if event_type in no_return_models else event_type
 
-            self._app.add_api_route(
+            self.add_api_route(
                 path=f"/{event_type.__name__}",
                 endpoint=func,
                 methods=["POST", "GET"],
@@ -294,7 +303,7 @@ class Maoto:
             method="POST"
         )
     
-    async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> bool:
+    async def register(self, obj: NewSkill | NewOfferCallable | NewOfferReference) -> Skill | OfferCallable | OfferReference:
         """
         Register a new object with the Marketplace to make it available.
 
@@ -328,9 +337,18 @@ class Maoto:
         if not isinstance(obj, (NewSkill, NewOfferCallable, NewOfferReference)):
             raise ValueError("Input must be one of: NewSkill, NewOfferCallable, NewOfferReference.")
         
+        if isinstance(obj, NewSkill):
+            result_type = Skill
+        elif isinstance(obj, NewOfferCallable):
+            result_type = OfferCallable
+        elif isinstance(obj, NewOfferReference):
+            result_type = OfferReference
+        else:
+            raise ValueError("Unsupported type. Must be one of: NewSkill, NewOfferCallable, NewOfferReference.")
+
         return await self._request(
             input=obj,
-            result_type=bool,
+            result_type=result_type,
             route=f"register{type(obj).__name__}",
             url=self._settings.url_mp,
             method="POST"

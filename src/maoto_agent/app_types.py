@@ -84,7 +84,7 @@ class OfferReference(Offer):
 
 class NewSkill(BaseModel):
     description: str
-    args: dict
+    params: dict
     resolver_id: UUID | None
     tags: list[str]
 
@@ -219,7 +219,7 @@ class LinkConfirmation(BaseModel):
 class LoginUserRequest(BaseModel):
     email: EmailStr
     password: SecretStr
-    params: dict
+    query_params: dict
 
 class LoginUserResponse(BaseModel):
     token: str
@@ -227,11 +227,11 @@ class LoginUserResponse(BaseModel):
 class RegisterUserRequest(BaseModel):
     email: EmailStr
     password: SecretStr
-    params: dict
+    query_params: dict
 
 class EmailVerif(BaseModel):
     token: SecretStr
-    params: dict
+    query_params: dict
 
 class RegisterUserResponse(BaseModel):
     success: bool
@@ -249,18 +249,3 @@ class Url(BaseModel):
 
 class SessionToken(BaseModel):
     token: SecretStr
-
-# intent = Intent(
-#     id=UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-#     time=datetime.now(),
-#     apikey_id=UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-#     description="description",
-#     tags=["tag1", "tag2"],
-#     resolved=True
-# )
-
-# dumped = intent.model_dump(mode="json")
-# print(dumped, type(dumped))
-
-# intent = Intent.model_validate(dumped)
-# print(f"{intent!r}")
