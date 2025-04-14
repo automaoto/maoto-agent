@@ -43,30 +43,29 @@ for filename in os.listdir(source_dir):
                     im = im.convert("RGB")
                 else:
                     im = im.convert("RGB")
-                
+
                 original_width, original_height = im.size
 
                 # Calculate scaling factor while preserving aspect ratio
-                scale_factor = min(target_width / original_width,
-                                   target_height / original_height)
+                scale_factor = min(target_width / original_width, target_height / original_height)
                 new_width = int(original_width * scale_factor)
                 new_height = int(original_height * scale_factor)
-                
+
                 # Resize the image using the defined resampling filter
                 resized_im = im.resize((new_width, new_height), resample_filter)
-                
+
                 # Create a new white background image with target dimensions
                 canvas = Image.new("RGB", target_size, (255, 255, 255))
-                
+
                 # Center the resized image on the white canvas
                 paste_x = (target_width - new_width) // 2
                 paste_y = (target_height - new_height) // 2
                 canvas.paste(resized_im, (paste_x, paste_y))
-                
+
                 # Save the final image in the output directory
                 output_path = os.path.join(output_dir, filename)
                 canvas.save(output_path)
                 print(f"Processed and saved: {output_path}")
-                
+
         except Exception as e:
             print(f"Error processing {filename}: {e}")
