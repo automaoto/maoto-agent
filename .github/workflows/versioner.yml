@@ -110,7 +110,7 @@ jobs:
       - name: Checkout another repo
         uses: actions/checkout@v3
         with:
-          repository: user_or_org/another-repo
+          repository: automaoto/maoto-agent
           token: ${{ secrets.GITHUB_TOKEN }}
           path: maoto-agent
           fetch-depth: 0
