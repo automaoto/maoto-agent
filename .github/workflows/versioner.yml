@@ -33,6 +33,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
         with:
+          persist-credentials: false
           # Ensure we fetch all tags (and remove shallow clone), so we can parse them:
           fetch-depth: 0
 
