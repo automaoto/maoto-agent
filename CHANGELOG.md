@@ -1,41 +1,50 @@
-### 0.1.0
+## Maoto Agent - Release Notes
+
+This document details changes made in the latest release of the Maoto Agent Python package.
 
 ### New Features
 
-* Added auto release notes workflow.
-* Added `set_webhook` method to `Maoto` class.  This method sets or updates the webhook URL associated with the agent's API key.  The URL can be provided as an argument or retrieved from the `MAOTO_AGENT_URL` environment variable.  Returns a boolean indicating success or failure.
+* **feat(agent):** Complete rewrite of the Maoto Agent using FastAPI for enhanced performance and efficiency.  The old asynchronous GraphQL client is replaced with a synchronous HTTPX client. This provides simpler usage for most use-cases, and enables full integration with the MCP.  
+* **feat(mcp):**  Added support for the Marketplace Capability Provider (MCP).  The `maoto-agent` now includes a fully-functional MCP server that can easily integrate with various language models and tools. See documentation for more details on how to register and use tools in your agent.
+* **feat(types):** Improved type definitions for enhanced type safety and better code readability.  Significant type-hints added.
+* **feat(settings):** Introduced `AgentSettings` and `MCPSettings` for flexible configuration of the agent and MCP server.
+* **feat(docs):** Significant overhaul of the documentation, including a new Quick Start guide and comprehensive API reference.  The documentation is now hosted at https://docs.maoto.world.
+* **feat(README):** Revamped the README to be more appealing and informative, including installation instructions, key features, documentation link, and badges.
+* **feat(CI/CD):** Added a new GitHub Actions workflow for automatic release notes generation and improved testing.  New workflows for testing and automatic release notes.
 
+### Changed
 
-### Bug Fixes
+* **refactor(agent):** The entire Maoto Agent class was replaced with a FastAPI application.  All previous methods have been rewritten to utilise the FastAPI framework.
+* **chore(structure):**  Reorganized the project structure for better modularity and maintainability.  The project is now setup using `hatch`.
+* **chore(dependencies):** Updated and modernized various dependencies for improved performance and security.  Many dependencies were upgraded.
+* **chore(logging):** Switched from `logging` library to `loguru` for better logging flexibility and ease of use.
+* **chore(testing):** Updated testing to utilize `ruff`.
+* **chore(versioning):** Updated versioning.
 
-* Fixed the `send_newoffercall` method in the `Maoto` class to correctly return an `OfferCall` object.  Previously, it was returning a dictionary.
-* Updated the GitHub release workflow to include a notes file.
+### Removed
+
+* **remove(agent):** Removed the old asynchronous GraphQL client and related code.
+* **remove(Outdated Code):** Removed obsolete and redundant code.
 
 
 ### Other Changes
 
-* Updated `Maoto` class to handle boolean responses to `set_webhook`.
-* Removed commented-out code for conda-forge recipe preparation from the release workflow.  This functionality will be added in a future release.
-=======
-**New Features:**
+* **deps:** Updated dependency versions for various packages.
+* **docs:** Updated documentation to reflect the changes made in this release. Added new sections and improved existing ones.
+* **chore:** Updated project structure and file organization.
+* **test:** Improved test coverage and added new tests.
+* **assets:** Added new logo, coverage badge and partner logos.  Created image reformatting script.
 
-* **feat(agent):** Added `OutsourcedMaotoAgentMethods` class for handling user and API key management.  This class includes methods for creating, deleting, and retrieving users and API keys.  It also includes methods for uploading and downloading files.
-* **feat(agent):** Added `download_missing_files` method to download files only if they are missing from the specified directory.
-* **feat(workflow):** Created `.github/workflows/release_notes.yml` for automated release notes generation.  This workflow uses the `lennardkorte/auto-release-notes` action.
-* **feat(workflow):** Added `CHANGELOG.md` to the `sdist` build target.
+### Upgrade Steps
 
-**Changed:**
-
-* **chore(project):** Updated `pyproject.toml` to include `Homepage`, `Documentation`, and `Issues` URLs under `project.urls`.
-* **chore(project):** Updated `pyproject.toml` to add `CHANGELOG.md` to the files included in the source distribution (`sdist`).
-* **chore(github):** Modified the GitHub Actions workflow (`release.yml`) to include `--notes-file CHANGELOG.md` in the `gh release create` command. This will now use the changelog for release notes.
-* **refactor(agent):** The `send_newoffercall` method in `maoto_agent.py` now correctly returns an `OfferCall` object.  Previously, it didn't unpack the returned data properly.
-* **refactor(agent):** Improved error handling and logging throughout the codebase.
-* **refactor(agent):** Improved the `set_webhook` method. Now it returns the result of the mutation, and properly handles the URL input.
+* **ACTION REQUIRED:** Due to the significant changes introduced in this release, users will need to review the updated documentation and adjust their code accordingly.  The API has been significantly changed, requiring adaptations in your agent code.
 
 
-**Removed:**
+### Breaking Changes
 
-*  Removed commented-out sections related to the `prepare-conda-forge` job in the GitHub Actions workflow.
+* **BREAKING CHANGE:** The Maoto Agent class has been completely refactored, rendering previous code incompatible.   All methods have been rewritten.  Refer to the updated documentation for the new API.  The old GraphQL client based approach has been entirely removed.
+* **BREAKING CHANGE:** Project structure changed.  Update your import statements.
+
+
 
 
