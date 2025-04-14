@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_degree:
-        description: 'Select the version degree'
+        description: 'Select a version degree'
         required: true
         default: 'Major'
         options:
@@ -12,7 +12,7 @@ on:
           - 'Minor'
           - 'Patch'
       release_type:
-        description: 'Select the release type'
+        description: 'Select a release type'
         required: true
         default: 'Full'
         options:
@@ -23,7 +23,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Display selected release options
+      - name: Display selected options
         run: |
-          echo "Version degree: ${{ github.event.inputs.version_degree }}"
-          echo "Release type: ${{ github.event.inputs.release_type }}"
+          echo "Version degree selected: ${{ github.event.inputs.version_degree }}"
+          echo "Release type selected: ${{ github.event.inputs.release_type }}"
