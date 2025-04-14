@@ -1,6 +1,8 @@
+{% set name = "maoto-agent" %}
+
 package:
-  name: "maoto-agent"
-  version: "{{ environ['GIT_DESCRIBE_TAG'] }}" 
+  name: {{ name|lower }}
+  version: "{{ environ['GIT_DESCRIBE_TAG'] }}"
 
 source:
   path: .
@@ -15,24 +17,31 @@ requirements:
   host:
     - python
     - pip
-    - setuptools
+    - hatchling
     - wheel
-    - setuptools-scm
+    - hatch-vcs
   run:
     - python >=3.10
     - setuptools >=74.1.1
     - pydantic >=2.10.6
-    - email-validator >=2.2.0
     - pydantic-settings >=2.8.1
+    - email-validator >=2.2.0
     - httpx >=0.28.1
-
     - fastapi >=0.115.12
-    - setuptools >=74.1.1
+    - loguru >=0.7.3
+test:
+  imports:
+    - maoto_agent
+  commands:
+    - pip check
+    - maoto-agent --help || true  # Allowing non-zero exit if it only prints help
+  requires:
+    - pip
 
 about:
   home: https://maoto.world
   description: "Maoto Agent"
-  license: Custom License
+  license: LGPL-2.1-or-later
   license_file: LICENSE
   description: |
     Maoto Agent
@@ -43,7 +52,7 @@ about:
     - "Agent"
   classifiers:
     - "Programming Language :: Python :: 3"
-    - "Operating System :: OS Independent"
+    - "Operating System :: OS Independent"E
 
 extra:
   channels:

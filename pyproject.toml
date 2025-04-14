@@ -1,10 +1,9 @@
 [build-system]
 requires = [
-    "setuptools>=74.1.1",
-    "wheel>=0.44.0",
-    "setuptools-scm>=8.1.0"  # Add setuptools-scm for versioning
+    "hatchling>=1.27.0",  # Modern build backend that works well with uv
+    "hatch-vcs>=0.4.0"    # For versioning with setuptools-scm
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "hatchling.build"
 
 [project]
 name = "maoto-agent"
@@ -21,18 +20,28 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "pydantic[email]>=2.10.6",
+    "setuptools >=74.1.1",
+    "pydantic >=2.10.6",
     "pydantic-settings>=2.8.1",
-    "httpx>=0.28.1",
-    "fastapi>=0.115.12",
-    "setuptools>=74.1.1",
+    "email-validator >=2.2.0",
+    "httpx >=0.28.1",
+    "fastapi[all]>=0.115.12",
+    "loguru>=0.7.3",
 ]
 
 dynamic = ["version"]
 
-[tool.setuptools_scm]
-local_scheme = "no-local-version"
-version_scheme = "post-release"
+[tool.hatch.build.targets.wheel]
+packages = ["src/maoto_agent"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/maoto_agent/**/*.py",
+]
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { version_scheme = "post-release" }
 
 [project.urls]
 Home = "https://maoto.world"
@@ -40,5 +49,63 @@ Home = "https://maoto.world"
 [project.scripts]
 maoto-agent = "maoto_agent.__main__:main"
 
-[tool.setuptools.packages.find]
-where = ["./src"]
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 100  # Increased from 88 to accommodate GraphQL queries
+indent-width = 4
+
+# Assume Python 3.10
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
+select = ["E", "F", "I"]
+ignore = [
+    "F405",  # Ignore undefined star imports
+    "E501",  # Ignore line length for GraphQL queries
+]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["maoto_agent"]
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.2",
+]
+mcp = [
+    "fastapi-mcp>=0.1.7",
+    "mcp>=1.6.0",
+]

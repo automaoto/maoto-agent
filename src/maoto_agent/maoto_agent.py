@@ -8,6 +8,7 @@ from pkg_resources import get_distribution
 from pydantic import BaseModel, HttpUrl
 from .agent_settings import AgentSettings
 from typing import Literal
+from loguru import logger
 
 class Maoto(FastAPI):
     def __init__(self, apikey: SecretStr | None = None, *args, **kwargs):
@@ -20,8 +21,7 @@ class Maoto(FastAPI):
         
         self.debug=self._settings.debug
         
-        # self.logger = logging.getLogger(__name__)
-        # self.logger.setLevel(getattr(logging, self._settings.logging_level.upper(), logging.WARNING))
+        logger.remove()
 
         @self.get("/healthz")
         async def healthz_check():
