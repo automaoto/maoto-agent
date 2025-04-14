@@ -21,4 +21,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Display selected release option
-        run: echo "Release option selected: ${{ github.event.inputs.release_option }}"
+        run: |
+            echo "Release option selected: ${{ github.event.inputs.release_option }}"
