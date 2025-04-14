@@ -1,13 +1,14 @@
 name: Lint and Format
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["Test"]
+    types:
+      - completed
 
 jobs:
   lint-and-format:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

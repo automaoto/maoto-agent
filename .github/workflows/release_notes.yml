@@ -4,10 +4,10 @@ permissions:
   contents: write
 
 on:
-  pull_request:
-    branches:
-      - master
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["Versioner"]
+    types:
+      - completed
 
 jobs:
   call-workflow:
