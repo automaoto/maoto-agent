@@ -1,23 +1,39 @@
-<center>
+<h1 align="center">Maoto Agent API Python Package 🚀</h1>
 
-# Maoto Agent API Python Package 🚀
-
-![maoto-agent](https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/MAOTO_logo.png)
-
-
-*MAOTO framework, high performance, easy to learn, fast to code, ready for production*
-
-<!-- [![PyPI version](https://img.shields.io/pypi/v/maoto-agent.svg)](https://pypi.org/project/maoto-agent/) -->
-[![Test](https://github.com/automaoto/maoto-agent/blob/main/actions/workflows/test.yml/badge.svg?event=push&branch=master)](https://github.com/automaoto/maoto-agent/blob/main/actions?query=workflow%3ATest+event%3Apush+branch%3Amaster)
-![Coverage](https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/coverage.svg)
-[![Package version](https://img.shields.io/pypi/v/maoto-agent?color=%2334D058&label=pypi%20package)](https://pypi.org/project/maoto-agent)
-[![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/maoto-agent.svg)](https://anaconda.org/conda-forge/maoto-agent)
-[![Supported Python versions](https://img.shields.io/pypi/pyversions/maoto-agent.svg?color=%2334D058)](https://pypi.org/project/maoto-agent)
-[![Documentation](https://img.shields.io/badge/docs-docs.maoto.world-blue)](https://docs.maoto.world)
-[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
-[![Security Policy](https://img.shields.io/badge/Security-Policy-blue)](https://github.com/automaoto/maoto-agent/blob/main/SECURITY.md)
-
-</center>
+<p align="center">
+  <a href="https://docs.maoto.world">
+    <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/MAOTO_logo.png" alt="MAOTO framework">
+  </a>
+</p>
+<p align="center">
+  <em>MAOTO framework, high performance, easy to learn, fast to code, ready for production</em>
+</p>
+<p align="center">
+  <a href="https://github.com/automaoto/maoto-agent/actions?query=workflow%3ATest+event%3Apush+branch%3Amain" target="_blank">
+    <img src="https://github.com/automaoto/maoto-agent/actions/workflows/test.yml/badge.svg?event=push&branch=main" alt="Test">
+  </a>
+  <a href="https://github.com/automaoto/maoto-agent" target="_blank">
+    <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/coverage.svg" alt="Coverage">
+  </a>
+  <a href="https://pypi.org/project/maoto-agent" target="_blank">
+    <img src="https://img.shields.io/pypi/v/maoto-agent?color=%2334D058&label=pypi%20package" alt="Package version">
+  </a>
+  <a href="https://anaconda.org/conda-forge/maoto-agent" target="_blank">
+    <img src="https://img.shields.io/conda/vn/conda-forge/maoto-agent.svg" alt="Conda-Forge">
+  </a>
+  <a href="https://pypi.org/project/maoto-agent" target="_blank">
+    <img src="https://img.shields.io/pypi/pyversions/maoto-agent.svg?color=%2334D058" alt="Supported Python versions">
+  </a>
+  <a href="https://docs.maoto.world" target="_blank">
+    <img src="https://img.shields.io/badge/docs-docs.maoto.world-blue" alt="Documentation">
+  </a>
+  <a href="https://www.gnu.org/licenses/lgpl-3.0" target="_blank">
+    <img src="https://img.shields.io/badge/License-LGPL%20v3-blue.svg" alt="License: LGPL v3">
+  </a>
+  <a href="https://github.com/automaoto/maoto-agent/blob/main/SECURITY.md" target="_blank">
+    <img src="https://img.shields.io/badge/Security-Policy-blue" alt="Security Policy">
+  </a>
+</p>
 
 The package provides convenient access to the [MAOTO](https://maoto.world) agents ecosystem from Python applications. The library includes type definitions for all request params and response fields and offers to easily create asynchronous agents that communicate with the [MAOTO](https://maoto.world) API.
 
