@@ -1,0 +1,24 @@
+name: Manual Release Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_option:
+        description: 'Select a version degree and release type'
+        required: true
+        default: 'Major Full'
+        options:
+          - 'Major Full'
+          - 'Major Beta'
+          - 'Minor Full'
+          - 'Minor Beta'
+          - 'Patch Full'
+          - 'Patch Beta'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Display selected release option
+        run: |
+            echo "Release option selected: ${{ github.event.inputs.release_option }}"
