@@ -1,29 +1,24 @@
-name: Manual Release Workflow
+name: Versioner
 
 on:
   workflow_dispatch:
     inputs:
-      version_degree:
-        description: 'Select a version degree'
+      release_option:
+        description: 'Select a version degree and release type'
         required: true
-        default: 'Major'
+        type: choice         # <-- This is the new key!
         options:
-          - 'Major'
-          - 'Minor'
-          - 'Patch'
-      release_type:
-        description: 'Select a release type'
-        required: true
-        default: 'Full'
-        options:
-          - 'Full'
-          - 'Beta'
+          - Major Full
+          - Major Beta
+          - Minor Full
+          - Minor Beta
+          - Patch Full
+          - Patch Beta
+        default: 'Major Full'
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Display selected options
-        run: |
-          echo "Version degree selected: ${{ github.event.inputs.version_degree }}"
-          echo "Release type selected: ${{ github.event.inputs.release_type }}"
+      - name: Display selected release option
+        run: echo "Release option selected: ${{ github.event.inputs.release_option }}"
