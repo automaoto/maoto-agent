@@ -1,35 +1,31 @@
-## Release Notes
+### Upgrade Steps
 
-### Added
-
-* **workflow:** Added `versioner` workflow to automate version tagging.  This workflow allows for creating beta and release tags, incrementing version numbers according to user-specified criteria (major, minor, patch, or beta counter).
+* No specific upgrade steps are required.
 
 
-### Changed
+### Breaking Changes
 
-* **workflow(lint):** The `lint` workflow now triggers only after a successful `Test` workflow run.
-* **workflow(release):** The `release` workflow now triggers only after successful completion of the "Lint and Format" and "Versioner" workflows.  The workflow dispatch input for version has been removed.
-* **workflow(release_notes):** The `release_notes` workflow trigger changed from pull requests on the `master` branch to pushes on the `main` branch.
-* **workflow(test):** The `test` workflow now triggers only after a successful `Auto Release Notes` workflow run. The workflow name was changed to `changelog_job` and it now only prints a message.
+* The workflow trigger has changed.  Previously, it triggered on completion of the "Lint and Format" and "Versioner" workflows. Now it triggers on completion of "Lint and Format" workflow and pushes with tags starting with `v*`.  This means that the `Versioner` workflow is no longer a prerequisite for release.
 
 
-### Removed
+### New Features
 
-* **workflow(release):** Removed the `workflow_dispatch` trigger and its associated `version` input from the `release` workflow.
-* **workflow(release):** Removed the commented-out `prepare-conda-forge` job.
-
-
-### Fixed
-
-* *(No changes in this release.)*
+* Added a new trigger for the workflow: pushing to a branch with a tag starting with `v*`.
 
 
-### Security
+### Bug Fixes
 
-* *(No changes in this release.)*
+* No bug fixes in this release.
+
+
+### Performance Improvements
+
+* No performance improvements in this release.
+
 
 ### Other Changes
 
-* *(No other changes in this release.)*
+* Removed the `Versioner` workflow as a trigger for the release workflow.
+* Commented out the `prepare-conda-forge` job.  This functionality is likely to be added back later.
 
 
