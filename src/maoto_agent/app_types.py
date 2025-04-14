@@ -1,7 +1,9 @@
-from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr
-from uuid import UUID
 from abc import ABC
 from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr
+
 
 class NewUser(BaseModel):
     email: EmailStr
