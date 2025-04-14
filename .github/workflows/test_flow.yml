@@ -3,23 +3,64 @@ name: Versioner
 on:
   workflow_dispatch:
     inputs:
-      release_option:
-        description: 'Select a version degree and release type'
+      version_degree:
+        description: 'Select the version increment (major, minor, patch).'
         required: true
-        type: choice         # <-- This is the new key!
+        type: choice
         options:
-          - Major Full
-          - Major Beta
-          - Minor Full
-          - Minor Beta
-          - Patch Full
-          - Patch Beta
-        default: 'Major Full'
+          - Major
+          - Minor
+          - Patch
+        default: Patch
+
+      release_type:
+        description: 'Select whether this is a Full or Beta release.'
+        required: true
+        type: choice
+        options:
+          - Full
+          - Beta
+        default: Beta
 
 jobs:
-  release:
+  create-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Display selected release option
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Determine tag name
+        id: tag_name
         run: |
-            echo "Release option selected: ${{ github.event.inputs.release_option }}"
+          # 1) Decide the base version based on Major/Minor/Patch
+          if [ "${{ github.event.inputs.version_degree }}" = "Major" ]; then
+            BASE_TAG="v1.0.0"
+          elif [ "${{ github.event.inputs.version_degree }}" = "Minor" ]; then
+            BASE_TAG="v1.1.0"
+          else
+            BASE_TAG="v1.0.1"
+          fi
+
+          # 2) Append '-beta' if it's a Beta release
+          if [ "${{ github.event.inputs.release_type }}" = "Beta" ]; then
+            FINAL_TAG="${BASE_TAG}-beta"
+          else
+            FINAL_TAG="${BASE_TAG}"
+          fi
+
+          echo "TAG_NAME=$FINAL_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          # Configure Git (necessary for pushing tags)
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          # (Optional) Ensure the clone is not shallow; needed if you'd like to push tags properly
+          git fetch --prune --unshallow || true
+
+          # Create tag
+          git tag "${{ steps.tag_name.outputs.TAG_NAME }}"
+
+          # Push tag
+          git push origin "${{ steps.tag_name.outputs.TAG_NAME }}"
