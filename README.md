@@ -74,23 +74,25 @@ conda install -c conda-forge maoto-agent
 ## Partners & Supporters 🌟
 
 <a href="https://www.ntu.edu.sg/" target="_blank" title="NTU Singapore">
-  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/ntu_singapore.jpg" style="max-width: 200; max-height: 100;">
+  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/ntu_singapore.jpg">
 </a>
 <a href="https://www.ntuitive.sg/" target="_blank" title="NTUitive">
-  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/ntuitive.jpg" style="max-width: 100; max-height: 150;">
+  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/ntuitive.jpg">
 </a>
 <a href="https://pollinate.edu.sg/" target="_blank" title="Pollinate">
-  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/pollinate.png" style="max-width: 200; max-height: 150;">
+  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/pollinate.png">
 </a>
 <a href="https://www.salesforce.com/" target="_blank" title="Salesforce">
-  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/Salesforce-Logo.png" style="max-width: 150; max-height: 150;">
+  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/Salesforce-Logo.png">
 </a>
 <a href="https://ace.sg/" target="_blank" title="ACE SG">
-  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/ace-logo.jpg" style="max-width: 150; max-height: 100;">
+  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/ace-logo.jpg">
 </a>
 <a href="https://www.nusentre.com/" target="_blank" title="NUS Enterprise">
-  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/nes_society.png" style="max-width: 150; max-height: 100;">
+  <img src="https://raw.githubusercontent.com/automaoto/maoto-agent/main/assets/partners_and_supporters/nes_society.png">
 </a>
+
+[Others](https://maoto.world)
 
 ## License 📝
 
