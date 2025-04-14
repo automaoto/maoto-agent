@@ -120,5 +120,6 @@ jobs:
           # Create and push tag
           git tag "$NEW_TAG"
           git push origin "$NEW_TAG"
+          git push https://x-access-token:${{ secrets.MAOTO_AGENT }}@github.com/automaoto/maoto-agent.git "$NEW_TAG"
 
           echo "Tag $NEW_TAG pushed successfully."
