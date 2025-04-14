@@ -2,14 +2,14 @@
 
 # Maoto Agent API Python Package 🚀
 
-![maoto-agent](https://github.com/automaoto/maoto-agent/assets/MAOTO_logo.png)
+![maoto-agent](https://github.com/automaoto/maoto-agent/blob/main/assets/MAOTO_logo.png)
 
 
 *MAOTO framework, high performance, easy to learn, fast to code, ready for production*
 
 <!-- [![PyPI version](https://img.shields.io/pypi/v/maoto-agent.svg)](https://pypi.org/project/maoto-agent/) -->
-[![Test](https://github.com/automaoto/maoto-agent/actions/workflows/test.yml/badge.svg?event=push&branch=master)](https://github.com/automaoto/maoto-agent/actions?query=workflow%3ATest+event%3Apush+branch%3Amaster)
-![Coverage](./assets/coverage.svg)
+[![Test](https://github.com/automaoto/maoto-agent/blob/main/actions/workflows/test.yml/badge.svg?event=push&branch=master)](https://github.com/automaoto/maoto-agent/blob/main/actions?query=workflow%3ATest+event%3Apush+branch%3Amaster)
+![Coverage](https://github.com/automaoto/maoto-agent/blob/main/assets/coverage.svg)
 [![Package version](https://img.shields.io/pypi/v/maoto-agent?color=%2334D058&label=pypi%20package)](https://pypi.org/project/maoto-agent)
 [![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/maoto-agent.svg)](https://anaconda.org/conda-forge/maoto-agent)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/maoto-agent.svg?color=%2334D058)](https://pypi.org/project/maoto-agent)
