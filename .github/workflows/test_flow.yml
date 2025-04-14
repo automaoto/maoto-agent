@@ -3,24 +3,25 @@ name: Versioner
 on:
   workflow_dispatch:
     inputs:
-      version_degree:
-        description: 'Select the version increment (major, minor, patch).'
+      release_type:
+        description: 'Select whether this is a Beta or a Release build'
+        required: true
+        type: choice
+        options:
+          - Beta
+          - Release
+        default: Beta
+
+      version_update:
+        description: 'How to increment the version (only applies if Beta)'
         required: true
         type: choice
         options:
           - Major
           - Minor
           - Patch
-        default: Patch
-
-      release_type:
-        description: 'Select whether this is a Full or Beta release.'
-        required: true
-        type: choice
-        options:
-          - Full
-          - Beta
-        default: Beta
+          - BetaCounter
+        default: BetaCounter
 
 jobs:
   create-tag:
@@ -28,39 +29,93 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
+        with:
+          # Ensure we fetch all tags (and remove shallow clone), so we can parse them:
+          fetch-depth: 0
 
-      - name: Determine tag name
-        id: tag_name
+      - name: Determine next tag
+        id: next_tag
         run: |
-          # 1) Decide the base version based on Major/Minor/Patch
-          if [ "${{ github.event.inputs.version_degree }}" = "Major" ]; then
-            BASE_TAG="v1.0.0"
-          elif [ "${{ github.event.inputs.version_degree }}" = "Minor" ]; then
-            BASE_TAG="v1.1.0"
-          else
-            BASE_TAG="v1.0.1"
+          # Grab the most recent tag in the repo:
+          CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+
+          if [ -z "$CURRENT_TAG" ]; then
+            echo "No existing tags found. Please create an initial tag, e.g. v1.0.0, then rerun."
+            exit 1
           fi
 
-          # 2) Append '-beta' if it's a Beta release
-          if [ "${{ github.event.inputs.release_type }}" = "Beta" ]; then
-            FINAL_TAG="${BASE_TAG}-beta"
+          echo "Latest tag is: $CURRENT_TAG"
+
+          # Parse the current tag to extract (major, minor, patch, beta)
+          # We expect either "vX.Y.Z" or "vX.Y.ZbNN"
+          if [[ "$CURRENT_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)b([0-9]+)$ ]]; then
+            # It's a beta tag
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            BETA="${BASH_REMATCH[4]}"
+          elif [[ "$CURRENT_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            # It's a release tag
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            BETA=0
           else
-            FINAL_TAG="${BASE_TAG}"
+            echo "Error: last tag does not match vX.Y.Z or vX.Y.ZbNN: $CURRENT_TAG"
+            exit 1
           fi
 
-          echo "TAG_NAME=$FINAL_TAG" >> $GITHUB_OUTPUT
+          echo "Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, BETA=$BETA"
 
-      - name: Create and push tag
+          # Decide next version based on user input
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          VERSION_UPDATE="${{ github.event.inputs.version_update }}"
+
+          if [ "$RELEASE_TYPE" = "Beta" ]; then
+            # If Beta, decide how to update:
+            if [ "$VERSION_UPDATE" = "Major" ]; then
+              ((MAJOR++))
+              MINOR=0
+              PATCH=0
+              BETA=1
+            elif [ "$VERSION_UPDATE" = "Minor" ]; then
+              ((MINOR++))
+              PATCH=0
+              BETA=1
+            elif [ "$VERSION_UPDATE" = "Patch" ]; then
+              ((PATCH++))
+              BETA=1
+            else
+              # "BetaCounter": keep major/minor/patch, just increment the beta number
+              ((BETA++))
+            fi
+            NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}b${BETA}"
+
+          else
+            # If Release, we require that the last tag was a Beta (BETA != 0).
+            # Then strip off the beta portion to finalize the version as a release:
+            if [ "$BETA" -eq 0 ]; then
+              echo "Error: Cannot create a release from a non-beta tag ($CURRENT_TAG)."
+              exit 1
+            fi
+            NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "NEXT_TAG=$NEXT_TAG"
+          echo "next_tag=$NEXT_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create and push new tag
         run: |
-          # Configure Git (necessary for pushing tags)
+          NEW_TAG="${{ steps.next_tag.outputs.next_tag }}"
+
+          echo "Creating new tag: $NEW_TAG"
+
+          # Configure Git
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          # (Optional) Ensure the clone is not shallow; needed if you'd like to push tags properly
-          git fetch --prune --unshallow || true
+          # Create and push tag
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
 
-          # Create tag
-          git tag "${{ steps.tag_name.outputs.TAG_NAME }}"
-
-          # Push tag
-          git push origin "${{ steps.tag_name.outputs.TAG_NAME }}"
+          echo "Tag $NEW_TAG pushed successfully."
