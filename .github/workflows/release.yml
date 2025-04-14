@@ -2,9 +2,10 @@ name: Publish Python 🐍 distribution 📦
 
 on:
   workflow_run:
-    workflows: ["Lint and Format"]
+    workflows: ["Lint and Format", "Versioner"]
     types:
       - completed
+  
 
 jobs:
   build-pypi:

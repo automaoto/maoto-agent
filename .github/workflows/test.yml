@@ -6,10 +6,10 @@ on:
       - main
 
 jobs:
-  test:
+  changelog_job:
     runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, 'CHANGELOG')
     steps:
-      - uses: actions/checkout@v3
-      - name: Run tests
+      - name: Print message
         run: |
-            echo "Running tests ..."
+          echo "Triggered by CHANGELOG commit"
