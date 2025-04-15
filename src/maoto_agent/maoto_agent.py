@@ -535,14 +535,14 @@ class Maoto(FastAPI):
         --------
         >>> await maoto.set_webhook("https://agent.example.com/webhook")
         """
-        if not url:
-            env_url = os.getenv("MAOTO_AGENT_URL")
-            if not env_url:
-                raise ValueError("No URL provided in environment variable MAOTO_AGENT_URL.")
-            url = HttpUrl(env_url)
+        
+        if not (url or self._settings.agent_url):
+            raise ValueError(
+                "No URL provided. Please set MAOTO_AGENT_URL in your environment variables or pass a URL as an argument."
+            )
 
         return await self._request(
-            input={"url": str(url)},
+            input={"url": str(url or self._settings.agent_url)},
             result_type=str,
             route="setWebhook",
             url=self._settings.url_mp,

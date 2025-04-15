@@ -13,6 +13,7 @@ class AgentSettings(BaseSettings):
     port_pa: int = 443
     apikey: SecretStr
     logging_level: str = "INFO"
+    agent_url: HttpUrl | None = None
 
     @cached_property
     def protocol(self) -> str:
