@@ -6,6 +6,7 @@ from typing import Literal
 
 import httpx
 from fastapi import FastAPI, Response
+from urllib.parse import urlparse, urlunparse
 from loguru import logger
 from pydantic import BaseModel, HttpUrl
 
@@ -93,6 +94,17 @@ class Maoto(FastAPI):
 
         return decorator
 
+    @staticmethod
+    def safe_urljoin(base: HttpUrl, *paths: str) -> str:
+        """
+        Join base URL with additional path segments safely.
+        """
+        parsed = urlparse(str(base))
+        # Clean up and join the path segments
+        new_path = '/'.join(segment.strip('/') for segment in (parsed.path, *paths) if segment)
+        # Rebuild the full URL
+        return urlunparse(parsed._replace(path='/' + new_path))
+
     async def _request(
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
@@ -103,7 +115,7 @@ class Maoto(FastAPI):
         url: HttpUrl = None,
     ) -> BaseModel:
         """Send a request to another FastAPI server with a Pydantic object and return a validated response."""
-        full_url = f"{url}{route}" if route else url
+        full_url = url if not route else self.safe_urljoin(url, route)
         request_kwargs = {"headers": self._headers}
 
         if method in {"POST", "PUT"}:
@@ -277,7 +289,7 @@ class Maoto(FastAPI):
         | NewOfferCallResponse
         | NewOfferCallableCostResponse
         | NewOfferReferenceCostResponse,
-    ) -> bool:
+    ):
         """
         Send a response object to the Marketplace to complete a request or update its status.
 
@@ -332,7 +344,6 @@ class Maoto(FastAPI):
 
         await self._request(
             input=obj,
-            result_type=bool,
             route=f"{type(obj).__name__}",
             url=self._settings.url_mp,
             method="POST",
