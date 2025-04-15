@@ -22,13 +22,12 @@ requirements:
     - hatch-vcs
   run:
     - python >=3.10
-    - setuptools >=74.1.1
     - pydantic >=2.9.2
     - pydantic-settings >=2.8.1
     - email-validator >=2.2.0
     - httpx >=0.28.1
     - fastapi >=0.115.12
-    - loguru >=0.7.3
+    - loguru >=0.7.0
 test:
   imports:
     - maoto_agent
@@ -52,8 +51,14 @@ about:
     - "Agent"
   classifiers:
     - "Programming Language :: Python :: 3"
-    - "Operating System :: OS Independent"E
-
+    - "Operating System :: OS Independent"
+    - "Intended Audience :: Information Technology"
+    - "Intended Audience :: System Administrators"
+    - "Topic :: Internet"
+    - "Topic :: Software Development :: Libraries :: Application Frameworks"
+    - "Topic :: Software Development :: Libraries :: Python Modules"
+    - "Topic :: Software Development :: Libraries"
+    - "Topic :: Software Development"
 extra:
   channels:
     - conda-forge
