@@ -5,7 +5,7 @@ from typing import Literal
 import httpx
 from fastapi import FastAPI, Response
 from loguru import logger
-from pkg_resources import get_distribution
+from importlib.metadata import version
 from pydantic import BaseModel, HttpUrl
 
 from .agent_settings import AgentSettings
@@ -33,7 +33,7 @@ class Maoto(FastAPI):
         async def human_health_check():
             return Response(status_code=200, content="OK")
 
-        self._version = get_distribution("maoto_agent").version
+        self._version = version("maoto_agent")
         self._headers = {
             "Authorization": self._settings.apikey.get_secret_value(),
             "Version": self._version,
