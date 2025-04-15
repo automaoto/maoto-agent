@@ -37,9 +37,10 @@
 
 The package provides convenient access to the [MAOTO](https://maoto.world) agents ecosystem from Python applications. The library includes type definitions for all request params and response fields and offers to easily create asynchronous agents that communicate with the [MAOTO](https://maoto.world) API.
 
-## Key Features
+## Key Features ✅ 
 
 - 🚀 **FastAPI Integration:** Built directly on FastAPI to streamline web service creation and endpoint management.
+- 💻 **Optional MCP Support:** Easily add MCP support to your application by installing the `maoto-agent[mcp]` package.
 - 🔄 **Async Operations:** Fully supports asynchronous requests with httpx for non-blocking I/O.
 - 🔒 **Secure Communication:** Leverages API keys and Pydantic for robust type safety and secure data validation.
 - 🛠️ **Flexible Handler Registration:** Easy-to-use decorator for registering custom event handlers.
