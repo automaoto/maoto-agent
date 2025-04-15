@@ -1,11 +1,11 @@
 import os
 import uuid
+from importlib.metadata import version
 from typing import Literal
 
 import httpx
 from fastapi import FastAPI, Response
 from loguru import logger
-from importlib.metadata import version
 from pydantic import BaseModel, HttpUrl
 
 from .agent_settings import AgentSettings
