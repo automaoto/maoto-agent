@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 from importlib.metadata import version
@@ -110,12 +111,17 @@ class Maoto(FastAPI):
                 request_kwargs["json"] = input.model_dump(mode="json")
             elif isinstance(input, dict):
                 request_kwargs["json"] = input
+            elif input is None:
+                pass
             else:
                 raise Exception("Invalid input type for POST/PUT requests.")
 
         async with httpx.AsyncClient() as client:
             response = await client.request(method, str(full_url), **request_kwargs)
             response.raise_for_status()
+
+        if result_type is None:
+            return None
 
         if result_type is str:
             return response.text
@@ -214,7 +220,7 @@ class Maoto(FastAPI):
         obj_type: type[Skill | OfferCallable | OfferReference] | None = None,
         id: uuid.UUID | None = None,
         solver_id: uuid.UUID | None = None,
-    ) -> bool:
+    ):
         """
         Unregister a Skill, OfferCallable, or OfferReference to make it unavailable.
 
@@ -244,29 +250,23 @@ class Maoto(FastAPI):
         >>> await maoto.unregister(obj=my_skill)
         >>> await maoto.unregister(obj_type=Skill, id=UUID("abc123"))
         """
-        if obj:
-            obj_type, obj_id = type(obj), obj.id
-        elif obj_type and (id or solver_id):
-            obj_id = id or solver_id
-        else:
-            raise ValueError("Either obj or obj_type and id/solver_id must be provided.")
 
-        # check types of provided parameters if they are defined (optionals)
-        if obj_type and obj_id:
-            if obj_type not in {Skill, OfferCallable, OfferReference}:
-                raise ValueError(
-                    "Unsupported type. Must be one of: Skill, OfferCallable, OfferReference."
-                )
-            if not isinstance(obj_id, uuid.UUID):
-                raise ValueError("ID must be a valid UUID.")
-        elif obj:
+        if obj:
             if not isinstance(obj, (Skill, OfferCallable, OfferReference)):
                 raise ValueError("Input must be one of: Skill, OfferCallable, OfferReference.")
+            obj_type = type(obj)
+            param = f"id={obj.id}"
+        elif (id or solver_id) and obj_type:
+            if not isinstance(id, uuid.UUID) and not isinstance(solver_id, uuid.UUID):
+                raise ValueError("ID or solver_id must be a valid UUID.")
+            if obj_type not in {Skill, OfferCallable, OfferReference}:
+                raise ValueError("Unsupported type. Must be one of: Skill, OfferCallable, OfferReference.")
+            param = f"id={id}" if id else f"solver_id={solver_id}"
+        else:
+            raise ValueError("Either obj or (obj_type and id/solver_id) must be provided.")
 
-        return await self._request(
-            input={"id": str(obj_id)},
-            result_type=bool,
-            route=f"unregister{obj_type.__name__}",
+        await self._request(
+            route=f"unregister{obj_type.__name__}?{param}",
             url=self._settings.url_mp,
             method="POST",
         )

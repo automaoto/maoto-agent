@@ -72,7 +72,7 @@ class Intent(NewIntent):
 
 
 class NewOffer(BaseModel, ABC):
-    resolver_id: UUID | None
+    solver_id: UUID | None
     description: str
     params: dict
     tags: list[str]
@@ -105,7 +105,7 @@ class OfferReference(Offer):
 class NewSkill(BaseModel):
     description: str
     params: dict
-    resolver_id: UUID | None
+    solver_id: UUID | None
     tags: list[str]
 
 
@@ -121,13 +121,13 @@ class MissingInfo(BaseModel):
 
 class OfferCallableCostRequest(BaseModel):
     offercallable_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
     intent: Intent
 
 
 class OfferReferenceCostRequest(BaseModel):
     offerreference_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
     intent: Intent
 
 
@@ -154,7 +154,7 @@ class OfferReferenceCostResponse(NewOfferReferenceCostResponse):
 
 class OfferRequest(BaseModel):
     skill_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
     intent: Intent
 
 
@@ -183,7 +183,7 @@ class OfferCall(NewOfferCall):
     id: UUID
     time: datetime
     apikey_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
 
 
 class NewFile(BaseModel):
