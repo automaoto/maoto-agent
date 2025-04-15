@@ -102,7 +102,7 @@ class Maoto(FastAPI):
         url: HttpUrl = None,
     ) -> BaseModel:
         """Send a request to another FastAPI server with a Pydantic object and return a validated response."""
-        full_url = f"{url}/{route}" if route else url
+        full_url = f"{url}{route}" if route else url
         request_kwargs = {"headers": self._headers}
 
         if method in {"POST", "PUT"}:
