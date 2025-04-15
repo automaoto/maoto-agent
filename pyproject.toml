@@ -33,13 +33,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "setuptools >=74.1.1",
     "pydantic >=2.9.2",
     "pydantic-settings>=2.8.1",
     "email-validator >=2.2.0",
     "httpx >=0.28.1",
     "fastapi[all] >=0.115.12",
-    "loguru >=0.7.3",
+    "loguru >=0.7.0",
 ]
 
 dynamic = ["version"]
