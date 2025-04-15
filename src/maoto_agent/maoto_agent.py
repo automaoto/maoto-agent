@@ -29,11 +29,11 @@ class Maoto(FastAPI):
 
         @self.get("/healthz")
         async def healthz_check():
-            return Response(status_code=200, content="OK")
+            return Response(status_code=200, content="OK1")
 
         @self.get("/health")
         async def human_health_check():
-            return Response(status_code=200, content="OK")
+            return Response(status_code=200, content="OK1")
 
         self._version = version("maoto_agent")
         self._headers = {
@@ -129,7 +129,7 @@ class Maoto(FastAPI):
                 raise Exception("Invalid input type for POST/PUT requests.")
 
         async with httpx.AsyncClient() as client:
-            response = await client.request(method, str(full_url), **request_kwargs)
+            response = await client.request(method, str(full_url), **request_kwargs)#
             response.raise_for_status()
 
         if result_type is None:
