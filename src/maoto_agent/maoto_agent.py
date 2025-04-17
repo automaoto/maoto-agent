@@ -1,12 +1,10 @@
-import json
-import os
 import uuid
 from importlib.metadata import version
 from typing import Literal
+from urllib.parse import urljoin
 
 import httpx
 from fastapi import FastAPI, Response
-from urllib.parse import urlparse, urlunparse
 from loguru import logger
 from pydantic import BaseModel, HttpUrl
 
@@ -53,6 +51,9 @@ class Maoto(FastAPI):
             | PaymentRequest
             | LinkConfirmation
             | PALocationRequest
+            | PAUserMessage
+            | PALinkUrl
+            | PAPaymentRequest
         ],
     ):
         """
@@ -81,14 +82,27 @@ class Maoto(FastAPI):
         """
 
         def decorator(func):
-            no_return_models = {PALinkUrl, PALocationRequest, PAPaymentRequest, PAUserMessage}
-            chosen_response_model = None if event_type in no_return_models else event_type
+            supported_types = {
+                OfferCall,
+                OfferRequest,
+                OfferCallableCostRequest,
+                OfferReferenceCostRequest,
+                IntentResponse,
+                OfferCallResponse,
+                PaymentRequest,
+                LinkConfirmation,
+                PAUserMessage,
+                PALocationRequest,
+                PALinkUrl,
+                PAPaymentRequest,
+            }
+            if event_type not in supported_types:
+                raise ValueError(
+                    f"Unsupported event type: {event_type}. Supported types are: {supported_types}"
+                )
 
             self.add_api_route(
-                path=f"/{event_type.__name__}",
-                endpoint=func,
-                methods=["POST", "GET"],
-                response_model=chosen_response_model,
+                path=f"/{event_type.__name__}", endpoint=func, methods=["POST"], response_model=None
             )
             return func
 
@@ -97,13 +111,13 @@ class Maoto(FastAPI):
     @staticmethod
     def safe_urljoin(base: HttpUrl, *paths: str) -> str:
         """
-        Join base URL with additional path segments safely.
+        Safely join base URL with one or more path segments.
         """
-        parsed = urlparse(str(base))
-        # Clean up and join the path segments
-        new_path = '/'.join(segment.strip('/') for segment in (parsed.path, *paths) if segment)
-        # Rebuild the full URL
-        return urlunparse(parsed._replace(path='/' + new_path))
+        base_str = str(base)
+        if not base_str.endswith("/"):
+            base_str += "/"
+        full_path = "/".join(segment.strip("/") for segment in paths)
+        return urljoin(base_str, full_path)
 
     async def _request(
         self,
@@ -221,7 +235,7 @@ class Maoto(FastAPI):
         return await self._request(
             input=new_intent,
             result_type=Intent,
-            route="createIntent",
+            route=f"{type(new_intent).__name__}",
             url=self._settings.url_mp,
             method="POST",
         )
@@ -272,7 +286,9 @@ class Maoto(FastAPI):
             if not isinstance(id, uuid.UUID) and not isinstance(solver_id, uuid.UUID):
                 raise ValueError("ID or solver_id must be a valid UUID.")
             if obj_type not in {Skill, OfferCallable, OfferReference}:
-                raise ValueError("Unsupported type. Must be one of: Skill, OfferCallable, OfferReference.")
+                raise ValueError(
+                    "Unsupported type. Must be one of: Skill, OfferCallable, OfferReference."
+                )
             param = f"id={id}" if id else f"solver_id={solver_id}"
         else:
             raise ValueError("Either obj or (obj_type and id/solver_id) must be provided.")
@@ -546,7 +562,7 @@ class Maoto(FastAPI):
         --------
         >>> await maoto.set_webhook("https://agent.example.com/webhook")
         """
-        
+
         if not (url or self._settings.agent_url):
             raise ValueError(
                 "No URL provided. Please set MAOTO_AGENT_URL in your environment variables or pass a URL as an argument."

@@ -37,13 +37,10 @@ class ApiKeyWithSecret(ApiKey):
     value: SecretStr
 
 
-class NewResponse(BaseModel):
+class IntentResponse(BaseModel):
     intent_id: UUID
+    provider_id: str
     description: str
-
-
-class IntentResponse(NewResponse):
-    pass
 
 
 class NewOfferCallResponse(BaseModel):
@@ -54,12 +51,14 @@ class NewOfferCallResponse(BaseModel):
 
 class OfferCallResponse(NewOfferCallResponse):
     id: UUID
+    provider_id: str
     time: datetime
     apikey_id: UUID
 
 
 class NewIntent(BaseModel):
     description: str
+    provider_id: str | None
     tags: list[str]
 
 
@@ -175,6 +174,7 @@ class OfferResponse(NewOfferResponse):
 
 class NewOfferCall(BaseModel):
     offercallable_id: UUID
+    provider_id: str | None
     deputy_apikey_id: UUID | None
     args: dict
 
