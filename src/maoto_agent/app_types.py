@@ -1,8 +1,9 @@
+import json
 from abc import ABC
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr
+from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr, field_validator
 
 
 class NewUser(BaseModel):
@@ -78,6 +79,13 @@ class NewOffer(BaseModel, ABC):
     followup: bool
     cost: float | None
 
+    @field_validator("params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
+
 
 class Offer(NewOffer, ABC):
     id: UUID
@@ -106,6 +114,13 @@ class NewSkill(BaseModel):
     params: dict
     solver_id: UUID | None
     tags: list[str]
+
+    @field_validator("params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class Skill(NewSkill):
@@ -177,6 +192,13 @@ class NewOfferCall(BaseModel):
     provider_id: str | None
     deputy_apikey_id: UUID | None
     args: dict
+
+    @field_validator("args", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class OfferCall(NewOfferCall):
@@ -270,6 +292,13 @@ class LoginUserRequest(BaseModel):
     password: SecretStr
     query_params: dict
 
+    @field_validator("query_params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
+
 
 class LoginUserResponse(BaseModel):
     token: str
@@ -280,10 +309,24 @@ class RegisterUserRequest(BaseModel):
     password: SecretStr
     query_params: dict
 
+    @field_validator("query_params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
+
 
 class EmailVerif(BaseModel):
     token: SecretStr
     query_params: dict
+
+    @field_validator("query_params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class RegisterUserResponse(BaseModel):

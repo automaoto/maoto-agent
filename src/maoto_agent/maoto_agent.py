@@ -1,10 +1,14 @@
+import asyncio
 import uuid
 from importlib.metadata import version
+from importlib.resources import files
 from typing import Literal
 from urllib.parse import urljoin
 
 import httpx
 from fastapi import FastAPI, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from pydantic import BaseModel, HttpUrl
 
@@ -32,6 +36,14 @@ class Maoto(FastAPI):
         @self.get("/health")
         async def human_health_check():
             return Response(status_code=200, content="OK")
+
+        # Serve the icons statically
+        static_path = files("maoto_agent").joinpath("static")
+        self.mount("/static", StaticFiles(directory=static_path), name="static")
+
+        @self.get("/favicon.ico", include_in_schema=False)
+        async def favicon():
+            return FileResponse(static_path / "favicon.ico")
 
         self._version = version("maoto_agent")
         self._headers = {
@@ -83,26 +95,34 @@ class Maoto(FastAPI):
 
         def decorator(func):
             supported_types = {
-                OfferCall,
-                OfferRequest,
-                OfferCallableCostRequest,
-                OfferReferenceCostRequest,
-                IntentResponse,
-                OfferCallResponse,
-                PaymentRequest,
-                LinkConfirmation,
-                PAUserMessage,
-                PALocationRequest,
-                PALinkUrl,
-                PAPaymentRequest,
+                OfferCall: "Represents a request to initiate an offer-related call or interaction.",
+                OfferRequest: "Represents a request to fetch or create an offer.",
+                OfferCallableCostRequest: "Used to retrieve the cost of a callable offer.",
+                OfferReferenceCostRequest: "Used to retrieve the cost based on a reference offer.",
+                IntentResponse: "Captures the outcome or interpretation of a user's intent.",
+                OfferCallResponse: "Contains the response data from an offer call interaction.",
+                PaymentRequest: "Used to initiate a payment process for a service or product.",
+                LinkConfirmation: "Confirms that the user linked his UI id with a maoto account.",
+                PAUserMessage: "A message directed to the user in the personal assistant flow.",
+                PALocationRequest: "Asks the UI to share or request the user's location.",
+                PALinkUrl: "Requests the user to login before calling an action that has cost associated.",
+                PAPaymentRequest: "Personal assistant version of a payment request, possibly with more context or user-specific handling.",
             }
-            if event_type not in supported_types:
+            if event_type not in supported_types.keys():
                 raise ValueError(
                     f"Unsupported event type: {event_type}. Supported types are: {supported_types}"
                 )
 
+            async def instant_response(input: event_type):
+                asyncio.create_task(func(input))
+
             self.add_api_route(
-                path=f"/{event_type.__name__}", endpoint=func, methods=["POST"], response_model=None
+                path=f"/{event_type.__name__}",
+                endpoint=instant_response,
+                summary=f"Handle {event_type.__name__} events",
+                description=supported_types[event_type],
+                methods=["POST"],
+                response_model=None,
             )
             return func
 
@@ -140,11 +160,34 @@ class Maoto(FastAPI):
             elif input is None:
                 pass
             else:
-                raise Exception("Invalid input type for POST/PUT requests.")
+                raise Exception("Invalid input type for requests.")
 
         async with httpx.AsyncClient() as client:
             response = await client.request(method, str(full_url), **request_kwargs)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                # Original HTTPX message, e.g. "429 Too Many Requests…"
+                orig = str(exc)
+
+                # Safely attempt to parse JSON detail, otherwise fall back to text
+                detail = None
+                try:
+                    body = exc.response.json()
+                    # if body is a dict, try to pull out a "detail" field
+                    if isinstance(body, dict):
+                        detail = body.get("detail")
+                except (ValueError, TypeError):
+                    # not JSON, or not a dict
+                    pass
+
+                if not detail:
+                    detail = exc.response.text or "<no response body>"
+
+                msg = f"{orig}\nDetail: {detail}"
+                raise httpx.HTTPStatusError(
+                    msg, request=exc.request, response=exc.response
+                ) from exc
 
         if result_type is None:
             return None
@@ -459,7 +502,7 @@ class Maoto(FastAPI):
         return await self._request(
             result_type=type_ref,
             is_list=True,
-            route=f"get{type_ref.__name__}",
+            route=f"get{type_ref.__name__}s",
             url=self._settings.url_mp,
             method="GET",
         )
@@ -535,7 +578,7 @@ class Maoto(FastAPI):
         return await self._request(
             input=new_offercall,
             result_type=OfferCall,
-            route="sendNewOfferCall",
+            route="NewOfferCall",
             url=self._settings.url_mp,
             method="POST",
         )
