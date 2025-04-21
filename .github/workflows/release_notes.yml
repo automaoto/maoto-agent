@@ -7,7 +7,9 @@ on:
   push:
     branches:
       - main
-
+    tags-ignore:
+      - 'v*'
+      
 jobs:
   call-workflow:
     uses: lennardkorte/auto-release-notes/.github/workflows/auto_release_notes.yml@main
