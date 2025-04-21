@@ -1,10 +1,14 @@
-import os
+import asyncio
 import uuid
 from importlib.metadata import version
+from importlib.resources import files
 from typing import Literal
+from urllib.parse import urljoin
 
 import httpx
 from fastapi import FastAPI, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from pydantic import BaseModel, HttpUrl
 
@@ -33,6 +37,14 @@ class Maoto(FastAPI):
         async def human_health_check():
             return Response(status_code=200, content="OK")
 
+        # Serve the icons statically
+        static_path = files("maoto_agent").joinpath("static")
+        self.mount("/static", StaticFiles(directory=static_path), name="static")
+
+        @self.get("/favicon.ico", include_in_schema=False)
+        async def favicon():
+            return FileResponse(static_path / "favicon.ico")
+
         self._version = version("maoto_agent")
         self._headers = {
             "Authorization": self._settings.apikey.get_secret_value(),
@@ -51,6 +63,9 @@ class Maoto(FastAPI):
             | PaymentRequest
             | LinkConfirmation
             | PALocationRequest
+            | PAUserMessage
+            | PALinkUrl
+            | PAPaymentRequest
         ],
     ):
         """
@@ -79,18 +94,50 @@ class Maoto(FastAPI):
         """
 
         def decorator(func):
-            no_return_models = {PALinkUrl, PALocationRequest, PAPaymentRequest, PAUserMessage}
-            chosen_response_model = None if event_type in no_return_models else event_type
+            supported_types = {
+                OfferCall: "Represents a request to initiate an offer-related call or interaction.",
+                OfferRequest: "Represents a request to fetch or create an offer.",
+                OfferCallableCostRequest: "Used to retrieve the cost of a callable offer.",
+                OfferReferenceCostRequest: "Used to retrieve the cost based on a reference offer.",
+                IntentResponse: "Captures the outcome or interpretation of a user's intent.",
+                OfferCallResponse: "Contains the response data from an offer call interaction.",
+                PaymentRequest: "Used to initiate a payment process for a service or product.",
+                LinkConfirmation: "Confirms that the user linked his UI id with a maoto account.",
+                PAUserMessage: "A message directed to the user in the personal assistant flow.",
+                PALocationRequest: "Asks the UI to share or request the user's location.",
+                PALinkUrl: "Requests the user to login before calling an action that has cost associated.",
+                PAPaymentRequest: "Personal assistant version of a payment request, possibly with more context or user-specific handling.",
+            }
+            if event_type not in supported_types.keys():
+                raise ValueError(
+                    f"Unsupported event type: {event_type}. Supported types are: {supported_types}"
+                )
+
+            async def instant_response(input: event_type):
+                asyncio.create_task(func(input))
 
             self.add_api_route(
                 path=f"/{event_type.__name__}",
-                endpoint=func,
-                methods=["POST", "GET"],
-                response_model=chosen_response_model,
+                endpoint=instant_response,
+                summary=f"Handle {event_type.__name__} events",
+                description=supported_types[event_type],
+                methods=["POST"],
+                response_model=None,
             )
             return func
 
         return decorator
+
+    @staticmethod
+    def safe_urljoin(base: HttpUrl, *paths: str) -> str:
+        """
+        Safely join base URL with one or more path segments.
+        """
+        base_str = str(base)
+        if not base_str.endswith("/"):
+            base_str += "/"
+        full_path = "/".join(segment.strip("/") for segment in paths)
+        return urljoin(base_str, full_path)
 
     async def _request(
         self,
@@ -102,7 +149,7 @@ class Maoto(FastAPI):
         url: HttpUrl = None,
     ) -> BaseModel:
         """Send a request to another FastAPI server with a Pydantic object and return a validated response."""
-        full_url = f"{url}{route}" if route else url
+        full_url = url if not route else self.safe_urljoin(url, route)
         request_kwargs = {"headers": self._headers}
 
         if method in {"POST", "PUT"}:
@@ -110,12 +157,40 @@ class Maoto(FastAPI):
                 request_kwargs["json"] = input.model_dump(mode="json")
             elif isinstance(input, dict):
                 request_kwargs["json"] = input
+            elif input is None:
+                pass
             else:
-                raise Exception("Invalid input type for POST/PUT requests.")
+                raise Exception("Invalid input type for requests.")
 
         async with httpx.AsyncClient() as client:
             response = await client.request(method, str(full_url), **request_kwargs)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                # Original HTTPX message, e.g. "429 Too Many Requests…"
+                orig = str(exc)
+
+                # Safely attempt to parse JSON detail, otherwise fall back to text
+                detail = None
+                try:
+                    body = exc.response.json()
+                    # if body is a dict, try to pull out a "detail" field
+                    if isinstance(body, dict):
+                        detail = body.get("detail")
+                except (ValueError, TypeError):
+                    # not JSON, or not a dict
+                    pass
+
+                if not detail:
+                    detail = exc.response.text or "<no response body>"
+
+                msg = f"{orig}\nDetail: {detail}"
+                raise httpx.HTTPStatusError(
+                    msg, request=exc.request, response=exc.response
+                ) from exc
+
+        if result_type is None:
+            return None
 
         if result_type is str:
             return response.text
@@ -203,7 +278,7 @@ class Maoto(FastAPI):
         return await self._request(
             input=new_intent,
             result_type=Intent,
-            route="createIntent",
+            route=f"{type(new_intent).__name__}",
             url=self._settings.url_mp,
             method="POST",
         )
@@ -214,7 +289,7 @@ class Maoto(FastAPI):
         obj_type: type[Skill | OfferCallable | OfferReference] | None = None,
         id: uuid.UUID | None = None,
         solver_id: uuid.UUID | None = None,
-    ) -> bool:
+    ):
         """
         Unregister a Skill, OfferCallable, or OfferReference to make it unavailable.
 
@@ -244,29 +319,25 @@ class Maoto(FastAPI):
         >>> await maoto.unregister(obj=my_skill)
         >>> await maoto.unregister(obj_type=Skill, id=UUID("abc123"))
         """
-        if obj:
-            obj_type, obj_id = type(obj), obj.id
-        elif obj_type and (id or solver_id):
-            obj_id = id or solver_id
-        else:
-            raise ValueError("Either obj or obj_type and id/solver_id must be provided.")
 
-        # check types of provided parameters if they are defined (optionals)
-        if obj_type and obj_id:
+        if obj:
+            if not isinstance(obj, (Skill, OfferCallable, OfferReference)):
+                raise ValueError("Input must be one of: Skill, OfferCallable, OfferReference.")
+            obj_type = type(obj)
+            param = f"id={obj.id}"
+        elif (id or solver_id) and obj_type:
+            if not isinstance(id, uuid.UUID) and not isinstance(solver_id, uuid.UUID):
+                raise ValueError("ID or solver_id must be a valid UUID.")
             if obj_type not in {Skill, OfferCallable, OfferReference}:
                 raise ValueError(
                     "Unsupported type. Must be one of: Skill, OfferCallable, OfferReference."
                 )
-            if not isinstance(obj_id, uuid.UUID):
-                raise ValueError("ID must be a valid UUID.")
-        elif obj:
-            if not isinstance(obj, (Skill, OfferCallable, OfferReference)):
-                raise ValueError("Input must be one of: Skill, OfferCallable, OfferReference.")
+            param = f"id={id}" if id else f"solver_id={solver_id}"
+        else:
+            raise ValueError("Either obj or (obj_type and id/solver_id) must be provided.")
 
-        return await self._request(
-            input={"id": str(obj_id)},
-            result_type=bool,
-            route=f"unregister{obj_type.__name__}",
+        await self._request(
+            route=f"unregister{obj_type.__name__}?{param}",
             url=self._settings.url_mp,
             method="POST",
         )
@@ -277,7 +348,7 @@ class Maoto(FastAPI):
         | NewOfferCallResponse
         | NewOfferCallableCostResponse
         | NewOfferReferenceCostResponse,
-    ) -> bool:
+    ):
         """
         Send a response object to the Marketplace to complete a request or update its status.
 
@@ -332,7 +403,6 @@ class Maoto(FastAPI):
 
         await self._request(
             input=obj,
-            result_type=bool,
             route=f"{type(obj).__name__}",
             url=self._settings.url_mp,
             method="POST",
@@ -432,7 +502,7 @@ class Maoto(FastAPI):
         return await self._request(
             result_type=type_ref,
             is_list=True,
-            route=f"get{type_ref.__name__}",
+            route=f"get{type_ref.__name__}s",
             url=self._settings.url_mp,
             method="GET",
         )
@@ -508,7 +578,7 @@ class Maoto(FastAPI):
         return await self._request(
             input=new_offercall,
             result_type=OfferCall,
-            route="sendNewOfferCall",
+            route="NewOfferCall",
             url=self._settings.url_mp,
             method="POST",
         )
@@ -535,14 +605,14 @@ class Maoto(FastAPI):
         --------
         >>> await maoto.set_webhook("https://agent.example.com/webhook")
         """
-        if not url:
-            env_url = os.getenv("MAOTO_AGENT_URL")
-            if not env_url:
-                raise ValueError("No URL provided in environment variable MAOTO_AGENT_URL.")
-            url = HttpUrl(env_url)
+
+        if not (url or self._settings.agent_url):
+            raise ValueError(
+                "No URL provided. Please set MAOTO_AGENT_URL in your environment variables or pass a URL as an argument."
+            )
 
         return await self._request(
-            input={"url": str(url)},
+            input={"url": str(url or self._settings.agent_url)},
             result_type=str,
             route="setWebhook",
             url=self._settings.url_mp,

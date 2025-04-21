@@ -1,8 +1,9 @@
+import json
 from abc import ABC
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr
+from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr, field_validator
 
 
 class NewUser(BaseModel):
@@ -37,13 +38,10 @@ class ApiKeyWithSecret(ApiKey):
     value: SecretStr
 
 
-class NewResponse(BaseModel):
+class IntentResponse(BaseModel):
     intent_id: UUID
+    provider_id: str
     description: str
-
-
-class IntentResponse(NewResponse):
-    pass
 
 
 class NewOfferCallResponse(BaseModel):
@@ -54,12 +52,14 @@ class NewOfferCallResponse(BaseModel):
 
 class OfferCallResponse(NewOfferCallResponse):
     id: UUID
+    provider_id: str
     time: datetime
     apikey_id: UUID
 
 
 class NewIntent(BaseModel):
     description: str
+    provider_id: str | None
     tags: list[str]
 
 
@@ -72,12 +72,19 @@ class Intent(NewIntent):
 
 
 class NewOffer(BaseModel, ABC):
-    resolver_id: UUID | None
+    solver_id: UUID | None
     description: str
     params: dict
     tags: list[str]
     followup: bool
     cost: float | None
+
+    @field_validator("params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class Offer(NewOffer, ABC):
@@ -105,8 +112,15 @@ class OfferReference(Offer):
 class NewSkill(BaseModel):
     description: str
     params: dict
-    resolver_id: UUID | None
+    solver_id: UUID | None
     tags: list[str]
+
+    @field_validator("params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class Skill(NewSkill):
@@ -121,13 +135,13 @@ class MissingInfo(BaseModel):
 
 class OfferCallableCostRequest(BaseModel):
     offercallable_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
     intent: Intent
 
 
 class OfferReferenceCostRequest(BaseModel):
     offerreference_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
     intent: Intent
 
 
@@ -154,7 +168,7 @@ class OfferReferenceCostResponse(NewOfferReferenceCostResponse):
 
 class OfferRequest(BaseModel):
     skill_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
     intent: Intent
 
 
@@ -175,15 +189,23 @@ class OfferResponse(NewOfferResponse):
 
 class NewOfferCall(BaseModel):
     offercallable_id: UUID
+    provider_id: str | None
     deputy_apikey_id: UUID | None
     args: dict
+
+    @field_validator("args", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class OfferCall(NewOfferCall):
     id: UUID
     time: datetime
     apikey_id: UUID
-    resolver_id: UUID | None
+    solver_id: UUID | None
 
 
 class NewFile(BaseModel):
@@ -270,6 +292,13 @@ class LoginUserRequest(BaseModel):
     password: SecretStr
     query_params: dict
 
+    @field_validator("query_params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
+
 
 class LoginUserResponse(BaseModel):
     token: str
@@ -280,10 +309,24 @@ class RegisterUserRequest(BaseModel):
     password: SecretStr
     query_params: dict
 
+    @field_validator("query_params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
+
 
 class EmailVerif(BaseModel):
     token: SecretStr
     query_params: dict
+
+    @field_validator("query_params", mode="before")
+    @classmethod
+    def ensure_dict(cls, value) -> dict:
+        if isinstance(value, dict):
+            return value
+        return json.loads(str(value))
 
 
 class RegisterUserResponse(BaseModel):

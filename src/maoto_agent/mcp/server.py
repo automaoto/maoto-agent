@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi_mcp import add_mcp_server
+from fastapi_mcp import FastApiMCP
 
 from .mcp_settings import MCPSettings
 
@@ -18,15 +18,22 @@ class MCPServer:
         """
         self._settings = settings or MCPSettings()
 
-        self._server = add_mcp_server(
+        # Create the MCP server
+        self._mcp = FastApiMCP(
             app,
-            mount_path=self._settings.mcp_mount_path,
             name=self._settings.mcp_name,
             description=self._settings.mcp_description,
-            base_url=self._settings.url_mp,  # Inherited from AgentSettings
+            base_url=self._settings.url_mp,
             describe_all_responses=self._settings.mcp_describe_all_responses,
             describe_full_response_schema=self._settings.mcp_describe_full_response_schema,
+            include_operations=self._settings.mcp_include_operations,
+            exclude_operations=self._settings.mcp_exclude_operations,
+            include_tags=self._settings.mcp_include_tags,
+            exclude_tags=self._settings.mcp_exclude_tags,
         )
+
+        # Mount the MCP server
+        self._mcp.mount()
 
     def add_tool(self, func):
         """
@@ -37,12 +44,19 @@ class MCPServer:
         func : callable
             The function to add as a tool
         """
-        return self._server.tool()(func)
+        return self._mcp.tool()(func)
+
+    def refresh(self):
+        """
+        Refresh the MCP server to include any new endpoints that were added
+        after the server was created.
+        """
+        self._mcp.setup_server()
 
     @property
-    def server(self):
-        """Get the underlying MCP server instance."""
-        return self._server
+    def mcp(self) -> FastApiMCP:
+        """Get the underlying FastApiMCP instance."""
+        return self._mcp
 
     @property
     def settings(self) -> MCPSettings:
