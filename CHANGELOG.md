@@ -1,51 +1,63 @@
-## maoto-agent 0.1.1 Release Notes
+# Release Notes
+
+## 0.2.0
 
 ### New Features
 
-* **feat(mcp):** Add support for Model Context Protocol (MCP) via the `maoto-agent[mcp]` extra.  This allows exposing FastAPI endpoints as MCP tools.  Includes an MCP inspector for testing and viewing tools.  (Requires installing `fastapi-mcp` and `mcp`.)
-* **feat(agent_url):** Add `agent_url` parameter to `AgentSettings` for flexible webhook URL configuration. Now you can set the URL for the webhook either using environment variables or the `agent_url` parameter.
+* **feat(mcp):** Add optional MCP support.  Install with `pip install "maoto-agent[mcp]"`.  Includes an MCP inspector for testing.
+* **feat(agent):** Add optional `agent_url` setting to `AgentSettings` for flexible webhook URLs. Can be set via environment variable `MAOTO_AGENT_URL`.
+* **feat(app):** Add favicon to the application.
+* **feat(app):** Serve static files from `/static` and include a default `/favicon.ico`.
+* **feat(response):** Include `provider_id` field in `IntentResponse` and `OfferCallResponse`.
+* **feat(offer):** Add `solver_id` field to `NewOffer` and `NewSkill` (replaces `resolver_id`).
+* **feat(offer):** Add field validator to `NewOffer.params` and `NewSkill.params` to ensure it's a dict.
+* **feat(query_params):** Add field validator to  `LoginUserRequest.query_params`, `RegisterUserRequest.query_params`, and `EmailVerif.query_params` to ensure they are dicts.
+* **feat(offercall):** Add `provider_id` field to `NewOfferCall` and include field validator to `NewOfferCall.args` to ensure it's a dict.
+* **feat(agent):** Update `_request` to return `None` when `result_type` is `None`
+
 
 ### Changed
 
-* **chore(README):**  Improved README.md with  installation instructions for MCP support, using the MCP inspector, and improved descriptions of features. Added checkmarks to the key features list.
-* **chore(domain_pa):** Updated the `domain_pa` in `AgentSettings` from `"pa.maoto.world"` to `"assistant.maoto.world"`.
-* **chore(url_mp & url_pa):** Updated `url_mp` and `url_pa` in `AgentSettings` to use `HttpUrl` type and added trailing slashes for consistency.
-* **chore(app_types):** Updated `NewOffer`, `NewSkill`, `NewOfferCall`, `LoginUserRequest` and `RegisterUserRequest` classes to handle `json` input properly for fields `params` and `query_params`. This improves compatibility and avoids parsing errors.
-* **chore(maoto_agent):** Updated the `register` function to handle potential exceptions from HTTP requests more gracefully and provides more informative error messages.  It uses `safe_urljoin` to handle URL joining and adds an additional check for unsupported types.
-* **chore(maoto_agent):** Improved logging and error handling in the `_request` method, including more detailed error reporting for HTTP status errors and error message formatting.
-* **chore(maoto_agent):** Updated `unregister` method to accept either an object or ID for flexibility. The endpoint now accepts both 'id' and 'solver_id' parameters to unregister based on different criteria.
-* **chore(maoto_agent):** The `send_intent` function now uses the class name as the route for improved clarity.
-* **chore(maoto_agent):** Refactored error handling in `_request`, providing more detailed information about HTTP errors. Also included `_safe_urljoin` to properly handle URL concatenation.
-* **chore(maoto_agent):** Added `/favicon.ico` endpoint serving a favicon.ico file.
-* **chore(maoto_agent):**  Added static file serving to serve the icons in the static directory. The `register_handler` function now includes a description for each supported event type in the documentation.
+* **change(agent):**  Improve error handling in `_request` for better detail and clarity in HTTP errors.
+* **chore(agent):** Use `safe_urljoin` in `_request` to correctly handle base URL and routes.
+* **change(agent):** Rename `resolver_id` to `solver_id` across all relevant types and endpoints.
+* **chore(agent):** Update `send_newoffercall` to take `NewOfferCall` as an argument.
+* **chore(agent):**  Refactor `send_response` to handle multiple response types.
+* **chore(agent):** Simplify `unregister` to accept either object or id/solver_id parameters.
+* **change(domain):** Update `domain_pa` to `assistant.maoto.world`.
+* **chore(agent):**  Refactor `send_intent` to handle `NewIntent` objects more cleanly.
+* **chore(agent):** Change `unregister` route to use `GET` method.
+* **chore(settings):** Change the `mcp_describe_all_responses` and `mcp_describe_full_response_schema` default values to `True` in `MCPSettings`.
+* **chore(mcp):** Rename `server` property to `mcp` in `MCPServer` class.
+* **chore(mcp):** Rename `add_tool` function to `tool` in `MCPServer` class.
+* **chore(mcp):** Add `refresh` function to `MCPServer` class.
+* **chore(mcp):** Add `include_operations`, `exclude_operations`, `include_tags`, and `exclude_tags` to `MCPSettings`.
+* **chore(mcp):** Add documentation to `__init__.py`.
+* **chore(app):**  Refactor handler registration to use `async` functions.
+* **chore(gitignore):** Add `*.wrkbranch` to `.gitignore`.
 
-
-
-### Added
-
-* **feat(static):** Added `static` directory with `favicon.ico` for improved branding.
-* **feat(mcp_settings):** Added `mcp_include_operations`, `mcp_exclude_operations`, `mcp_include_tags`, and `mcp_exclude_tags` to `MCPSettings` for more fine-grained control over which endpoints are exposed as MCP tools. Default values for `mcp_describe_all_responses` and `mcp_describe_full_response_schema` are set to `True`.
 
 ### Deprecated
 
-* None
+* **deprecate(agent):**  The `register_handler` function now uses `async` functions for event handling.
 
 ### Removed
 
-* None
+* **remove(agent):** Remove unnecessary `input` and `type_ref` parameters in `unregister` and `refund_offercall` methods.
+
 
 ### Fixed
 
-* None
+* **fix(agent):**  Resolve error in handling `bool` results in `_request`.
+* **fix(agent):**  Fix potential race condition in the `unregister` function.
 
-### Security
 
-* None
 
 ### Other Changes
 
-* **deps:** Updated dependencies to include: `fastapi_mcp>=0.1.7`, `mcp>=1.6.0` (required for MCP support).  The project now uses `importlib.resources` instead of `importlib_resources` for improved compatibility and clarity.
-* **docs(app_types):** Improved the documentation of the type hints to enhance code clarity.
+* **docs:** Add DEV readme with instructions on using ruff.
+* **docs:** Update README with instructions for using the MCP inspector and installation using the `[mcp]` extra.
+* **dev:** Add `git-rebase-wrk.sh.sh` script for managing branches and rebasing.
 
 
 
