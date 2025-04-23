@@ -6,7 +6,6 @@ __pycache__/
 *.DS_Store
 *.lock
 *.ruff_cache
-*.wrkbranch
 
 work_dir_*
 *.env

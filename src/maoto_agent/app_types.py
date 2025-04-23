@@ -349,3 +349,14 @@ class Url(BaseModel):
 
 class SessionToken(BaseModel):
     token: SecretStr
+
+
+class NewRefCode(BaseModel):
+    value: str
+    offercallable_id: UUID
+
+
+class RefCode(NewRefCode):
+    id: UUID
+    apikey_id: UUID
+    time: datetime

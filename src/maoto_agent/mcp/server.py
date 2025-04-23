@@ -5,7 +5,7 @@ from .mcp_settings import MCPSettings
 
 
 class MCPServer:
-    def __init__(self, app: FastAPI, settings: MCPSettings | None = None):
+    def __init__(self, app: FastAPI):
         """
         Initialize the MCP server with the given FastAPI app.
 
@@ -16,20 +16,21 @@ class MCPServer:
         settings : MCPSettings, optional
             MCP-specific settings. If not provided, will use default settings.
         """
-        self._settings = settings or MCPSettings()
+
+        self._settings = MCPSettings()
 
         # Create the MCP server
         self._mcp = FastApiMCP(
             app,
-            name=self._settings.mcp_name,
-            description=self._settings.mcp_description,
-            base_url=self._settings.url_mp,
-            describe_all_responses=self._settings.mcp_describe_all_responses,
-            describe_full_response_schema=self._settings.mcp_describe_full_response_schema,
-            include_operations=self._settings.mcp_include_operations,
-            exclude_operations=self._settings.mcp_exclude_operations,
-            include_tags=self._settings.mcp_include_tags,
-            exclude_tags=self._settings.mcp_exclude_tags,
+            name=str(self._settings.name),
+            description=str(self._settings.description),
+            # base_url=self._settings.agent.url_mp,
+            describe_all_responses=self._settings.describe_all_responses,
+            describe_full_response_schema=self._settings.describe_full_response_schema,
+            # include_operations=self._settings.include_operations,
+            # exclude_operations=self._settings.exclude_operations,
+            # include_tags=self._settings.include_tags,
+            # exclude_tags=self._settings.exclude_tags,
         )
 
         # Mount the MCP server
