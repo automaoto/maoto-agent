@@ -24,13 +24,13 @@ class MCPServer:
             app,
             name=str(self._settings.name),
             description=str(self._settings.description),
-            #base_url=self._settings.agent.url_mp,
+            # base_url=self._settings.agent.url_mp,
             describe_all_responses=self._settings.describe_all_responses,
             describe_full_response_schema=self._settings.describe_full_response_schema,
-            #include_operations=self._settings.include_operations,
-            #exclude_operations=self._settings.exclude_operations,
-            #include_tags=self._settings.include_tags,
-            #exclude_tags=self._settings.exclude_tags,
+            # include_operations=self._settings.include_operations,
+            # exclude_operations=self._settings.exclude_operations,
+            # include_tags=self._settings.include_tags,
+            # exclude_tags=self._settings.exclude_tags,
         )
 
         # Mount the MCP server

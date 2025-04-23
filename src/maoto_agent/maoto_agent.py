@@ -157,11 +157,11 @@ class Maoto(FastAPI):
             request_kwargs["json"] = input.model_dump(mode="json")
         elif isinstance(input, dict):
             request_kwargs["json"] = input
-        
+
         if isinstance(params, BaseModel):
-            params = (params.model_dump(mode="json"))
+            params = params.model_dump(mode="json")
         elif isinstance(params, dict):
-            request_kwargs["params"] = (params) 
+            request_kwargs["params"] = params
 
         async with httpx.AsyncClient() as client:
             response = await client.request(method, str(full_url), **request_kwargs)
@@ -695,7 +695,7 @@ class Maoto(FastAPI):
         Creates a new reference code to the assistant.
         Parameters
         ----------
-        new_refcode : 
+        new_refcode :
             The reference code to add.
         """
         if not isinstance(new_refcode, NewRefCode):
@@ -709,11 +709,7 @@ class Maoto(FastAPI):
             method="POST",
         )
 
-    async def delete_refcode(
-        self,
-        value: str | None = None,
-        offercallable_id: UUID | None = None
-    ):
+    async def delete_refcode(self, value: str | None = None, offercallable_id: UUID | None = None):
         """
         Delete a reference code from the assistant.
         Parameters
@@ -732,4 +728,3 @@ class Maoto(FastAPI):
             url=self._settings.url_pa,
             method="DELETE",
         )
-        

@@ -1,10 +1,7 @@
 from pydantic import Field
-from pydantic_settings import BaseSettings
-
-from ..agent_settings import AgentSettings
 
 
-class MCPSettings():
+class MCPSettings:
     mount_path: str = Field(default="/mcp", description="The path to mount the MCP server at")
     name: str = Field(default="Maoto Agent MCP", description="The name of the MCP server")
     description: str = Field(
