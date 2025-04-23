@@ -1,10 +1,6 @@
 name: Publish Python 🐍 distribution 📦
 
 on:
-  workflow_run:
-    workflows: ["Lint and Format"]
-    types:
-      - completed
   push:
     tags:
       - 'v*'

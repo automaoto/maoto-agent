@@ -54,43 +54,10 @@ The package provides convenient access to the [MAOTO](https://maoto.world) agent
 pip install maoto-agent
 ```
 
-### With MCP Support
+### MCP Support
 ```bash
 pip install "maoto-agent[mcp]"
 ```
-
-### Using MCP Inspector
-After installing with MCP support, you can use the MCP inspector to view and test your MCP tools:
-
-1. Start your FastAPI application with MCP enabled:
-```python
-from maoto_agent.maoto_agent import Maoto
-from maoto_agent.mcp import MCPServer
-from pydantic import SecretStr
-
-# Create the FastAPI app with required API key
-app = Maoto(apikey=SecretStr("your-api-key-here"))  # Replace with your actual API key
-mcp = MCPServer(app)
-```
-
-2. Run your application using the correct module path and class name:
-```bash
-# Set the API key as an environment variable, the below is just an example
-export MAOTO_APIKEY="your-api-key-here"
-uvicorn src.maoto_agent.maoto_agent:Maoto --reload
-```
-
-3. Open the MCP inspector in your browser:
-```bash
-# use the correct path based on the app created
-npx @modelcontextprotocol/inspector python -m src.maoto_agent.mcp.server
-```
-
-This will open a web interface where you can:
-- View all available MCP tools
-- Test tools with different parameters
-- View tool documentation and schemas
-- Monitor tool execution
 
 ### Using conda (conda-forge)
 ```bash

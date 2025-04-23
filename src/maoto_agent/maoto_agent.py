@@ -143,6 +143,7 @@ class Maoto(FastAPI):
         self,
         method: Literal["GET", "POST", "PUT", "DELETE"],
         input: BaseModel | dict | None = None,
+        params: dict | None = None,
         result_type: type | None = None,
         is_list: bool = False,
         route: str | None = None,
@@ -152,15 +153,15 @@ class Maoto(FastAPI):
         full_url = url if not route else self.safe_urljoin(url, route)
         request_kwargs = {"headers": self._headers}
 
-        if method in {"POST", "PUT"}:
-            if isinstance(input, BaseModel):
-                request_kwargs["json"] = input.model_dump(mode="json")
-            elif isinstance(input, dict):
-                request_kwargs["json"] = input
-            elif input is None:
-                pass
-            else:
-                raise Exception("Invalid input type for requests.")
+        if isinstance(input, BaseModel):
+            request_kwargs["json"] = input.model_dump(mode="json")
+        elif isinstance(input, dict):
+            request_kwargs["json"] = input
+        
+        if isinstance(params, BaseModel):
+            params = (params.model_dump(mode="json"))
+        elif isinstance(params, dict):
+            request_kwargs["params"] = (params) 
 
         async with httpx.AsyncClient() as client:
             response = await client.request(method, str(full_url), **request_kwargs)
@@ -621,7 +622,7 @@ class Maoto(FastAPI):
 
     async def send_to_assistant(
         self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest
-    ) -> bool:
+    ):
         """
         Send a supported object to the Assistant service via GraphQL.
 
@@ -659,10 +660,76 @@ class Maoto(FastAPI):
                 "Input must be one of: PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest."
             )
 
-        return await self._request(
+        await self._request(
             input=obj,
-            result_type=bool,
             route=f"{type(obj).__name__}",
             url=self._settings.url_pa,
             method="POST",
         )
+
+    async def get_refcodes(self) -> list[RefCode]:
+        """
+        Retrieve all reference codes associated with this agent.
+
+        Returns
+        -------
+        list[RefCode]
+            A list of reference codes.
+
+        Examples
+        --------
+        >>> refcodes = await maoto.get_refcodes()
+        >>> for code in refcodes:
+        >>>     print(code.value)
+        """
+        return await self._request(
+            result_type=RefCode,
+            is_list=True,
+            route="RefCodes",
+            url=self._settings.url_pa,
+            method="GET",
+        )
+
+    async def create_refcode(self, new_refcode: NewRefCode):
+        """
+        Creates a new reference code to the assistant.
+        Parameters
+        ----------
+        new_refcode : 
+            The reference code to add.
+        """
+        if not isinstance(new_refcode, NewRefCode):
+            raise ValueError("Input must be a NewRefCode object.")
+
+        await self._request(
+            input=new_refcode,
+            result_type=NewRefCode,
+            route="NewRefCode",
+            url=self._settings.url_pa,
+            method="POST",
+        )
+
+    async def delete_refcode(
+        self,
+        value: str | None = None,
+        offercallable_id: UUID | None = None
+    ):
+        """
+        Delete a reference code from the assistant.
+        Parameters
+        ----------
+        refcode : str, optional
+            The reference code to delete.
+        offercallable_id : UUID, optional
+            The ID of the offer callable associated with the reference code.
+        """
+        if not value and not offercallable_id:
+            raise ValueError("Either refcode or offercallable_id must be provided.")
+
+        await self._request(
+            params={"value": str(value)} if value else {"offercallable_id": str(offercallable_id)},
+            route="RefCode",
+            url=self._settings.url_pa,
+            method="DELETE",
+        )
+        
