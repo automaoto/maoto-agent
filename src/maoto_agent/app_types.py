@@ -33,10 +33,8 @@ class ApiKey(NewApiKey):
     id: UUID
     time: datetime
 
-
 class ApiKeyWithSecret(ApiKey):
     value: SecretStr
-
 
 class IntentResponse(BaseModel):
     intent_id: UUID

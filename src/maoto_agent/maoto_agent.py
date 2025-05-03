@@ -6,17 +6,20 @@ from typing import Literal
 from urllib.parse import urljoin
 
 import httpx
-from fastapi import FastAPI, Response
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request, Header, HTTPException, Depends, APIRouter
+import hmac
+import hashlib
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from typing import Sequence
 from pydantic import BaseModel, HttpUrl
 
 from .agent_settings import AgentSettings
 from .app_types import *
 
 
-class Maoto(FastAPI):
+class Maoto(FastAPI):    
     def __init__(self, apikey: SecretStr | None = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -29,27 +32,42 @@ class Maoto(FastAPI):
 
         logger.remove()
 
-        @self.get("/healthz")
-        async def healthz_check():
-            return Response(status_code=200, content="OK")
-
-        @self.get("/health")
-        async def human_health_check():
-            return Response(status_code=200, content="OK")
-
-        # Serve the icons statically
-        static_path = files("maoto_agent").joinpath("static")
-        self.mount("/static", StaticFiles(directory=static_path), name="static")
-
-        @self.get("/favicon.ico", include_in_schema=False)
-        async def favicon():
-            return FileResponse(static_path / "favicon.ico")
+        self._setup_routes()
 
         self._version = version("maoto_agent")
         self._headers = {
             "Authorization": self._settings.apikey.get_secret_value(),
             "Version": self._version,
         }
+
+        self.supported_event_types = {
+                OfferCall: "Represents a request to initiate an offer-related call or interaction.",
+                OfferRequest: "Represents a request to fetch or create an offer.",
+                OfferCallableCostRequest: "Used to retrieve the cost of a callable offer.",
+                OfferReferenceCostRequest: "Used to retrieve the cost based on a reference offer.",
+                IntentResponse: "Captures the outcome or interpretation of a user's intent.",
+                OfferCallResponse: "Contains the response data from an offer call interaction.",
+                PaymentRequest: "Used to initiate a payment process for a service or product.",
+                LinkConfirmation: "Confirms that the user linked his UI id with a maoto account.",
+                PAUserMessage: "A message directed to the user in the personal assistant flow.",
+                PALocationRequest: "Asks the UI to share or request the user's location.",
+                PALinkUrl: "Requests the user to login before calling an action that has cost associated.",
+                PAPaymentRequest: "Personal assistant version of a payment request, possibly with more context or user-specific handling.",
+            }
+
+    def _setup_routes(self):
+        @self.get("/healthz", include_in_schema=False)
+        async def healthz_check():
+            return {"status":"ok"}
+
+        @self.get("/health", include_in_schema=False)
+        async def human_health_check():
+            return {"status":"ok"}
+
+        static_path = files("maoto_agent").joinpath("assets")
+        @self.get("/favicon.ico", include_in_schema=False)
+        async def favicon():
+            return FileResponse(static_path / "favicon.ico")
 
     def register_handler(
         self,
@@ -94,33 +112,20 @@ class Maoto(FastAPI):
         """
 
         def decorator(func):
-            supported_types = {
-                OfferCall: "Represents a request to initiate an offer-related call or interaction.",
-                OfferRequest: "Represents a request to fetch or create an offer.",
-                OfferCallableCostRequest: "Used to retrieve the cost of a callable offer.",
-                OfferReferenceCostRequest: "Used to retrieve the cost based on a reference offer.",
-                IntentResponse: "Captures the outcome or interpretation of a user's intent.",
-                OfferCallResponse: "Contains the response data from an offer call interaction.",
-                PaymentRequest: "Used to initiate a payment process for a service or product.",
-                LinkConfirmation: "Confirms that the user linked his UI id with a maoto account.",
-                PAUserMessage: "A message directed to the user in the personal assistant flow.",
-                PALocationRequest: "Asks the UI to share or request the user's location.",
-                PALinkUrl: "Requests the user to login before calling an action that has cost associated.",
-                PAPaymentRequest: "Personal assistant version of a payment request, possibly with more context or user-specific handling.",
-            }
-            if event_type not in supported_types.keys():
+            if event_type not in self.supported_event_types.keys():
                 raise ValueError(
-                    f"Unsupported event type: {event_type}. Supported types are: {supported_types}"
+                    f"Unsupported event type: {event_type}. Supported types are: {self.supported_event_types}"
                 )
 
             async def instant_response(input: event_type):
                 asyncio.create_task(func(input))
 
             self.add_api_route(
+                dependencies=[Depends(self._verify_hmac)],
                 path=f"/{event_type.__name__}",
                 endpoint=instant_response,
                 summary=f"Handle {event_type.__name__} events",
-                description=supported_types[event_type],
+                description=self.supported_event_types[event_type],
                 methods=["POST"],
                 response_model=None,
             )
@@ -138,6 +143,24 @@ class Maoto(FastAPI):
             base_str += "/"
         full_path = "/".join(segment.strip("/") for segment in paths)
         return urljoin(base_str, full_path)
+
+    @staticmethod
+    def _make_signature(method: str, path: str, ts: str, body: bytes | None, secret: SecretStr) -> str:
+        if body is None:
+            body = b""
+        signing_str = f"{ts}|{method.upper()}|{path}|".encode() + body
+        return hmac.new(secret.get_secret_value().encode(), signing_str, hashlib.sha256).hexdigest()
+
+    async def _verify_hmac(
+        self,
+        request: Request,
+        signature: str = Header(..., alias="Signature"),
+        timestamp: str  = Header(..., alias="Timestamp"),
+    ):
+        body = await request.body()
+        expected = self._make_signature(request.method, request.url.path, timestamp, body, self._settings.apikey_hashed)
+        if not hmac.compare_digest(expected, signature):
+            raise HTTPException(403, "Invalid signature")
 
     async def _request(
         self,
@@ -163,10 +186,19 @@ class Maoto(FastAPI):
         elif isinstance(params, dict):
             request_kwargs["params"] = params
 
-        async with httpx.AsyncClient() as client:
-            response = await client.request(method, str(full_url), **request_kwargs)
+        MAX_RETRIES = 3
+        RETRY_DELAY = 1  # in seconds
+
+        for attempt in range(1, MAX_RETRIES + 1):
             try:
-                response.raise_for_status()
+                async with httpx.AsyncClient() as client:
+                    response = await client.request(method, str(full_url), **request_kwargs)
+                    response.raise_for_status()
+                break  # success
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError) as conn_exc:
+                if attempt == MAX_RETRIES:
+                    raise
+                await asyncio.sleep(RETRY_DELAY)
             except httpx.HTTPStatusError as exc:
                 # Original HTTPX message, e.g. "429 Too Many Requests…"
                 orig = str(exc)

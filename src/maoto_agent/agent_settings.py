@@ -1,4 +1,5 @@
 from functools import cached_property
+import hashlib
 
 from pydantic import HttpUrl, SecretStr
 from pydantic_settings import BaseSettings
@@ -25,11 +26,16 @@ class AgentSettings(BaseSettings):
 
     @cached_property
     def url_mp(self) -> HttpUrl:
-        return HttpUrl(f"{self.protocol}://{self.domain_mp}:{self.port_mp}/mp/")
+        return HttpUrl(f"{self.protocol}://{self.domain_mp}:{self.port_mp}/")
 
     @cached_property
     def url_pa(self) -> HttpUrl:
-        return HttpUrl(f"{self.protocol}://{self.domain_pa}:{self.port_pa}/assistant/")
+        return HttpUrl(f"{self.protocol}://{self.domain_pa}:{self.port_pa}/")
+    
+    @cached_property
+    def apikey_hashed(self):
+        hashed = hashlib.sha256(self.apikey.get_secret_value().encode()).hexdigest()
+        return SecretStr(hashed)        
 
     class Config:
         env_prefix = "MAOTO_"
