@@ -4,14 +4,15 @@ permissions:
   contents: write
 
 on:
-  push:
+  pull_request:
     branches:
-      - main
-    tags-ignore:
-      - 'v*'
-      
+      - master
+  workflow_dispatch:
+
 jobs:
   call-workflow:
     uses: lennardkorte/auto-release-notes/.github/workflows/auto_release_notes.yml@main
+    with:
+      path: ./src
     secrets:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
