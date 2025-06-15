@@ -53,6 +53,8 @@ class Maoto(FastAPI):
                 PALocationRequest: "Asks the UI to share or request the user's location.",
                 PALinkUrl: "Requests the user to login before calling an action that has cost associated.",
                 PAPaymentRequest: "Personal assistant version of a payment request, possibly with more context or user-specific handling.",
+                ChatRequest: "A request to send a chat blocks to the assistant.",
+                ChatResponse: "The response from the assistant to a chat request."
             }
 
     def _setup_routes(self):
@@ -84,6 +86,7 @@ class Maoto(FastAPI):
             | PAUserMessage
             | PALinkUrl
             | PAPaymentRequest
+            | ChatResponse
         ],
     ):
         """
@@ -157,10 +160,11 @@ class Maoto(FastAPI):
         signature: str = Header(..., alias="Signature"),
         timestamp: str  = Header(..., alias="Timestamp"),
     ):
-        body = await request.body()
-        expected = self._make_signature(request.method, request.url.path, timestamp, body, self._settings.apikey_hashed)
-        if not hmac.compare_digest(expected, signature):
-            raise HTTPException(403, "Invalid signature")
+        if self._settings.verify_signatures is True:
+            body = await request.body()
+            expected = self._make_signature(request.method, request.url.path, timestamp, body, self._settings.apikey_hashed)
+            if not hmac.compare_digest(expected, signature):
+                raise HTTPException(403, "Invalid signature")
 
     async def _request(
         self,
@@ -539,47 +543,7 @@ class Maoto(FastAPI):
             url=self._settings.url_mp,
             method="GET",
         )
-
-    async def refund_offercall(
-        self, offercall: OfferCall | None = None, id: uuid.UUID | None = None
-    ) -> bool:
-        """
-        Refund an OfferCall due to an error, cancellation, or other issues.
-
-        Parameters
-        ----------
-        offercall : OfferCall, optional
-            The OfferCall object to refund.
-        id : uuid.UUID, optional
-            The ID of the OfferCall.
-
-        Returns
-        -------
-        bool
-            True if the refund was successful.
-
-        Raises
-        ------
-        ValueError
-            If neither an object nor ID is provided.
-
-        Examples
-        --------
-        >>> await maoto.refund_offercall(id=UUID("abc123"))
-        >>> await maoto.refund_offercall(offercall=some_offercall)
-        """
-        offercallid = (offercall.id if offercall else None) or id
-        if not offercallid:
-            raise ValueError("Either offercall or id must be provided.")
-
-        return await self._request(
-            input={"id": str(offercallid)},
-            result_type=bool,
-            route="refundOfferCall",
-            url=self._settings.url_mp,
-            method="POST",
-        )
-
+    
     async def send_newoffercall(self, new_offercall: NewOfferCall) -> OfferCall:
         """
         Send a new OfferCall to the Marketplace.
@@ -652,51 +616,42 @@ class Maoto(FastAPI):
             method="POST",
         )
 
-    async def send_to_assistant(
-        self, obj: PALocationResponse | PAUserResponse | PANewConversation | PASupportRequest
+    async def chat_complete(
+        self, chat_request: ChatRequest
     ):
         """
-        Send a supported object to the Assistant service via GraphQL.
+        Send a chat completion request to the PA API.
 
         Parameters
         ----------
-        obj : PALocationResponse or PAUserResponse or PANewConversation or PASupportRequest
-            The object to send. One of:
+        chat_request : ChatRequest
+            The request object containing all parameters needed for the chat completion
+            (e.g. prompt, model, temperature, max tokens, etc.).
 
-            - **PALocationResponse**
-            Sends location info from a user back to the Assistant.
-
-            - **PAUserResponse**
-            Sends a user's response back to the Assistant.
-
-            - **PANewConversation**
-            Starts a new conversation with the Assistant.
-
-            - **PASupportRequest**
-            Sends a support-related request.
+        Returns
+        -------
+        Any
+            The response returned by the underlying `_request` call. This is typically
+            a parsed object or dictionary representing the generated chat completion.
 
         Raises
         ------
         ValueError
-            If the object type is unsupported.
-
-        Examples
-        --------
-        >>> response = PAUserResponse(user_id="xyz", message="Yes")
-        >>> await maoto.send_to_assistant(response)
+            If `chat_request` is not an instance of `ChatRequest`, indicating invalid input.
         """
+
         if not isinstance(
-            obj, (PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest)
+            chat_request, ChatRequest
         ):
             raise ValueError(
-                "Input must be one of: PALocationResponse, PAUserResponse, PANewConversation, PASupportRequest."
+                "Invalid input for chat_request."
             )
 
         await self._request(
-            input=obj,
-            route=f"{type(obj).__name__}",
+            input=chat_request,
+            route=f"{ChatRequest.__name__}",
             url=self._settings.url_pa,
-            method="POST",
+            method="POST"
         )
 
     async def get_refcodes(self) -> list[RefCode]:

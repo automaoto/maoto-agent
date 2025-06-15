@@ -2,8 +2,9 @@ import json
 from abc import ABC
 from datetime import datetime
 from uuid import UUID
-
 from pydantic import BaseModel, EmailStr, HttpUrl, SecretStr, field_validator
+from typing import List, Optional, get_args
+from pydantic import Field, model_validator
 
 
 class NewUser(BaseModel):
@@ -358,3 +359,109 @@ class RefCode(NewRefCode):
     id: UUID
     apikey_id: UUID
     time: datetime
+
+
+
+
+
+
+
+class ContentBlock(BaseModel):
+    type: str
+    text: Optional[str] = None
+    parse_mode: Optional[str] = None
+    url: Optional[HttpUrl] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+    @model_validator(mode='before')
+    def validate_exactly_one(cls, values):
+        block_type = values.get('type')
+        text = values.get('text')
+        pm = values.get('parse_mode')
+        url = values.get('url')
+        lat = values.get('lat')
+        lon = values.get('lon')
+
+        if block_type is None:
+            raise ValueError('block_type is required')
+
+        # parse_mode only valid when there is text
+        if pm is not None and text is None:
+            raise ValueError('parse_mode can only be set when `text` is provided')
+
+        # validate content based on type
+        if block_type == 'text':
+            if not text:
+                raise ValueError('`text` blocks must include `text`')
+        elif block_type == 'location':
+            if lat is None or lon is None:
+                raise ValueError('`location` blocks must include `lat` and `lon`')
+        else:
+            if not url:
+                raise ValueError(f"`{block_type}` blocks must include `url`")
+
+        return values
+
+class ChatMessages(BaseModel):
+    content_blocks: List[ContentBlock] = Field(..., description="Incoming content blocks")
+    platform_user_id: str = Field(
+        None,
+        description="Account identifier",
+        examples=["123e4567-e89b-12d3-a456-426614174000"],
+    )
+    platform_channel_id: str = Field(
+        None,
+        description="Channel identifier",
+        examples=["123e4567-e89b-12d3-a456-426614174000"],
+    )
+
+class ChatResponse(ChatMessages):
+    platform_channel_token: Optional[str] = Field(
+        None,
+        description="Channel token",
+        examples=["123e4567-e89b-12d3-a456-426614174000"],
+    )
+
+class ChatRequest(ChatMessages):
+    request_mimes: Optional[dict[str, list[str]]] = Field(
+        None,
+        description="List of supported input types",
+        example={
+            "photo":      ["image/jpeg"],                                           # 
+            "document":   ["*/*"],                                                  # 
+            "video":      ["video/mp4"],                                            # 
+            "audio":      ["audio/mpeg", "audio/mp4"],                              # 
+            "voice":      ["audio/ogg; codecs=opus"],                               # 
+            "animation":  ["image/gif", "video/mp4"],                               # 
+            "sticker":    ["image/webp", "application/x-tgsticker", "video/webm"],  # 
+            "location":   ["application/json"],
+        }
+    )
+    response_mimes: Optional[dict[str, list[str]]] = Field(
+        None,
+        description="List of supported output types",
+        examples={
+            "photo":      ["image/jpeg"],                                           # 
+            "document":   ["*/*"],                                                  # 
+            "video":      ["video/mp4"],                                            # 
+            "audio":      ["audio/mpeg", "audio/mp4"],                              # 
+            "voice":      ["audio/ogg; codecs=opus", "audio/mpeg", "audio/mp4"],    # 
+            "animation":  ["image/gif", "video/mp4"],                               # 
+            "sticker":    ["image/webp", "application/x-tgsticker", "video/webm"],  # 
+            "location":   ["application/json"],
+        }
+    )
+    voice_stream: Optional[bool] = Field(
+        None,
+        description="Whether to use voice stream",
+        examples=[True],
+    )
+    text_stream: Optional[bool] = Field(
+        None,
+        description="Whether to use text stream",
+        examples=[True],
+    )
+
+        
+

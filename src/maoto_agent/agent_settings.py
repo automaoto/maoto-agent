@@ -10,6 +10,7 @@ class AgentSettings(BaseSettings):
     domain_mp: str = "mp.maoto.world"
     domain_pa: str = "assistant.maoto.world"
     use_ssl: bool = True
+    verify_signatures: bool = True
     port_mp: int = 443
     port_pa: int = 443
     apikey: SecretStr
