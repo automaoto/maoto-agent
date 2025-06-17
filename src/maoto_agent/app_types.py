@@ -10,7 +10,7 @@ from pydantic import Field, model_validator
 class NewUser(BaseModel):
     email: EmailStr
     name: str | None
-    roles: list[str]
+    role_names: list[str]
 
 
 class User(NewUser):
@@ -26,7 +26,8 @@ class NewUserWithSecret(NewUser):
 class NewApiKey(BaseModel):
     user_id: UUID
     name: str
-    roles: list[str]
+    role_names: list[str]
+    platform_id: UUID | None
     url: HttpUrl | None
 
 
@@ -408,19 +409,19 @@ class ChatMessages(BaseModel):
     platform_user_id: str = Field(
         None,
         description="Account identifier",
-        examples=["123e4567-e89b-12d3-a456-426614174000"],
+        example="123e4567-e89b-12d3-a456-426614174000",
     )
     platform_channel_id: str = Field(
         None,
         description="Channel identifier",
-        examples=["123e4567-e89b-12d3-a456-426614174000"],
+        example="123e4567-e89b-12d3-a456-426614174000",
     )
 
 class ChatResponse(ChatMessages):
     platform_channel_token: Optional[str] = Field(
         None,
         description="Channel token",
-        examples=["123e4567-e89b-12d3-a456-426614174000"],
+        example="123e4567-e89b-12d3-a456-426614174000",
     )
 
 class ChatRequest(ChatMessages):
@@ -441,7 +442,7 @@ class ChatRequest(ChatMessages):
     response_mimes: Optional[dict[str, list[str]]] = Field(
         None,
         description="List of supported output types",
-        examples={
+        example={
             "photo":      ["image/jpeg"],                                           # 
             "document":   ["*/*"],                                                  # 
             "video":      ["video/mp4"],                                            # 
@@ -455,12 +456,12 @@ class ChatRequest(ChatMessages):
     voice_stream: Optional[bool] = Field(
         None,
         description="Whether to use voice stream",
-        examples=[True],
+        example=True,
     )
     text_stream: Optional[bool] = Field(
         None,
         description="Whether to use text stream",
-        examples=[True],
+        example=True,
     )
 
         
