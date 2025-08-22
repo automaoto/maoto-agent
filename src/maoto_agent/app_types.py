@@ -404,7 +404,7 @@ class ContentBlock(BaseModel):
 
         return values
 
-class ChatMessages(BaseModel):
+class ChatBase(BaseModel):
     content_blocks: List[ContentBlock] = Field(..., description="Incoming content blocks")
     platform_user_id: str = Field(
         None,
@@ -417,18 +417,19 @@ class ChatMessages(BaseModel):
         example="123e4567-e89b-12d3-a456-426614174000",
     )
 
-class ChatResponse(ChatMessages):
+class ChatResponse(ChatBase):
     platform_channel_token: Optional[str] = Field(
         None,
         description="Channel token",
         example="123e4567-e89b-12d3-a456-426614174000",
     )
 
-class ChatRequest(ChatMessages):
+class ChatRequest(ChatBase):
     request_mimes: Optional[dict[str, list[str]]] = Field(
         None,
         description="List of supported input types",
         example={
+            "text":       ["text/plain"],                                           #
             "photo":      ["image/jpeg"],                                           # 
             "document":   ["*/*"],                                                  # 
             "video":      ["video/mp4"],                                            # 
